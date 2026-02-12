@@ -7,6 +7,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 ## 📋 **プロジェクト概要**
 
 ### **機能**
+
 - **リアルタイムチャット:** AppSync (GraphQL WebSocket) でリアルタイム更新
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
 - **AIアシスタント:** 複数の相談ボタンで AI に質問・回答を依頼
@@ -14,6 +15,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **会話管理:** 複数会話のサポート、リンク共有機能
 
 ### **技術スタック**
+
 - **フロントエンド:** React / Next.js （AWS Amplify）
 - **バックエンド:** AWS AppSync（GraphQL）、AWS Lambda
 - **ストレージ:** Amazon DynamoDB
@@ -55,6 +57,15 @@ AICHAT/
 │   │   ├── ai_support/             # AI 相談 Lambda (Bedrock 連携)
 │   │   ├── lock_manager/           # ロック管理 Lambda
 │   │   └── conversation/           # 会話管理 Lambda
+│   ├── tests/                      # ユニットテスト（pytest / moto）
+│   │   ├── conftest.py             # 共通フィクスチャ
+│   │   ├── helpers.py              # テストヘルパー
+│   │   ├── test_user_management.py
+│   │   ├── test_chat.py
+│   │   ├── test_summarizer.py
+│   │   ├── test_ai_support.py
+│   │   ├── test_lock_manager.py
+│   │   └── test_conversation.py
 │   ├── layers/                     # Lambda Layer
 │   └── requirements.txt
 ├── frontend/                       # React / Next.js フロントエンド
@@ -95,6 +106,7 @@ AICHAT/
 ## 🚀 **セットアップ手順**
 
 ### **前提条件**
+
 - Node.js 18+
 - AWS CLI v2
 - AWS Amplify CLI
@@ -124,13 +136,13 @@ cdk deploy
 
 ## 📚 **ドキュメント**
 
-| ドキュメント | 概要 |
-|-------------|------|
-| [要件定義.md](documents/要件定義.md) | 機能仕様、ユーザーフロー、UI/UX |
-| [AWSシステム構成.md](documents/AWSシステム構成.md) | アーキテクチャ、DynamoDB スキーマ、ワークフロー |
-| [.github/copilot-instructions.md](.github/copilot-instructions.md) | AI 開発プロセス憲章 |
-| [.github/skills/\*](https://github.com/popo0407/AICHAT/tree/develop/.github/skills) | 開発スキルガイド |
-| [docs/retrospective.md](docs/retrospective.md) | プロジェクト振り返り |
+| ドキュメント                                                                        | 概要                                            |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [要件定義.md](documents/要件定義.md)                                                | 機能仕様、ユーザーフロー、UI/UX                 |
+| [AWSシステム構成.md](documents/AWSシステム構成.md)                                  | アーキテクチャ、DynamoDB スキーマ、ワークフロー |
+| [.github/copilot-instructions.md](.github/copilot-instructions.md)                  | AI 開発プロセス憲章                             |
+| [.github/skills/\*](https://github.com/popo0407/AICHAT/tree/develop/.github/skills) | 開発スキルガイド                                |
+| [docs/retrospective.md](docs/retrospective.md)                                      | プロジェクト振り返り                            |
 
 ---
 
@@ -181,6 +193,7 @@ Closes #123"
 ## ✅ **開発チェックリスト**
 
 ### **フェーズ 1：要件・設計（✅ 完了）**
+
 - [x] 要件定義書作成
 - [x] AWS アーキテクチャ設計
 - [x] DynamoDB スキーマ設計（パターンB）
@@ -188,14 +201,16 @@ Closes #123"
 - [x] Git ワークフロー確立
 
 ### **フェーズ 2：バックエンド実装（✅ 完了）**
+
 - [x] CDK スタック実装（Database / Lambda / AppSync）
 - [x] DynamoDB テーブル定義（Users / Messages / Summary / Locks / Conversations）
 - [x] Lambda 関数実装（UserManagement, Chat, Summarizer, AISupport, LockManager, Conversation）
 - [x] AppSync GraphQL スキーマ＆リゾルバー定義
 - [x] Bedrock 連携（Claude Haiku 4.5 推論プロファイル / dev モック対応）
-- [ ] ユニットテスト作成
+- [x] ユニットテスト作成（pytest / moto — 89テスト全合格）
 
 ### **フェーズ 3：フロントエンド実装（✅ 基盤完了）**
+
 - [x] Next.js プロジェクト構築（App Router / TypeScript / Tailwind CSS）
 - [x] React コンポーネント構築（Login / ConversationSelect / ChatScreen）
 - [x] GraphQL クエリ・ミューテーション・サブスクリプション定義
@@ -210,6 +225,7 @@ Closes #123"
 - [ ] E2E テスト
 
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**
+
 - [ ] 統合テスト
 - [ ] セキュリティ監査
 - [ ] パフォーマンステスト
@@ -241,6 +257,6 @@ MIT License
 
 ---
 
-**プロジェクトステータス:** � 開発中（フェーズ 2・3 基盤完了）
+**プロジェクトステータス:** ð§ 開発中（フェーズ 2・3 基盤完了、バックエンドテスト完了）
 
 最終更新：2026年2月13日

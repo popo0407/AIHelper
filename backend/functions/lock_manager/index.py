@@ -7,6 +7,7 @@ Handles:
 """
 import logging
 import time
+from decimal import Decimal
 from typing import Any
 
 from common.config import get_config
@@ -65,7 +66,7 @@ def handle_get_locks(args: dict) -> list[dict]:
     active_locks = []
     for item in response.get("Items", []):
         ttl_val = item.get("ttl", 0)
-        if isinstance(ttl_val, (int, float)) and ttl_val > now:
+        if isinstance(ttl_val, (int, float, Decimal)) and int(ttl_val) > now:
             active_locks.append(item)
 
     return active_locks
@@ -100,7 +101,7 @@ def handle_acquire_lock(args: dict) -> dict[str, Any]:
 
     for existing in response.get("Items", []):
         existing_ttl = existing.get("ttl", 0)
-        if isinstance(existing_ttl, (int, float)) and existing_ttl > now:
+        if isinstance(existing_ttl, (int, float, Decimal)) and int(existing_ttl) > now:
             existing_op = existing.get("operationType", "")
             if existing_op in ("edit", "summarize"):
                 existing_user = existing.get("userId", "")
