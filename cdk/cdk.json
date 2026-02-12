@@ -1,0 +1,19 @@
+{
+  "app": "python app.py",
+  "context": {
+    "environment": "dev"
+  },
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "source.bat",
+      ".gitignore",
+      ".venv",
+      "**/__pycache__",
+      "**/*.pyc"
+    ]
+  }
+}

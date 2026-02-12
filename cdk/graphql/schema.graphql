@@ -1,0 +1,206 @@
+# ============================================================
+# AICHAT GraphQL Schema
+# ============================================================
+
+# ------ Types ------
+
+type User {
+  loginId: ID!
+  displayName: String!
+  createdAt: AWSDateTime!
+  conversationIds: [String!]
+}
+
+type Message {
+  conversationId: ID!
+  messageId: ID!
+  userId: String!
+  displayName: String!
+  content: String!
+  timestamp: AWSDateTime!
+  isUsedInSummary: Boolean
+}
+
+type Summary {
+  conversationId: ID!
+  title: String
+  current: String
+  previous: String
+  updatedAt: AWSDateTime
+  updatedBy: String
+}
+
+type Lock {
+  conversationId: ID!
+  lockType: String!
+  userId: String!
+  operationType: String!
+  startTime: AWSDateTime!
+  ttl: Int
+}
+
+type Conversation {
+  conversationId: ID!
+  createdBy: String!
+  createdAt: AWSDateTime!
+  participants: [String!]!
+  status: String!
+  shareLink: String
+  title: String
+}
+
+type Notification {
+  conversationId: ID!
+  type: String!
+  message: String!
+  userId: String
+  timestamp: AWSDateTime!
+}
+
+# ------ Inputs ------
+
+input RegisterUserInput {
+  loginId: ID!
+  displayName: String!
+}
+
+input SendMessageInput {
+  conversationId: ID!
+  userId: String!
+  content: String!
+}
+
+input UpdateSummaryInput {
+  conversationId: ID!
+  userId: String!
+  selectedMessageIds: [String!]!
+}
+
+input SaveSummaryEditInput {
+  conversationId: ID!
+  userId: String!
+  content: String!
+}
+
+input AcquireLockInput {
+  conversationId: ID!
+  userId: String!
+  operationType: String!
+}
+
+input ReleaseLockInput {
+  conversationId: ID!
+  userId: String!
+}
+
+input AskAIHelperInput {
+  conversationId: ID!
+  userId: String!
+  actionType: String!
+  userInput: String
+  selectedMessageIds: [String]
+}
+
+input CreateConversationInput {
+  createdBy: String!
+}
+
+input JoinConversationInput {
+  loginId: String!
+  conversationId: ID!
+}
+
+# ------ Responses ------
+
+type RegisterUserResponse {
+  success: Boolean!
+  user: User
+  error: String
+}
+
+type SendMessageResponse {
+  success: Boolean!
+  message: Message
+  error: String
+}
+
+type UpdateSummaryResponse {
+  success: Boolean!
+  summary: Summary
+  error: String
+}
+
+type LockResponse {
+  success: Boolean!
+  lock: Lock
+  error: String
+}
+
+type AIHelperResponse {
+  success: Boolean!
+  message: Message
+  error: String
+}
+
+type CreateConversationResponse {
+  success: Boolean!
+  conversation: Conversation
+  error: String
+}
+
+type JoinConversationResponse {
+  success: Boolean!
+  conversation: Conversation
+  error: String
+}
+
+type UndoSummaryResponse {
+  success: Boolean!
+  summary: Summary
+  error: String
+}
+
+# ------ Queries ------
+
+type Query {
+  listUsers: [User!]!
+  getUser(loginId: ID!): User
+  getConversation(conversationId: ID!): Conversation
+  listConversations(loginId: ID!): [Conversation!]!
+  listMessages(conversationId: ID!, limit: Int, nextToken: String): MessageConnection!
+  getSummary(conversationId: ID!): Summary
+  getLocks(conversationId: ID!): [Lock!]!
+}
+
+type MessageConnection {
+  items: [Message!]!
+  nextToken: String
+}
+
+# ------ Mutations ------
+
+type Mutation {
+  registerUser(input: RegisterUserInput!): RegisterUserResponse!
+  createConversation(input: CreateConversationInput!): CreateConversationResponse!
+  joinConversation(input: JoinConversationInput!): JoinConversationResponse!
+  sendMessage(input: SendMessageInput!): SendMessageResponse!
+  updateSummary(input: UpdateSummaryInput!): UpdateSummaryResponse!
+  undoSummary(conversationId: ID!): UndoSummaryResponse!
+  saveSummaryEdit(input: SaveSummaryEditInput!): UpdateSummaryResponse!
+  acquireLock(input: AcquireLockInput!): LockResponse!
+  releaseLock(input: ReleaseLockInput!): LockResponse!
+  askAIHelper(input: AskAIHelperInput!): AIHelperResponse!
+}
+
+# ------ Subscriptions ------
+
+type Subscription {
+  onNewMessage(conversationId: ID!): Message
+    @aws_subscribe(mutations: ["sendMessage"])
+  onSummaryUpdate(conversationId: ID!): Summary
+    @aws_subscribe(mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"])
+  onLockChange(conversationId: ID!): Lock
+    @aws_subscribe(mutations: ["acquireLock", "releaseLock"])
+  onNotification(conversationId: ID!): Notification
+    @aws_subscribe(mutations: ["sendMessage", "updateSummary", "acquireLock", "releaseLock"])
+}

@@ -1,0 +1,122 @@
+"""DynamoDB Tables Stack for AICHAT."""
+from aws_cdk import (
+    Stack,
+    RemovalPolicy,
+    aws_dynamodb as dynamodb,
+)
+from constructs import Construct
+
+
+class DatabaseStack(Stack):
+    """DynamoDB tables for the AICHAT application."""
+
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        env_name: str,
+        project_name: str,
+        **kwargs,
+    ) -> None:
+        super().__init__(scope, id, **kwargs)
+
+        self.env_name = env_name
+        self.project_name = project_name
+
+        removal = (
+            RemovalPolicy.DESTROY if env_name == "dev" else RemovalPolicy.RETAIN
+        )
+
+        # =========================================================
+        # Users Table  PK: loginId
+        # =========================================================
+        self.users_table = dynamodb.Table(
+            self,
+            "UsersTable",
+            table_name=f"{project_name}-{env_name}-users",
+            partition_key=dynamodb.Attribute(
+                name="loginId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
+
+        # =========================================================
+        # Messages Table  PK: conversationId, SK: messageId
+        # =========================================================
+        self.messages_table = dynamodb.Table(
+            self,
+            "MessagesTable",
+            table_name=f"{project_name}-{env_name}-messages",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="messageId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
+
+        # GSI: timestamp-based sorting for message retrieval
+        self.messages_table.add_global_secondary_index(
+            index_name="byTimestamp",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="timestamp", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )
+
+        # =========================================================
+        # Summary Table  PK: conversationId
+        # =========================================================
+        self.summary_table = dynamodb.Table(
+            self,
+            "SummaryTable",
+            table_name=f"{project_name}-{env_name}-summary",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
+
+        # =========================================================
+        # Locks Table  PK: conversationId, SK: lockType
+        #   TTL enabled for auto-expiry (3 min)
+        # =========================================================
+        self.locks_table = dynamodb.Table(
+            self,
+            "LocksTable",
+            table_name=f"{project_name}-{env_name}-locks",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="lockType", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            time_to_live_attribute="ttl",
+        )
+
+        # =========================================================
+        # Conversations Table  PK: conversationId
+        # =========================================================
+        self.conversations_table = dynamodb.Table(
+            self,
+            "ConversationsTable",
+            table_name=f"{project_name}-{env_name}-conversations",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
