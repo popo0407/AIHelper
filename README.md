@@ -28,31 +28,66 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 ```
 AICHAT/
 ├── .github/
-│   ├── agents/                 # AI エージェント定義
-│   ├── prompt/                 # プロンプト鋳型
-│   ├── skills/                 # スキルドキュメント
-│   │   ├── core-design/
-│   │   ├── security/
-│   │   ├── testing/
-│   │   ├── frontend/
-│   │   ├── backend/
-│   │   ├── aws/
-│   │   ├── refactoring/
-│   │   └── git/
-│   └── copilot-instructions.md # AI 開発憲章
+│   ├── agents/                     # AI エージェント定義
+│   ├── skills/                     # スキルドキュメント
+│   └── copilot-instructions.md     # AI 開発憲章
+├── cdk/                            # AWS CDK Infrastructure
+│   ├── app.py                      # CDK エントリーポイント
+│   ├── cdk.json                    # CDK 設定
+│   ├── requirements-cdk.txt        # CDK 依存関係
+│   ├── graphql/
+│   │   └── schema.graphql          # AppSync GraphQL スキーマ
+│   └── lib/
+│       ├── stacks/
+│       │   ├── database_stack.py   # DynamoDB テーブル定義
+│       │   ├── lambda_stack.py     # Lambda 関数定義
+│       │   └── appsync_stack.py    # AppSync API 定義
+│       └── constructs/
+├── backend/                        # Lambda 関数 & 共通モジュール
+│   ├── common/
+│   │   ├── config.py               # 環境設定
+│   │   ├── models.py               # データモデル
+│   │   └── utils.py                # 共通ユーティリティ
+│   ├── functions/
+│   │   ├── user_management/        # ユーザー管理 Lambda
+│   │   ├── chat/                   # チャット Lambda
+│   │   ├── summarizer/             # 要約 Lambda (Bedrock 連携)
+│   │   ├── ai_support/             # AI 相談 Lambda (Bedrock 連携)
+│   │   ├── lock_manager/           # ロック管理 Lambda
+│   │   └── conversation/           # 会話管理 Lambda
+│   ├── layers/                     # Lambda Layer
+│   └── requirements.txt
+├── frontend/                       # React / Next.js フロントエンド
+│   ├── src/
+│   │   ├── app/                    # Next.js App Router
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
+│   │   ├── components/             # React コンポーネント
+│   │   │   ├── LoginScreen.tsx
+│   │   │   ├── ConversationSelect.tsx
+│   │   │   ├── ChatScreen.tsx
+│   │   │   ├── ChatHeader.tsx
+│   │   │   ├── ChatBubble.tsx
+│   │   │   ├── MessageList.tsx
+│   │   │   ├── MessageInput.tsx
+│   │   │   ├── SummarySidebar.tsx
+│   │   │   ├── AIHelperButtons.tsx
+│   │   │   └── NotificationBanner.tsx
+│   │   ├── graphql/                # GraphQL 操作定義
+│   │   ├── types/                  # TypeScript 型定義
+│   │   ├── config/                 # AWS 設定
+│   │   └── styles/                 # グローバル CSS
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.js
+│   └── next.config.js
 ├── documents/
-│   ├── 要件定義.md              # 詳細要件定義書
-│   ├── AWSシステム構成.md       # AWS アーキテクチャ & ワークフロー
-│   └── ...
-├── src/
-│   ├── frontend/               # React/Next.js
-│   ├── backend/                # Lambda / AppSync
-│   └── cdk/                    # AWS CDK スタック
-├── tests/
+│   ├── 要件定義.md
+│   └── AWSシステム構成.md
 ├── docs/
-│   └── retrospective.md        # 振り返り記録
+│   └── retrospective.md
 ├── .gitignore
-└── README.md                   # このファイル
+└── README.md
 ```
 
 ---
@@ -152,19 +187,26 @@ Closes #123"
 - [x] UI/UX フロー定義
 - [x] Git ワークフロー確立
 
-### **フェーズ 2：バックエンド実装（予定）**
-- [ ] CDK スタック実装
-- [ ] DynamoDB テーブル作成
-- [ ] Lambda 関数実装（Summarizer, AI Support, User Management）
-- [ ] AppSync スキーマ＆リゾルバー定義
+### **フェーズ 2：バックエンド実装（✅ 完了）**
+- [x] CDK スタック実装（Database / Lambda / AppSync）
+- [x] DynamoDB テーブル定義（Users / Messages / Summary / Locks / Conversations）
+- [x] Lambda 関数実装（UserManagement, Chat, Summarizer, AISupport, LockManager, Conversation）
+- [x] AppSync GraphQL スキーマ＆リゾルバー定義
+- [x] Bedrock 連携（Claude Haiku 4.5 推論プロファイル / dev モック対応）
 - [ ] ユニットテスト作成
 
-### **フェーズ 3：フロントエンド実装（予定）**
-- [ ] React コンポーネント構築
-- [ ] AppSync クライアント設定
-- [ ] UI デザイン実装
-- [ ] ログイン画面
-- [ ] チャット画面 & 要約サイドバー
+### **フェーズ 3：フロントエンド実装（✅ 基盤完了）**
+- [x] Next.js プロジェクト構築（App Router / TypeScript / Tailwind CSS）
+- [x] React コンポーネント構築（Login / ConversationSelect / ChatScreen）
+- [x] GraphQL クエリ・ミューテーション・サブスクリプション定義
+- [x] Serendie Design System インスパイアの UI 実装
+- [x] ログイン画面 & ユーザー登録
+- [x] チャット画面（2ペインレイアウト）
+- [x] 要約サイドバー（編集・Undo 対応）
+- [x] AI 相談ボタン（4種類）
+- [x] メッセージ選択・ハイライト
+- [x] 排他制御 UI（ロック表示）
+- [ ] AppSync クライアント接続（Amplify 統合）
 - [ ] E2E テスト
 
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**
@@ -199,6 +241,6 @@ MIT License
 
 ---
 
-**プロジェクトステータス:** 🟡 開発中（フェーズ 2 準備中）
+**プロジェクトステータス:** � 開発中（フェーズ 2・3 基盤完了）
 
 最終更新：2026年2月13日

@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/.next/
+frontend/out/
+frontend/dist/
+*.js.map
+
+# CDK
+cdk/cdk.out/
+cdk/.cdk.staging/
+cdk/venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+backend/venv/
+backend/.venv/
+
+# Lambda packaging
+lambda_package/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
