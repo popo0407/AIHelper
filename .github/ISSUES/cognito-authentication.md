@@ -154,7 +154,7 @@ Amplify.configure({
     GraphQL: {
       endpoint: process.env.NEXT_PUBLIC_APPSYNC_ENDPOINT!,
       region: process.env.NEXT_PUBLIC_AWS_REGION!,
-      defaultAuthMode: 'userPool',
+      defaultAuthMode: "userPool",
     },
   },
 });

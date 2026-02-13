@@ -1,79 +1,133 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { signIn, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth';
 import type { User } from '@/types';
-import { graphqlClient, extractData } from '@/lib/appsync';
-import { LIST_USERS, REGISTER_USER } from '@/graphql/operations';
+
+// Initialize Amplify (via appsync client)
+import '@/lib/appsync';
 
 interface LoginScreenProps {
   onLogin: (user: User) => void;
 }
 
 /**
- * Login screen with user selection dropdown and new user registration.
+ * Login screen with email + password authentication via Cognito.
+ * User registration is administered only - no self-signup.
  */
 export function LoginScreen({ onLogin }: LoginScreenProps) {
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
-  const [newLoginId, setNewLoginId] = useState('');
-  const [newDisplayName, setNewDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [requireNewPassword, setRequireNewPassword] = useState(false);
 
-  // Load users on mount
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  async function loadUsers() {
-    setIsLoading(true);
-    try {
-      const result = await graphqlClient.graphql({ query: LIST_USERS });
-      const users = extractData<User[]>(result, 'listUsers');
-      setUsers(users ?? []);
-    } catch (err) {
-      console.error('Failed to load users:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function handleSelectUser() {
-    if (!selectedUserId) return;
-    const user = users.find((u) => u.loginId === selectedUserId);
-    if (user) {
-      onLogin(user);
-    }
-  }
-
-  async function handleRegister() {
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
     setError('');
-    const loginId = newLoginId.trim();
-    const displayName = newDisplayName.trim();
 
-    if (!loginId || !displayName) {
-      setError('ログインIDと表示名を入力してください。');
+    if (!email.trim() || !password.trim()) {
+      setError('メールアドレスとパスワードを入力してください。');
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await graphqlClient.graphql({
-        query: REGISTER_USER,
-        variables: { input: { loginId, displayName } },
-      });
-      const data = extractData<{ success: boolean; user: User; error?: string }>(
-        result,
-        'registerUser'
-      );
-      if (!data.success) {
-        setError(data.error ?? '登録に失敗しました。');
+      const result = await signIn({ username: email, password });
+      
+      // Check if password change is required (first login)
+      if (result.nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
+        setRequireNewPassword(true);
+        setIsLoading(false);
         return;
       }
-      onLogin(data.user);
+
+      // Successful login - get user info
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken;
+      
+      if (!idToken) {
+        throw new Error('認証トークンの取得に失敗しました。');
+      }
+
+      // Extract user info from ID token
+      const userId = idToken.payload.sub as string;
+      const userEmail = idToken.payload.email as string;
+      const userName = (idToken.payload['custom:userName'] as string) || userEmail.split('@')[0];
+
+      onLogin({
+        userId,
+        email: userEmail,
+        userName,
+        createdAt: new Date().toISOString(),
+      });
     } catch (err: unknown) {
+      console.error('Login error:', err);
       const message =
-        err instanceof Error ? err.message : '登録中にエラーが発生しました。';
+        err instanceof Error ? err.message : 'ログインに失敗しました。';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      setError('新しいパスワードと確認用パスワードを入力してください。');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('パスワードが一致しません。');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('パスワードは8文字以上である必要があります。');
+      return;
+    }
+
+    // Validate password complexity
+    const hasLowercase = /[a-z]/.test(newPassword);
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasNumber = /\d/.test(newPassword);
+    
+    if (!hasLowercase || !hasUppercase || !hasNumber) {
+      setError('パスワードは小文字・大文字・数字を含む必要があります。');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await confirmSignIn({ challengeResponse: newPassword });
+      
+      // Get user info after password change
+      const session = await fetchAuthSession();
+      const idToken = session.tokens?.idToken;
+      
+      if (!idToken) {
+        throw new Error('認証トークンの取得に失敗しました。');
+      }
+
+      const userId = idToken.payload.sub as string;
+      const userEmail = idToken.payload.email as string;
+      const userName = (idToken.payload['custom:userName'] as string) || userEmail.split('@')[0];
+
+      onLogin({
+        userId,
+        email: userEmail,
+        userName,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err: unknown) {
+      console.error('Password change error:', err);
+      const message =
+        err instanceof Error ? err.message : 'パスワード変更に失敗しました。';
       setError(message);
     } finally {
       setIsLoading(false);
@@ -89,115 +143,169 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             AI常駐型グループチャット
           </h1>
           <p className="mt-2 text-serendie-gray-600">
-            ログインまたは新規登録してください
+            メールアドレスとパスワードでログインしてください
           </p>
         </div>
 
-        {/* Existing user selection */}
-        <div className="bg-white rounded-xl shadow-sm border border-serendie-gray-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-serendie-gray-800">
-            ユーザーを選択
-          </h2>
-          <div className="space-y-3">
-            <select
-              className="input-field"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              aria-label="登録済みユーザーを選択"
-              disabled={isLoading}
-            >
-              <option value="">-- ユーザーを選んでください --</option>
-              {users.map((user) => (
-                <option key={user.loginId} value={user.loginId}>
-                  {user.displayName} ({user.loginId})
-                </option>
-              ))}
-            </select>
-            <button
-              className="btn-primary w-full"
-              onClick={handleSelectUser}
-              disabled={!selectedUserId || isLoading}
-              aria-label="選択したユーザーでログイン"
-            >
+        {/* Login form */}
+        {!requireNewPassword ? (
+          <div className="bg-white rounded-xl shadow-sm border border-serendie-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-serendie-gray-800 mb-4">
               ログイン
-            </button>
-          </div>
-        </div>
+            </h2>
 
-        {/* Divider */}
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-serendie-gray-300" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-serendie-gray-50 px-4 text-serendie-gray-500">
-              OR
-            </span>
-          </div>
-        </div>
-
-        {/* New user registration */}
-        <div className="bg-white rounded-xl shadow-sm border border-serendie-gray-200 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-serendie-gray-800">
-            新規ユーザー登録
-          </h2>
-
-          {error && (
-            <div
-              className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <div>
-              <label
-                htmlFor="loginId"
-                className="block text-sm font-medium text-serendie-gray-700 mb-1"
+            {error && (
+              <div
+                className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4"
+                role="alert"
               >
-                ログインID
-              </label>
-              <input
-                id="loginId"
-                type="text"
-                className="input-field"
-                placeholder="例: tanaka"
-                value={newLoginId}
-                onChange={(e) => setNewLoginId(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="displayName"
-                className="block text-sm font-medium text-serendie-gray-700 mb-1"
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="email"
+                  className="block text-sm font-medium text-serendie-gray-700 mb-1"
+                >
+                  メールアドレス
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  className="input-field"
+                  placeholder="user@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-serendie-gray-700 mb-1"
+                >
+                  パスワード
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  className="input-field"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={!email.trim() || !password.trim() || isLoading}
               >
-                表示名
-              </label>
-              <input
-                id="displayName"
-                type="text"
-                className="input-field"
-                placeholder="例: 田中太郎"
-                value={newDisplayName}
-                onChange={(e) => setNewDisplayName(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-            <button
-              className="btn-accent w-full"
-              onClick={handleRegister}
-              disabled={
-                !newLoginId.trim() || !newDisplayName.trim() || isLoading
-              }
-              aria-label="新規ユーザーを登録"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="loading-weave" />
-                  登録中...
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="loading-weave" />
+                    ログイン中...
+                  </span>
+                ) : (
+                  'ログイン'
+                )}
+              </button>
+            </form>
+
+            <p className="mt-4 text-center text-sm text-serendie-gray-600">
+              アカウントをお持ちでない場合は、管理者にお問い合わせください。
+            </p>
+          </div>
+        ) : (
+          /* Password change form (first login) */
+          <div className="bg-white rounded-xl shadow-sm border border-serendie-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-serendie-gray-800 mb-4">
+              パスワード変更（初回ログイン）
+            </h2>
+
+            <p className="text-sm text-serendie-gray-600 mb-4">
+              仮パスワードでログインしました。新しいパスワードを設定してください。
+            </p>
+
+            {error && (
+              <div
+                className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="newPassword"
+                  className="block text-sm font-medium text-serendie-gray-700 mb-1"
+                >
+                  新しいパスワード
+                </label>
+                <input
+                  id="newPassword"
+                  type="password"
+                  className="input-field"
+                  placeholder="8文字以上（大小英字・数字）"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-sm font-medium text-serendie-gray-700 mb-1"
+                >
+                  パスワード確認
+                </label>
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  className="input-field"
+                  placeholder="もう一度入力"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  autoComplete="new-password"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={!newPassword.trim() || !confirmPassword.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="loading-weave" />
+                    変更中...
+                  </span>
+                ) : (
+                  'パスワードを変更'
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
                 </span>
               ) : (
                 '登録'

@@ -2,6 +2,7 @@
 """CDK Application Entry Point for AICHAT."""
 import aws_cdk as cdk
 from lib.stacks.database_stack import DatabaseStack
+from lib.stacks.cognito_stack import CognitoStack
 from lib.stacks.appsync_stack import AppSyncStack
 from lib.stacks.lambda_stack import LambdaStack
 
@@ -17,6 +18,14 @@ aws_env = cdk.Environment(
 # Database (DynamoDB)
 database_stack = DatabaseStack(
     app, f"{project_name}-{env_name}-database",
+    env_name=env_name,
+    project_name=project_name,
+    env=aws_env,
+)
+
+# Cognito User Pool
+cognito_stack = CognitoStack(
+    app, f"{project_name}-{env_name}-cognito",
     env_name=env_name,
     project_name=project_name,
     env=aws_env,
@@ -38,8 +47,10 @@ appsync_stack = AppSyncStack(
     env_name=env_name,
     project_name=project_name,
     lambda_stack=lambda_stack,
+    user_pool=cognito_stack.user_pool,
     env=aws_env,
 )
 appsync_stack.add_dependency(lambda_stack)
+appsync_stack.add_dependency(cognito_stack)
 
 app.synth()

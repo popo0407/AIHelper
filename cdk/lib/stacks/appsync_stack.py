@@ -5,6 +5,7 @@ from aws_cdk import (
     CfnOutput,
     aws_appsync as appsync,
     aws_iam as iam,
+    aws_cognito as cognito,
 )
 from constructs import Construct
 
@@ -21,6 +22,7 @@ class AppSyncStack(Stack):
         env_name: str,
         project_name: str,
         lambda_stack: LambdaStack,
+        user_pool: cognito.IUserPool,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
@@ -42,7 +44,10 @@ class AppSyncStack(Stack):
             definition=appsync.Definition.from_file(schema_path),
             authorization_config=appsync.AuthorizationConfig(
                 default_authorization=appsync.AuthorizationMode(
-                    authorization_type=appsync.AuthorizationType.API_KEY,
+                    authorization_type=appsync.AuthorizationType.USER_POOL,
+                    user_pool_config=appsync.UserPoolConfig(
+                        user_pool=user_pool,
+                    ),
                 ),
             ),
             log_config=appsync.LogConfig(

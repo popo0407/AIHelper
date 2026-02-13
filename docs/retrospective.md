@@ -34,7 +34,7 @@
 #### **4. セキュリティ課題の識別**
 
 - **問題**: API Key がブラウザで公開される（DevTools で確認可能）
-- **リスク**: 
+- **リスク**:
   - 全ユーザー共通の1つのキー
   - 無制限のリクエスト可能（レート制限なし）
   - DDoS 攻撃の可能性
@@ -48,17 +48,17 @@
 
 ### **問題と対応**
 
-| 問題                                         | 原因                                               | 対応                                                 |
-| -------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
-| GraphQL Subscription デプロイエラー          | Subscription 型の output type 定義不備             | Subscription セクションを一時削除                    |
-| graphql パッケージ破損（60+モジュール不存在） | npm cache 問題または不完全インストール            | `npm cache clean --force` + 完全再インストール       |
-| Next.js 起動時の "require-hook" エラー       | node_modules/.bin/next.cmd の破損                  | `npm install --force` で修復                         |
-| node_modules 削除失敗（Windows）             | 一部ファイルがロック中                             | `cmd /c "rmdir /s /q node_modules"` で強制削除       |
-| API Key がブラウザで公開される               | フロントエンドコードに環境変数として埋め込まれる   | ⚠️ 開発環境のみ許容、Cognito 認証への移行を計画     |
+| 問題                                          | 原因                                             | 対応                                            |
+| --------------------------------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| GraphQL Subscription デプロイエラー           | Subscription 型の output type 定義不備           | Subscription セクションを一時削除               |
+| graphql パッケージ破損（60+モジュール不存在） | npm cache 問題または不完全インストール           | `npm cache clean --force` + 完全再インストール  |
+| Next.js 起動時の "require-hook" エラー        | node_modules/.bin/next.cmd の破損                | `npm install --force` で修復                    |
+| node_modules 削除失敗（Windows）              | 一部ファイルがロック中                           | `cmd /c "rmdir /s /q node_modules"` で強制削除  |
+| API Key がブラウザで公開される                | フロントエンドコードに環境変数として埋め込まれる | ⚠️ 開発環境のみ許容、Cognito 認証への移行を計画 |
 
 ### **学んだこと**
 
-1. **AppSync Subscription の型定義は厳密**: 
+1. **AppSync Subscription の型定義は厳密**:
    - Output type は必ず存在する型を指定する
    - `type Subscription` のフィールドは `type Mutation` の戻り値型と一致させる
 
@@ -71,7 +71,7 @@
    - 大規模パッケージ（Next.js）のインストール前に実行推奨
 
 4. **API Key 認証の限界**:
-   - ブラウザ実行コードでは、NEXT_PUBLIC_* 環境変数は必ず公開される
+   - ブラウザ実行コードでは、NEXT*PUBLIC*\* 環境変数は必ず公開される
    - CloudFront でエンドポイントを隠しても API Key 問題は解決しない
    - **根本解決**: Cognito User Pools で JWT トークン認証
 
