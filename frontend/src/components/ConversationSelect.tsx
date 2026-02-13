@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import type { User, Conversation } from '@/types';
+import { graphqlClient, extractData } from '@/lib/appsync';
+import { LIST_CONVERSATIONS, CREATE_CONVERSATION } from '@/graphql/operations';
 
 interface ConversationSelectProps {
   user: User;
@@ -30,9 +32,12 @@ export function ConversationSelect({
   async function loadConversations() {
     setIsLoading(true);
     try {
-      // TODO: Replace with AppSync query (listConversations)
-      const mockConversations: Conversation[] = [];
-      setConversations(mockConversations);
+      const result = await graphqlClient.graphql({
+        query: LIST_CONVERSATIONS,
+        variables: { loginId: user.loginId },
+      });
+      const convos = extractData<Conversation[]>(result, 'listConversations');
+      setConversations(convos ?? []);
     } catch (err) {
       console.error('Failed to load conversations:', err);
     } finally {
@@ -43,17 +48,19 @@ export function ConversationSelect({
   async function handleCreateConversation() {
     setIsLoading(true);
     try {
-      // TODO: Replace with AppSync mutation (createConversation)
-      const newConv: Conversation = {
-        conversationId: crypto.randomUUID(),
-        createdBy: user.loginId,
-        createdAt: new Date().toISOString(),
-        participants: [user.loginId],
-        status: 'active',
-        shareLink: null,
-        title: '新しい会話',
-      };
-      onNew(newConv);
+      const result = await graphqlClient.graphql({
+        query: CREATE_CONVERSATION,
+        variables: { input: { createdBy: user.loginId } },
+      });
+      const data = extractData<{ success: boolean; conversation: Conversation; error?: string }>(
+        result,
+        'createConversation'
+      );
+      if (!data.success) {
+        console.error('Failed to create conversation:', data.error);
+        return;
+      }
+      onNew(data.conversation);
     } catch (err) {
       console.error('Failed to create conversation:', err);
     } finally {

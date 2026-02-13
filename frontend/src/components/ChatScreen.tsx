@@ -7,6 +7,23 @@ import { MessageInput } from '@/components/MessageInput';
 import { SummarySidebar } from '@/components/SummarySidebar';
 import { AIHelperButtons } from '@/components/AIHelperButtons';
 import { NotificationBanner } from '@/components/NotificationBanner';
+import { graphqlClient, extractData } from '@/lib/appsync';
+import {
+  LIST_MESSAGES,
+  GET_SUMMARY,
+  GET_LOCKS,
+  SEND_MESSAGE,
+  UPDATE_SUMMARY,
+  UNDO_SUMMARY,
+  SAVE_SUMMARY_EDIT,
+  ACQUIRE_LOCK,
+  RELEASE_LOCK,
+  ASK_AI_HELPER,
+  CREATE_CONVERSATION,
+  ON_NEW_MESSAGE,
+  ON_SUMMARY_UPDATE,
+  ON_LOCK_CHANGE,
+} from '@/graphql/operations';
 import type {
   User,
   Conversation,
@@ -70,6 +87,96 @@ export function ChatScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.conversationId]);
 
+  // ── Real-time subscriptions ──
+  useEffect(() => {
+    const subscriptions: Array<{ unsubscribe: () => void }> = [];
+
+    try {
+      // Subscribe to new messages
+      const msgSub = graphqlClient
+        .graphql({
+          query: ON_NEW_MESSAGE,
+          variables: { conversationId: conversation.conversationId },
+        })
+        .subscribe({
+          next: ({ data }: { data: Record<string, Message> }) => {
+            const newMsg = data.onNewMessage;
+            if (newMsg) {
+              setMessages((prev) => {
+                // Avoid duplicates (e.g. own optimistic update)
+                if (prev.some((m) => m.messageId === newMsg.messageId)) {
+                  return prev.map((m) =>
+                    m.messageId === newMsg.messageId ? newMsg : m
+                  );
+                }
+                return [...prev, newMsg];
+              });
+            }
+          },
+          error: (err: unknown) =>
+            console.error('Message subscription error:', err),
+        });
+      subscriptions.push(msgSub);
+
+      // Subscribe to summary updates
+      const sumSub = graphqlClient
+        .graphql({
+          query: ON_SUMMARY_UPDATE,
+          variables: { conversationId: conversation.conversationId },
+        })
+        .subscribe({
+          next: ({ data }: { data: Record<string, Summary> }) => {
+            const updated = data.onSummaryUpdate;
+            if (updated) setSummary(updated);
+          },
+          error: (err: unknown) =>
+            console.error('Summary subscription error:', err),
+        });
+      subscriptions.push(sumSub);
+
+      // Subscribe to lock changes
+      const lockSub = graphqlClient
+        .graphql({
+          query: ON_LOCK_CHANGE,
+          variables: { conversationId: conversation.conversationId },
+        })
+        .subscribe({
+          next: ({ data }: { data: Record<string, Lock> }) => {
+            const lockEvent = data.onLockChange;
+            if (lockEvent) {
+              setLocks((prev) => {
+                if (lockEvent.operationType === 'released') {
+                  return prev.filter(
+                    (l) => l.userId !== lockEvent.userId
+                  );
+                }
+                const exists = prev.findIndex(
+                  (l) =>
+                    l.userId === lockEvent.userId &&
+                    l.lockType === lockEvent.lockType
+                );
+                if (exists >= 0) {
+                  const next = [...prev];
+                  next[exists] = lockEvent;
+                  return next;
+                }
+                return [...prev, lockEvent];
+              });
+            }
+          },
+          error: (err: unknown) =>
+            console.error('Lock subscription error:', err),
+        });
+      subscriptions.push(lockSub);
+    } catch (err) {
+      console.error('Failed to set up subscriptions:', err);
+    }
+
+    return () => {
+      subscriptions.forEach((sub) => sub.unsubscribe());
+    };
+  }, [conversation.conversationId]);
+
   // ── Auto-scroll ──
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -79,10 +186,29 @@ export function ChatScreen({
   async function loadData() {
     setIsLoading(true);
     try {
-      // TODO: Replace with AppSync queries
-      setMessages([]);
-      setSummary(null);
-      setLocks([]);
+      const [msgResult, sumResult, lockResult] = await Promise.all([
+        graphqlClient.graphql({
+          query: LIST_MESSAGES,
+          variables: { conversationId: conversation.conversationId, limit: 100 },
+        }),
+        graphqlClient.graphql({
+          query: GET_SUMMARY,
+          variables: { conversationId: conversation.conversationId },
+        }),
+        graphqlClient.graphql({
+          query: GET_LOCKS,
+          variables: { conversationId: conversation.conversationId },
+        }),
+      ]);
+
+      const msgData = extractData<{ items: Message[]; nextToken?: string }>(msgResult, 'listMessages');
+      setMessages(msgData?.items ?? []);
+
+      const sumData = extractData<Summary | null>(sumResult, 'getSummary');
+      setSummary(sumData ?? null);
+
+      const lockData = extractData<Lock[]>(lockResult, 'getLocks');
+      setLocks(lockData ?? []);
     } catch (err) {
       console.error('Failed to load data:', err);
     } finally {
@@ -122,7 +248,25 @@ export function ChatScreen({
     setInputText('');
 
     try {
-      // TODO: Replace with AppSync mutation (sendMessage)
+      const result = await graphqlClient.graphql({
+        query: SEND_MESSAGE,
+        variables: {
+          input: {
+            conversationId: conversation.conversationId,
+            userId: user.loginId,
+            content,
+          },
+        },
+      });
+      const data = extractData<{ success: boolean; message: Message; error?: string }>(result, 'sendMessage');
+      if (data?.success && data.message) {
+        // Replace temp message with server response
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.messageId === tempMessage.messageId ? data.message : m
+          )
+        );
+      }
     } catch (err) {
       console.error('Failed to send message:', err);
     }
@@ -147,21 +291,20 @@ export function ChatScreen({
     );
 
     try {
-      // TODO: Replace with AppSync mutation (updateSummary)
-      // Mock: simulate delay
-      await new Promise((r) => setTimeout(r, 1500));
-
-      const newSummary: Summary = {
-        conversationId: conversation.conversationId,
-        title: '会話の要約',
-        current: `# 会話の要約\n\n## 追加された内容\n${selectedMsgs
-          .map((m) => `- ${m.displayName}: ${m.content}`)
-          .join('\n')}`,
-        previous: summary?.current ?? '',
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.loginId,
-      };
-      setSummary(newSummary);
+      const result = await graphqlClient.graphql({
+        query: UPDATE_SUMMARY,
+        variables: {
+          input: {
+            conversationId: conversation.conversationId,
+            selectedMessageIds: Array.from(selectedMessageIds),
+            userId: user.loginId,
+          },
+        },
+      });
+      const data = extractData<{ success: boolean; summary: Summary; error?: string }>(result, 'updateSummary');
+      if (data?.success && data.summary) {
+        setSummary(data.summary);
+      }
 
       // Mark messages as used
       setMessages((prev) =>
@@ -184,50 +327,90 @@ export function ChatScreen({
   const handleUndoSummary = useCallback(async () => {
     if (!canUndo) return;
     try {
-      // TODO: Replace with AppSync mutation (undoSummary)
-      setSummary((prev) =>
-        prev
-          ? { ...prev, current: prev.previous ?? '', previous: '' }
-          : null
-      );
+      const result = await graphqlClient.graphql({
+        query: UNDO_SUMMARY,
+        variables: { conversationId: conversation.conversationId },
+      });
+      const data = extractData<{ success: boolean; summary: Summary; error?: string }>(result, 'undoSummary');
+      if (data?.success && data.summary) {
+        setSummary(data.summary);
+      }
     } catch (err) {
       console.error('Failed to undo summary:', err);
     }
-  }, [canUndo]);
+  }, [canUndo, conversation.conversationId]);
 
   // ── Edit sidebar ──
-  const handleStartEdit = useCallback(() => {
+  const handleStartEdit = useCallback(async () => {
     if (!canEdit) return;
     setIsEditing(true);
     setEditContent(summary?.current ?? '');
-    // TODO: acquireLock mutation
-  }, [canEdit, summary]);
+    try {
+      await graphqlClient.graphql({
+        query: ACQUIRE_LOCK,
+        variables: {
+          input: {
+            conversationId: conversation.conversationId,
+            userId: user.loginId,
+            operationType: 'edit',
+          },
+        },
+      });
+    } catch (err) {
+      console.error('Failed to acquire lock:', err);
+    }
+  }, [canEdit, summary, conversation.conversationId, user.loginId]);
 
   const handleSaveEdit = useCallback(async () => {
     try {
-      // TODO: Replace with AppSync mutation (saveSummaryEdit) + releaseLock
-      setSummary((prev) =>
-        prev
-          ? {
-              ...prev,
-              current: editContent,
-              previous: prev.current ?? '',
-              updatedAt: new Date().toISOString(),
-              updatedBy: user.loginId,
-            }
-          : null
-      );
+      const [saveResult] = await Promise.all([
+        graphqlClient.graphql({
+          query: SAVE_SUMMARY_EDIT,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              content: editContent,
+              userId: user.loginId,
+            },
+          },
+        }),
+        graphqlClient.graphql({
+          query: RELEASE_LOCK,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              userId: user.loginId,
+            },
+          },
+        }),
+      ]);
+      const data = extractData<{ success: boolean; summary: Summary; error?: string }>(saveResult, 'saveSummaryEdit');
+      if (data?.success && data.summary) {
+        setSummary(data.summary);
+      }
       setIsEditing(false);
     } catch (err) {
       console.error('Failed to save edit:', err);
     }
-  }, [editContent, user.loginId]);
+  }, [editContent, conversation.conversationId, user.loginId]);
 
-  const handleCancelEdit = useCallback(() => {
+  const handleCancelEdit = useCallback(async () => {
     setIsEditing(false);
     setEditContent('');
-    // TODO: releaseLock mutation
-  }, []);
+    try {
+      await graphqlClient.graphql({
+        query: RELEASE_LOCK,
+        variables: {
+          input: {
+            conversationId: conversation.conversationId,
+            userId: user.loginId,
+          },
+        },
+      });
+    } catch (err) {
+      console.error('Failed to release lock:', err);
+    }
+  }, [conversation.conversationId, user.loginId]);
 
   // ── AI Helper actions ──
   const handleAIAction = useCallback(
@@ -240,19 +423,25 @@ export function ChatScreen({
       setNotification(processingMsg);
 
       try {
-        // TODO: Replace with AppSync mutation (askAIHelper)
-        await new Promise((r) => setTimeout(r, 2000));
-
-        const aiMessage: Message = {
-          conversationId: conversation.conversationId,
-          messageId: `ai-${Date.now()}`,
-          userId: AIHELPER_USER_ID,
-          displayName: 'AIHelper',
-          content: `【モック応答】${actionType}の結果です。実際のAI応答はBedrock接続時に生成されます。`,
-          timestamp: new Date().toISOString(),
-          isUsedInSummary: false,
-        };
-        setMessages((prev) => [...prev, aiMessage]);
+        const result = await graphqlClient.graphql({
+          query: ASK_AI_HELPER,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              userId: user.loginId,
+              actionType,
+              userInput: inputText || undefined,
+              selectedMessageIds:
+                selectedMessageIds.size > 0
+                  ? Array.from(selectedMessageIds)
+                  : undefined,
+            },
+          },
+        });
+        const data = extractData<{ success: boolean; message: Message; error?: string }>(result, 'askAIHelper');
+        if (data?.success && data.message) {
+          setMessages((prev) => [...prev, data.message]);
+        }
       } catch (err) {
         console.error('AI Helper error:', err);
       } finally {
@@ -286,17 +475,22 @@ export function ChatScreen({
           summary?.title || conversation.title || '無題の会話'
         }
         userName={user.displayName}
-        onNewConversation={() => {
-          const newConv: Conversation = {
-            conversationId: crypto.randomUUID(),
-            createdBy: user.loginId,
-            createdAt: new Date().toISOString(),
-            participants: [user.loginId],
-            status: 'active',
-            shareLink: null,
-            title: '新しい会話',
-          };
-          onNewConversation(newConv);
+        onNewConversation={async () => {
+          try {
+            const result = await graphqlClient.graphql({
+              query: CREATE_CONVERSATION,
+              variables: { input: { createdBy: user.loginId } },
+            });
+            const data = extractData<{ success: boolean; conversation: Conversation; error?: string }>(
+              result,
+              'createConversation'
+            );
+            if (data?.success && data.conversation) {
+              onNewConversation(data.conversation);
+            }
+          } catch (err) {
+            console.error('Failed to create conversation:', err);
+          }
         }}
         onSwitchConversation={onSwitchConversation}
         onSwitchUser={onSwitchUser}

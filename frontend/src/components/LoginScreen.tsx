@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import type { User } from '@/types';
+import { graphqlClient, extractData } from '@/lib/appsync';
+import { LIST_USERS, REGISTER_USER } from '@/graphql/operations';
 
 interface LoginScreenProps {
   onLogin: (user: User) => void;
@@ -26,17 +28,9 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   async function loadUsers() {
     setIsLoading(true);
     try {
-      // TODO: Replace with actual AppSync query
-      // For now, use mock data
-      const mockUsers: User[] = [
-        {
-          loginId: 'user1',
-          displayName: 'ユーザー1',
-          createdAt: new Date().toISOString(),
-          conversationIds: [],
-        },
-      ];
-      setUsers(mockUsers);
+      const result = await graphqlClient.graphql({ query: LIST_USERS });
+      const users = extractData<User[]>(result, 'listUsers');
+      setUsers(users ?? []);
     } catch (err) {
       console.error('Failed to load users:', err);
     } finally {
@@ -64,14 +58,19 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
 
     setIsLoading(true);
     try {
-      // TODO: Replace with actual AppSync mutation
-      const newUser: User = {
-        loginId,
-        displayName,
-        createdAt: new Date().toISOString(),
-        conversationIds: [],
-      };
-      onLogin(newUser);
+      const result = await graphqlClient.graphql({
+        query: REGISTER_USER,
+        variables: { input: { loginId, displayName } },
+      });
+      const data = extractData<{ success: boolean; user: User; error?: string }>(
+        result,
+        'registerUser'
+      );
+      if (!data.success) {
+        setError(data.error ?? '登録に失敗しました。');
+        return;
+      }
+      onLogin(data.user);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : '登録中にエラーが発生しました。';
