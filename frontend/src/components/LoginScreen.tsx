@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { signIn, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth';
+import { useState, useEffect } from 'react';
+import { signIn, confirmSignIn, fetchAuthSession, signOut, getCurrentUser } from 'aws-amplify/auth';
 import type { User } from '@/types';
 
 // Initialize Amplify (via appsync client)
@@ -23,6 +23,23 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [requireNewPassword, setRequireNewPassword] = useState(false);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    checkExistingSession();
+  }, []);
+
+  async function checkExistingSession() {
+    try {
+      const user = await getCurrentUser();
+      if (user) {
+        // Already signed in - sign out to allow fresh login
+        await signOut();
+      }
+    } catch {
+      // Not signed in - this is expected
+    }
+  }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
