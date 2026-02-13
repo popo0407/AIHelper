@@ -68,9 +68,9 @@ try {
         --user-pool-id $UserPoolId `
         --username $Email `
         --user-attributes `
-            Name=email,Value=$Email `
-            Name=email_verified,Value=true `
-            Name=custom:userName,Value=$UserName `
+        Name=email, Value=$Email `
+        Name=email_verified, Value=true `
+        Name=custom:userName, Value=$UserName `
         --temporary-password $PlainPassword `
         --message-action SUPPRESS `
         --region ap-northeast-1

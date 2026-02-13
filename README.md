@@ -174,7 +174,21 @@ cd backend && python -m pytest tests/ -v
 
 # フロントエンドテスト（46テスト）
 cd frontend && npm test
+
+# E2Eテスト（PlayWright MCPで自動化）
+cd frontend
+npm run e2e                # ヘッドレスモード
+npm run e2e:ui            # UIで対話的に実行・デバッグ
+npm run e2e:debug         # デバッグモード
+npm run e2e:headed        # ブラウザ表示モード
 ```
+
+**E2Eテストについて：**
+
+- PlayWright MCPによるユーザーインタラクションテスト
+- ログイン、フォーム入力、ナビゲーション等をテスト
+- Copilot Chat統合による自動テストコード生成対応
+- 詳細は [PlayWright MCPセットアップガイド](docs/playwright-guide.md) を参照
 
 ---
 
@@ -184,6 +198,7 @@ cd frontend && npm test
 | ----------------------------------------------------------------------------------- | ----------------------------------------------- |
 | [要件定義.md](documents/要件定義.md)                                                | 機能仕様、ユーザーフロー、UI/UX                 |
 | [AWSシステム構成.md](documents/AWSシステム構成.md)                                  | アーキテクチャ、DynamoDB スキーマ、ワークフロー |
+| [PlayWright MCPガイド](docs/playwright-guide.md)                                    | E2Eテスト自動化（PlayWright、Copilot Chat統合） |
 | [.github/copilot-instructions.md](.github/copilot-instructions.md)                  | AI 開発プロセス憲章                             |
 | [.github/skills/\*](https://github.com/popo0407/AICHAT/tree/develop/.github/skills) | 開発スキルガイド                                |
 | [docs/retrospective.md](docs/retrospective.md)                                      | プロジェクト振り返り                            |
