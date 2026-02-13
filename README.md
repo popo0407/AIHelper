@@ -165,7 +165,7 @@ cd frontend && npm test
 | [.github/copilot-instructions.md](.github/copilot-instructions.md)                  | AI 開発プロセス憲章                             |
 | [.github/skills/\*](https://github.com/popo0407/AICHAT/tree/develop/.github/skills) | 開発スキルガイド                                |
 | [docs/retrospective.md](docs/retrospective.md)                                      | プロジェクト振り返り                            |
-| [docs/deploy-guide.md](docs/deploy-guide.md)                                        | CDK デプロイ手順書                           |
+| [docs/deploy-guide.md](docs/deploy-guide.md)                                        | CDK デプロイ手順書                              |
 
 ---
 

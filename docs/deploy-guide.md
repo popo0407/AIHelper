@@ -3,12 +3,14 @@
 ## 前提条件
 
 1. **AWS CLI** がインストールされ、認証情報が設定済み
+
    ```bash
    aws configure
    # AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, Region: ap-northeast-1
    ```
 
 2. **AWS CDK CLI** がインストール済み
+
    ```bash
    npm install -g aws-cdk
    cdk --version
@@ -71,11 +73,11 @@ npm run dev
 
 ## スタック構成
 
-| スタック名 | リソース |
-|-----------|---------|
+| スタック名            | リソース                                                             |
+| --------------------- | -------------------------------------------------------------------- |
 | `aichat-dev-database` | DynamoDB 5 テーブル (Users, Messages, Summary, Locks, Conversations) |
-| `aichat-dev-lambda` | Lambda 6 関数 + 共通レイヤー + IAM ロール |
-| `aichat-dev-appsync` | AppSync GraphQL API + Lambda リゾルバー |
+| `aichat-dev-lambda`   | Lambda 6 関数 + 共通レイヤー + IAM ロール                            |
+| `aichat-dev-appsync`  | AppSync GraphQL API + Lambda リゾルバー                              |
 
 ## コスト注意事項
 

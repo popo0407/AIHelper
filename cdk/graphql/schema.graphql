@@ -197,20 +197,3 @@ type Mutation {
   releaseLock(input: ReleaseLockInput!): LockResponse!
   askAIHelper(input: AskAIHelperInput!): AIHelperResponse!
 }
-
-# ------ Subscriptions ------
-
-type Subscription {
-  onNewMessage(conversationId: ID!): Message
-    @aws_subscribe(mutations: ["sendMessage"])
-  onSummaryUpdate(conversationId: ID!): Summary
-    @aws_subscribe(
-      mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"]
-    )
-  onLockChange(conversationId: ID!): Lock
-    @aws_subscribe(mutations: ["acquireLock", "releaseLock"])
-  onNotification(conversationId: ID!): Notification
-    @aws_subscribe(
-      mutations: ["sendMessage", "updateSummary", "acquireLock", "releaseLock"]
-    )
-}
