@@ -3,5 +3,12 @@
     "AWS_PROFILE": "muramatsu",
     "AWS_REGION": "ap-northeast-1",
     "AWS_DEFAULT_OUTPUT": "json"
-  }
+  },
+  "[typescript]": {
+    "editor.formatOnSave": true
+  },
+  "[javascript]": {
+    "editor.formatOnSave": true
+  },
+  "testing.automaticallyOpenPeekView": "failureInVisibleDocument"
 }
