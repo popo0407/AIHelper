@@ -167,7 +167,11 @@ type Query {
   getUser(loginId: ID!): User
   getConversation(conversationId: ID!): Conversation
   listConversations(loginId: ID!): [Conversation!]!
-  listMessages(conversationId: ID!, limit: Int, nextToken: String): MessageConnection!
+  listMessages(
+    conversationId: ID!
+    limit: Int
+    nextToken: String
+  ): MessageConnection!
   getSummary(conversationId: ID!): Summary
   getLocks(conversationId: ID!): [Lock!]!
 }
@@ -181,7 +185,9 @@ type MessageConnection {
 
 type Mutation {
   registerUser(input: RegisterUserInput!): RegisterUserResponse!
-  createConversation(input: CreateConversationInput!): CreateConversationResponse!
+  createConversation(
+    input: CreateConversationInput!
+  ): CreateConversationResponse!
   joinConversation(input: JoinConversationInput!): JoinConversationResponse!
   sendMessage(input: SendMessageInput!): SendMessageResponse!
   updateSummary(input: UpdateSummaryInput!): UpdateSummaryResponse!
@@ -198,9 +204,13 @@ type Subscription {
   onNewMessage(conversationId: ID!): Message
     @aws_subscribe(mutations: ["sendMessage"])
   onSummaryUpdate(conversationId: ID!): Summary
-    @aws_subscribe(mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"])
+    @aws_subscribe(
+      mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"]
+    )
   onLockChange(conversationId: ID!): Lock
     @aws_subscribe(mutations: ["acquireLock", "releaseLock"])
   onNotification(conversationId: ID!): Notification
-    @aws_subscribe(mutations: ["sendMessage", "updateSummary", "acquireLock", "releaseLock"])
+    @aws_subscribe(
+      mutations: ["sendMessage", "updateSummary", "acquireLock", "releaseLock"]
+    )
 }

@@ -2,6 +2,54 @@
 
 ---
 
+## 📅 **2026年2月13日 — AppSync 統合・フロントエンドテスト・デプロイ準備**
+
+### ✅ **完了した内容**
+
+#### **1. AppSync クライアント統合（Amplify v6）**
+
+- `frontend/src/lib/appsync.ts` — `generateClient()` + `extractData<T>()` ヘルパー作成
+- `LoginScreen` — `LIST_USERS` クエリ + `REGISTER_USER` ミューテーション統合
+- `ConversationSelect` — `LIST_CONVERSATIONS` クエリ + `CREATE_CONVERSATION` ミューテーション統合
+- `ChatScreen` — 全8ミューテーション + 3クエリ + 3サブスクリプション統合
+  - リアルタイムサブスクリプション: ON_NEW_MESSAGE / ON_SUMMARY_UPDATE / ON_LOCK_CHANGE
+  - 楽観的更新: 一時メッセージID → サーバーIDへの差し替え
+  - サブスクリプション cleanup を useEffect return で適切に実装
+
+#### **2. フロントエンドテスト（46テスト全合格）**
+
+- `LoginScreen.test.tsx` — レンダリング・ユーザー選択・登録（6テスト）
+- `ConversationSelect.test.tsx` — 会話一覧・新規作成（6テスト）
+- `ChatBubble.test.tsx` — メッセージ表示・選択・スタイル（8テスト）
+- `MessageInput.test.tsx` — 入力・送信・バリデーション（10テスト）
+- `SummarySidebar.test.tsx` — 要約表示・編集・ロック（16テスト）
+- Jest + React Testing Library + ts-jest 環境構築
+
+#### **3. CDK デプロイ準備**
+
+- `docs/deploy-guide.md` — CDK bootstrap・diff・deploy 手順書作成
+- 環境変数設定ガイド・コスト見積もり追記
+
+#### **4. GitHub PR 作成**
+
+- PR #1: `feature/full-stack-implementation` → `develop`（https://github.com/popo0407/AIHelper/pull/1）
+
+### **問題と対応**
+
+| 問題 | 原因 | 対応 |
+| --- | --- | --- |
+| npm install で "Invalid Version" エラー | npm 10.9.2 の semver パーサーバグ | npm 11.10.0 へグローバルアップグレード |
+| CDK synth で jsii ランタイムエラー | Windows 上の Node.js / jsii 互換性問題 | デプロイガイドを作成し、CI/CD での synth を推奨 |
+
+### **再発防止策**
+
+- npm バージョンは 11.x 以上を使用する
+- CDK synth は CI/CD パイプライン（GitHub Actions）で実行する
+- AppSync クライアントをモジュールレベルで初期化し、コンポーネント間で共有する
+- フロントエンドテストでは AppSync クライアントを jest.mock でモック化する
+
+---
+
 ## 📅 **2026年2月13日 — バックエンド Lambda ユニットテスト追加**
 
 ### ✅ **完了した内容**
@@ -24,8 +72,8 @@
 
 ### **問題と対応**
 
-| 問題 | 原因 | 対応 |
-| ---- | ---- | ---- |
+| 問題                                           | 原因                                                                                   | 対応                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | lock_manager の TTL 比較が moto 環境で常に失敗 | DynamoDB が数値を `Decimal` 型で返すが、`isinstance(val, (int, float))` で判定していた | `Decimal` を判定対象に追加し `int()` でキャストしてから比較するよう修正 |
 
 ### **再発防止策**

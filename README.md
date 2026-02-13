@@ -85,9 +85,11 @@ AICHAT/
 │   │   │   ├── AIHelperButtons.tsx
 │   │   │   └── NotificationBanner.tsx
 │   │   ├── graphql/                # GraphQL 操作定義
+│   │   ├── lib/                    # AppSync クライアント
 │   │   ├── types/                  # TypeScript 型定義
 │   │   ├── config/                 # AWS 設定
-│   │   └── styles/                 # グローバル CSS
+│   │   ├── styles/                 # グローバル CSS
+│   │   └── __tests__/              # コンポーネントテスト
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.js
@@ -96,7 +98,8 @@ AICHAT/
 │   ├── 要件定義.md
 │   └── AWSシステム構成.md
 ├── docs/
-│   └── retrospective.md
+│   ├── retrospective.md
+│   └── deploy-guide.md
 ├── .gitignore
 └── README.md
 ```
@@ -117,19 +120,38 @@ AICHAT/
 
 ```bash
 # 1. リポジトリをクローン
-git clone <repository-url>
-cd AICHAT
+git clone https://github.com/popo0407/AIHelper.git
+cd AIHelper
 
-# 2. 依存関係をインストール
-npm install
-npm install -g @aws-cdk/cli
+# 2. フロントエンド依存関係をインストール
+cd frontend
+npm install --legacy-peer-deps
+cd ..
 
-# 3. 環境変数を設定
-cp .env.example .env.local
-# .env.local を編集
+# 3. CDK 依存関係をインストール
+pip install -r cdk/requirements-cdk.txt
 
-# 4. CDK スタックをデプロイ（初回）
-cdk deploy
+# 4. 環境変数を設定
+cp frontend/.env.example frontend/.env.local
+# frontend/.env.local を編集（AppSync エンドポイント、API キー）
+
+# 5. CDK スタックをデプロイ（詳細は docs/deploy-guide.md 参照）
+cd cdk
+cdk deploy --all --context environment=dev --require-approval never
+
+# 6. フロントエンド開発サーバー起動
+cd ../frontend
+npm run dev
+```
+
+### **テスト実行**
+
+```bash
+# バックエンドテスト（89テスト）
+cd backend && python -m pytest tests/ -v
+
+# フロントエンドテスト（46テスト）
+cd frontend && npm test
 ```
 
 ---
@@ -143,6 +165,7 @@ cdk deploy
 | [.github/copilot-instructions.md](.github/copilot-instructions.md)                  | AI 開発プロセス憲章                             |
 | [.github/skills/\*](https://github.com/popo0407/AICHAT/tree/develop/.github/skills) | 開発スキルガイド                                |
 | [docs/retrospective.md](docs/retrospective.md)                                      | プロジェクト振り返り                            |
+| [docs/deploy-guide.md](docs/deploy-guide.md)                                        | CDK デプロイ手順書                           |
 
 ---
 
@@ -209,7 +232,7 @@ Closes #123"
 - [x] Bedrock 連携（Claude Haiku 4.5 推論プロファイル / dev モック対応）
 - [x] ユニットテスト作成（pytest / moto — 89テスト全合格）
 
-### **フェーズ 3：フロントエンド実装（✅ 基盤完了）**
+### **フェーズ 3：フロントエンド実装（✅ 完了）**
 
 - [x] Next.js プロジェクト構築（App Router / TypeScript / Tailwind CSS）
 - [x] React コンポーネント構築（Login / ConversationSelect / ChatScreen）
@@ -221,7 +244,9 @@ Closes #123"
 - [x] AI 相談ボタン（4種類）
 - [x] メッセージ選択・ハイライト
 - [x] 排他制御 UI（ロック表示）
-- [ ] AppSync クライアント接続（Amplify 統合）
+- [x] AppSync クライアント接続（Amplify v6 統合）
+- [x] リアルタイムサブスクリプション（メッセージ・要約・ロック）
+- [x] コンポーネントテスト（Jest + RTL — 46テスト全合格）
 - [ ] E2E テスト
 
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**
@@ -257,6 +282,6 @@ MIT License
 
 ---
 
-**プロジェクトステータス:** ð§ 開発中（フェーズ 2・3 基盤完了、バックエンドテスト完了）
+**プロジェクトステータス:** 🟢 開発中（フェーズ 2・3 完了、フェーズ 4 準備中）
 
 最終更新：2026年2月13日
