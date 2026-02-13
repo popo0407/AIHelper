@@ -1,16 +1,16 @@
-# ユーザー作成スクリプト（管理者用）
+﻿# ユーザー作成スクリプト（管理者用）
 
 param(
-    [Parameter(Mandatory=$true, HelpMessage="ユーザーのメールアドレス")]
+    [Parameter(Mandatory = $true, HelpMessage = "ユーザーのメールアドレス")]
     [string]$Email,
     
-    [Parameter(Mandatory=$true, HelpMessage="表示名（ユーザー名）")]
+    [Parameter(Mandatory = $true, HelpMessage = "表示名（ユーザー名）")]
     [string]$UserName,
     
-    [Parameter(Mandatory=$true, HelpMessage="仮パスワード（8文字以上、大小英字+数字）")]
-    [string]$TempPassword,
+    [Parameter(Mandatory = $true, HelpMessage = "仮パスワード")]
+    [SecureString]$TempPassword,
     
-    [Parameter(HelpMessage="環境名（dev/prod）")]
+    [Parameter(HelpMessage = "環境名（dev/prod）")]
     [string]$Environment = "dev"
 )
 
@@ -40,18 +40,20 @@ try {
     }
 
     Write-Host "UserPool ID: $UserPoolId" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Host "❌ エラー: $_" -ForegroundColor Red
     exit 1
 }
 
 # パスワードポリシーチェック（簡易）
-if ($TempPassword.Length -lt 8) {
+$PlainPassword = [System.Net.NetworkCredential]::new("", $TempPassword).Password
+if ($PlainPassword.Length -lt 8) {
     Write-Host "❌ パスワードは8文字以上である必要があります" -ForegroundColor Red
     exit 1
 }
 
-if ($TempPassword -notmatch '[A-Z]' -or $TempPassword -notmatch '[a-z]' -or $TempPassword -notmatch '[0-9]') {
+if ($PlainPassword -notmatch '[A-Z]' -or $PlainPassword -notmatch '[a-z]' -or $PlainPassword -notmatch '[0-9]') {
     Write-Host "❌ パスワードは大文字・小文字・数字を含む必要があります" -ForegroundColor Red
     exit 1
 }
@@ -66,10 +68,10 @@ try {
         --user-pool-id $UserPoolId `
         --username $Email `
         --user-attributes `
-            Name=email,Value=$Email `
-            Name=email_verified,Value=true `
-            Name=custom:userName,Value=$UserName `
-        --temporary-password $TempPassword `
+        Name=email, Value=$Email `
+        Name=email_verified, Value=true `
+        Name=custom:userName, Value=$UserName `
+        --temporary-password $PlainPassword `
         --message-action SUPPRESS `
         --region ap-northeast-1
 
@@ -77,14 +79,16 @@ try {
         Write-Host "`n✅ ユーザー作成完了！" -ForegroundColor Green
         Write-Host "`n📧 メールアドレス: $Email" -ForegroundColor Cyan
         Write-Host "👤 表示名: $UserName" -ForegroundColor Cyan
-        Write-Host "🔑 仮パスワード: $TempPassword" -ForegroundColor Cyan
+        Write-Host "🔑 仮パスワード: $PlainPassword" -ForegroundColor Cyan
         Write-Host "`n⚠️  初回ログイン時にパスワード変更が必要です" -ForegroundColor Yellow
         Write-Host "詳細: https://localhost:3000 でログインしてください" -ForegroundColor Gray
-    } else {
+    }
+    else {
         Write-Host "❌ ユーザー作成に失敗しました" -ForegroundColor Red
         exit 1
     }
-} catch {
+}
+catch {
     Write-Host "❌ エラー: $_" -ForegroundColor Red
     exit 1
 }

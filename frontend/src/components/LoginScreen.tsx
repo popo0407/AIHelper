@@ -58,10 +58,10 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       const userName = (idToken.payload['custom:userName'] as string) || userEmail.split('@')[0];
 
       onLogin({
-        userId,
-        email: userEmail,
-        userName,
+        loginId: userId,
+        displayName: userName,
         createdAt: new Date().toISOString(),
+        conversationIds: [],
       });
     } catch (err: unknown) {
       console.error('Login error:', err);
@@ -302,17 +302,6 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
             </form>
           </div>
         )}
-      </div>
-    </div>
-  );
-}
-                </span>
-              ) : (
-                '登録'
-              )}
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

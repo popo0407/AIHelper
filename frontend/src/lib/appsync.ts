@@ -50,8 +50,14 @@ export interface MutationResponse<T> {
  * ```
  */
 export function extractData<T>(
-  result: { data: Record<string, unknown> },
+  result: { data: Record<string, unknown>; errors?: Array<{ message: string }> },
   key: string
 ): T {
+  // Check for GraphQL errors
+  if (result.errors && result.errors.length > 0) {
+    const errorMessages = result.errors.map(e => e.message).join(', ');
+    throw new Error(`GraphQL Error: ${errorMessages}`);
+  }
+
   return result.data[key] as T;
 }

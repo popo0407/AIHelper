@@ -39,7 +39,10 @@ export function ConversationSelect({
       const convos = extractData<Conversation[]>(result, 'listConversations');
       setConversations(convos ?? []);
     } catch (err) {
-      console.error('Failed to load conversations:', err);
+      console.error('Failed to load conversations:', {
+        error: err instanceof Error ? err.message : String(err),
+        userId: user.loginId,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -57,12 +60,18 @@ export function ConversationSelect({
         'createConversation'
       );
       if (!data.success) {
-        console.error('Failed to create conversation:', data.error);
+        console.error('Failed to create conversation:', {
+          error: data.error,
+          userId: user.loginId,
+        });
         return;
       }
       onNew(data.conversation);
     } catch (err) {
-      console.error('Failed to create conversation:', err);
+      console.error('Failed to create conversation:', {
+        error: err instanceof Error ? err.message : String(err),
+        userId: user.loginId,
+      });
     } finally {
       setIsLoading(false);
     }
