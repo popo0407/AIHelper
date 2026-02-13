@@ -678,3 +678,33 @@ Branch Structure:
 
 **ä½œæˆè€…:** AI Development Agent  
 **æœ€çµ‚æ›´æ–°:** 2026å¹´2æœˆ13æ—¥
+
+---
+
+## ?? **2026”N2Œ14“ú ? PlayWright MCPiE2EƒeƒXƒg©“®‰»j“±“üŠ®—¹**
+
+### ? **À‘•“à—e**
+
+#### **1. PlayWright ƒCƒ“ƒXƒg[ƒ‹ƒZƒbƒgƒAƒbƒv**
+- @playwright/test ‚ğƒCƒ“ƒXƒg[ƒ‹
+- ChromiumAFirefoxAWebKit ‚ğƒ[ƒJƒ‹‚ÉƒCƒ“ƒXƒg[ƒ‹
+- frontend/playwright.config.ts ‚ğì¬
+
+#### **2. E2EƒeƒXƒgƒTƒ“ƒvƒ‹À‘•**
+- frontend/e2e/login.spec.ts ‚ğì¬i7‚Â‚ÌƒeƒXƒgj
+
+#### **3. npm ƒXƒNƒŠƒvƒg’Ç‰Á**
+- npm run e2eiƒwƒbƒhƒŒƒXƒ‚[ƒhj
+- npm run e2e:uiiUI‚Å‘Î˜b“IÀsj
+- npm run e2e:debugiƒfƒoƒbƒOƒ‚[ƒhj
+- npm run e2e:chromium/firefox/webkitiƒuƒ‰ƒEƒUw’èj
+- npm run e2e:headediƒuƒ‰ƒEƒU•\¦ƒ‚[ƒhj
+
+#### **4. ƒhƒLƒ…ƒƒ“ƒgİ’èXV**
+- docs/playwright-guide.md ‚ğì¬iÚ×ƒKƒCƒhj
+- README.md ‚ğXViE2EƒeƒXƒgÀs•û–@’Ç‰Áj
+- .vscode/settings.json ‚ğXV
+- .github/copilot-instructions.md ‚ğXViMCPî•ñ’Ç‰Áj
+
+**ƒXƒe[ƒ^ƒX:** ? **PlayWright MCP E2EƒeƒXƒg©“®‰»ŠÂ‹«‚ª–{Ši‰Ò“­‰Â”\**
+**ÅIXV:** 2026”N2Œ14“ú
