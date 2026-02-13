@@ -3,6 +3,7 @@ from aws_cdk import (
     Stack,
     CfnOutput,
     RemovalPolicy,
+    Duration,
     aws_cognito as cognito,
 )
 from constructs import Construct
@@ -75,9 +76,9 @@ class CognitoStack(Stack):
                 user_srp=True,       # SRP（Secure Remote Password）認証
             ),
             # トークン有効期限
-            access_token_validity=cognito.Duration.hours(1),
-            id_token_validity=cognito.Duration.hours(1),
-            refresh_token_validity=cognito.Duration.days(30),
+            access_token_validity=Duration.hours(1),
+            id_token_validity=Duration.hours(1),
+            refresh_token_validity=Duration.days(30),
             # OAuth 無効（SPAとして使用）
             o_auth=None,
         )
