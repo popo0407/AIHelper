@@ -14,7 +14,7 @@ type UserConversation {
   loginId: ID!
   conversationId: ID!
   joinedAt: AWSDateTime!
-  role: String        # e.g., "owner", "participant"
+  role: String # e.g., "owner", "participant"
 }
 
 type Message {
