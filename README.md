@@ -251,6 +251,9 @@ Closes #123"
 
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**
 
+- [ ] **Cognito 認証への移行**（優先）→ [Issue詳細](.github/ISSUES/cognito-authentication.md)
+- [ ] GraphQL Subscription の再実装
+- [ ] WAF レート制限の追加
 - [ ] 統合テスト
 - [ ] セキュリティ監査
 - [ ] パフォーマンステスト
@@ -260,11 +263,21 @@ Closes #123"
 
 ## 🔐 **セキュリティ考慮事項**
 
+### **実装済み**
+
 - ✅ IAM ロール / ポリシー最小権限の原則
 - ✅ DynamoDB TTL による自動ロック解放
 - ✅ AppSync VTL でのデータ検証
 - ✅ Lambda での入力サニタイゼーション
 - ✅ Bedrock API への認証
+
+### **優先対応事項**
+
+- ⚠️ **現在**: API Key 認証（開発環境のみ許容）
+- 🎯 **移行予定**: Amazon Cognito User Pools 認証
+  - 理由: API Key は公開され、全ユーザー共通のため漏洩リスクが高い
+  - 対策: ユーザーごとの JWT トークンを使用（有効期限1時間）
+  - 詳細: [Cognito認証移行Issue](.github/ISSUES/cognito-authentication.md)
 
 詳細は [.github/skills/security/SKILL.md](.github/skills/security/SKILL.md) を参照。
 

@@ -2,6 +2,112 @@
 
 ---
 
+## 📅 **2026年2月13日（続） — AWS デプロイ完了・フロントエンド起動・セキュリティ課題の識別**
+
+### ✅ **完了した内容**
+
+#### **1. CDK を使った AWS インフラのデプロイ**
+
+- **DynamoDB Stack**: Users, Messages, Summary, Locks, Conversations テーブル作成（PAY_PER_REQUEST）
+- **Lambda Stack**: 6つの Lambda 関数デプロイ（Python 3.12 + 共通レイヤー）
+- **AppSync Stack**: GraphQL API デプロイ（45リゾルバー、API Key 認証）
+- **デプロイ結果**:
+  - AppSync Endpoint: `https://6egm7dk3mbefzamvsx2b3w5kxy.appsync-api.ap-northeast-1.amazonaws.com/graphql`
+  - API Key: `da2-qdhwa6iparhe5djocvr4nc5rve`
+  - Region: ap-northeast-1
+
+#### **2. GraphQL Subscription の一時削除**
+
+- **問題**: AppSync デプロイ時に "invalid output type" エラー
+- **原因**: Subscription 型定義の不備
+- **対応**: `schema.graphql` から Subscription セクションを削除（203-217行）
+- **影響**: リアルタイム更新が無効化（手動リフレッシュが必要）
+- **今後**: 別 Issue で再実装予定
+
+#### **3. フロントエンド環境構築**
+
+- `frontend/.env.local` 作成（AppSync 接続情報）
+- 依存関係追加: `@aws-amplify/data-schema@1.24.0`, `autoprefixer@10.4.24`
+- `npm install` 完了（936パッケージ、graphql パッケージの破損を修復）
+- Next.js 開発サーバー起動成功（`http://localhost:3000`）
+
+#### **4. セキュリティ課題の識別**
+
+- **問題**: API Key がブラウザで公開される（DevTools で確認可能）
+- **リスク**: 
+  - 全ユーザー共通の1つのキー
+  - 無制限のリクエスト可能（レート制限なし）
+  - DDoS 攻撃の可能性
+- **対策**: Cognito User Pools 認証への移行を Issue 化（`.github/ISSUES/cognito-authentication.md`）
+
+#### **5. ドキュメント更新**
+
+- `README.md`: フェーズ4タスクとセキュリティ警告追加
+- `docs/retrospective.md`: 今回のタスク記録
+- `.github/ISSUES/cognito-authentication.md`: Cognito 移行の詳細 Issue 作成
+
+### **問題と対応**
+
+| 問題                                         | 原因                                               | 対応                                                 |
+| -------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| GraphQL Subscription デプロイエラー          | Subscription 型の output type 定義不備             | Subscription セクションを一時削除                    |
+| graphql パッケージ破損（60+モジュール不存在） | npm cache 問題または不完全インストール            | `npm cache clean --force` + 完全再インストール       |
+| Next.js 起動時の "require-hook" エラー       | node_modules/.bin/next.cmd の破損                  | `npm install --force` で修復                         |
+| node_modules 削除失敗（Windows）             | 一部ファイルがロック中                             | `cmd /c "rmdir /s /q node_modules"` で強制削除       |
+| API Key がブラウザで公開される               | フロントエンドコードに環境変数として埋め込まれる   | ⚠️ 開発環境のみ許容、Cognito 認証への移行を計画     |
+
+### **学んだこと**
+
+1. **AppSync Subscription の型定義は厳密**: 
+   - Output type は必ず存在する型を指定する
+   - `type Subscription` のフィールドは `type Mutation` の戻り値型と一致させる
+
+2. **Windows での node_modules 削除は困難**:
+   - PowerShell の `Remove-Item` より `cmd /c "rmdir /s /q"` が確実
+   - ファイルロックが発生した場合は Node プロセスを事前に停止
+
+3. **npm cache は定期的にクリアすべき**:
+   - `npm cache clean --force` を定期実行
+   - 大規模パッケージ（Next.js）のインストール前に実行推奨
+
+4. **API Key 認証の限界**:
+   - ブラウザ実行コードでは、NEXT_PUBLIC_* 環境変数は必ず公開される
+   - CloudFront でエンドポイントを隠しても API Key 問題は解決しない
+   - **根本解決**: Cognito User Pools で JWT トークン認証
+
+5. **ローカル開発のメリット**:
+   - フロントエンド: HMR による高速イテレーション（0.5秒で反映）
+   - CloudFront ビルド: 2-5分のビルド時間
+   - バックエンド: AWS 上で動作（ローカルエミュレートは LocalStack で可能）
+
+### **再発防止策**
+
+- GraphQL Subscription を追加する際は、型定義を厳密にチェック
+- CDK デプロイ前に `cdk synth` で CloudFormation テンプレートを確認
+- API Key 認証は開発環境のみにし、本番環境では Cognito を必須化
+- WAF でレート制限を追加（5分間に100リクエスト等）
+- npm install に問題が発生したら、`npm cache clean --force` を最初に実行
+- Windows 環境では `cmd /c "rmdir /s /q node_modules"` を優先使用
+
+### **次のタスク**
+
+1. **Cognito 認証への移行**（優先度: 高、見積: 2-3時間）
+   - Issue: `.github/ISSUES/cognito-authentication.md`
+   - Cognito UserPool 作成
+   - AppSync 認証設定変更（API_KEY → USER_POOL）
+   - フロントエンド Amplify Auth 統合
+   - ログイン/サインアップフロー実装
+
+2. **GraphQL Subscription の再実装**
+   - Subscription 型定義の修正
+   - リアルタイム更新の復旧
+
+3. **WAF レート制限の追加**
+   - 5分間に100リクエストまで
+   - CloudWatch アラーム設定
+
+---
+
 ## 📅 **2026年2月13日 — AppSync 統合・フロントエンドテスト・デプロイ準備**
 
 ### ✅ **完了した内容**
