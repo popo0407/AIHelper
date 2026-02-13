@@ -59,9 +59,6 @@ class AppSyncStack(Stack):
         # =========================================================
         # Lambda Data Sources
         # =========================================================
-        user_ds = self.api.add_lambda_data_source(
-            "UserDS", lambda_stack.user_management_fn
-        )
         chat_ds = self.api.add_lambda_data_source(
             "ChatDS", lambda_stack.chat_fn
         )
@@ -81,16 +78,6 @@ class AppSyncStack(Stack):
         # =========================================================
         # Query Resolvers
         # =========================================================
-        user_ds.create_resolver(
-            "ListUsersResolver",
-            type_name="Query",
-            field_name="listUsers",
-        )
-        user_ds.create_resolver(
-            "GetUserResolver",
-            type_name="Query",
-            field_name="getUser",
-        )
         conversation_ds.create_resolver(
             "GetConversationResolver",
             type_name="Query",
@@ -120,11 +107,6 @@ class AppSyncStack(Stack):
         # =========================================================
         # Mutation Resolvers
         # =========================================================
-        user_ds.create_resolver(
-            "RegisterUserResolver",
-            type_name="Mutation",
-            field_name="registerUser",
-        )
         conversation_ds.create_resolver(
             "CreateConversationResolver",
             type_name="Mutation",

@@ -6,28 +6,6 @@
 // Queries
 // ============================
 
-export const LIST_USERS = /* GraphQL */ `
-  query ListUsers {
-    listUsers {
-      loginId
-      displayName
-      createdAt
-      conversationIds
-    }
-  }
-`;
-
-export const GET_USER = /* GraphQL */ `
-  query GetUser($loginId: ID!) {
-    getUser(loginId: $loginId) {
-      loginId
-      displayName
-      createdAt
-      conversationIds
-    }
-  }
-`;
-
 export const GET_CONVERSATION = /* GraphQL */ `
   query GetConversation($conversationId: ID!) {
     getConversation(conversationId: $conversationId) {
@@ -102,21 +80,6 @@ export const GET_LOCKS = /* GraphQL */ `
 // ============================
 // Mutations
 // ============================
-
-export const REGISTER_USER = /* GraphQL */ `
-  mutation RegisterUser($input: RegisterUserInput!) {
-    registerUser(input: $input) {
-      success
-      user {
-        loginId
-        displayName
-        createdAt
-        conversationIds
-      }
-      error
-    }
-  }
-`;
 
 export const CREATE_CONVERSATION = /* GraphQL */ `
   mutation CreateConversation($input: CreateConversationInput!) {

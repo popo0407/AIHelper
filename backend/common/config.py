@@ -9,7 +9,7 @@ class AppConfig:
 
     environment: str
     project_name: str
-    users_table: str
+    user_conversations_table: str
     messages_table: str
     summary_table: str
     locks_table: str
@@ -24,7 +24,9 @@ def get_config() -> AppConfig:
     return AppConfig(
         environment=os.environ.get("ENVIRONMENT", "dev"),
         project_name=os.environ.get("PROJECT_NAME", "aichat"),
-        users_table=os.environ.get("USERS_TABLE", "aichat-dev-users"),
+        user_conversations_table=os.environ.get(
+            "USER_CONVERSATIONS_TABLE", "aichat-dev-user-conversations"
+        ),
         messages_table=os.environ.get("MESSAGES_TABLE", "aichat-dev-messages"),
         summary_table=os.environ.get("SUMMARY_TABLE", "aichat-dev-summary"),
         locks_table=os.environ.get("LOCKS_TABLE", "aichat-dev-locks"),

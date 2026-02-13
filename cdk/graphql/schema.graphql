@@ -7,8 +7,7 @@
 type User {
   loginId: ID!
   displayName: String!
-  createdAt: AWSDateTime!
-  conversationIds: [String!]
+  email: String!
 }
 
 type Message {
@@ -59,11 +58,6 @@ type Notification {
 
 # ------ Inputs ------
 
-input RegisterUserInput {
-  loginId: ID!
-  displayName: String!
-}
-
 input SendMessageInput {
   conversationId: ID!
   userId: String!
@@ -112,12 +106,6 @@ input JoinConversationInput {
 
 # ------ Responses ------
 
-type RegisterUserResponse {
-  success: Boolean!
-  user: User
-  error: String
-}
-
 type SendMessageResponse {
   success: Boolean!
   message: Message
@@ -163,8 +151,6 @@ type UndoSummaryResponse {
 # ------ Queries ------
 
 type Query {
-  listUsers: [User!]!
-  getUser(loginId: ID!): User
   getConversation(conversationId: ID!): Conversation
   listConversations(loginId: ID!): [Conversation!]!
   listMessages(
@@ -184,7 +170,6 @@ type MessageConnection {
 # ------ Mutations ------
 
 type Mutation {
-  registerUser(input: RegisterUserInput!): RegisterUserResponse!
   createConversation(
     input: CreateConversationInput!
   ): CreateConversationResponse!

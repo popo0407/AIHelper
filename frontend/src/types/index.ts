@@ -5,10 +5,9 @@
 // ------ Domain Types ------
 
 export interface User {
-  loginId: string;
-  displayName: string;
-  createdAt: string;
-  conversationIds: string[];
+  loginId: string;      // Cognito sub (UUID)
+  displayName: string;  // Cognito custom:userName
+  email: string;        // Cognito email
 }
 
 export interface Message {

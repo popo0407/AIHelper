@@ -28,18 +28,31 @@ class DatabaseStack(Stack):
         )
 
         # =========================================================
-        # Users Table  PK: loginId
+        # UserConversations Table  PK: loginId, SK: conversationId
+        # ユーザーと会話の参加関係を管理（Cognito がユーザー管理）
         # =========================================================
-        self.users_table = dynamodb.Table(
+        self.user_conversations_table = dynamodb.Table(
             self,
-            "UsersTable",
-            table_name=f"{project_name}-{env_name}-users",
+            "UserConversationsTable",
+            table_name=f"{project_name}-{env_name}-user-conversations",
             partition_key=dynamodb.Attribute(
                 name="loginId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=removal,
             point_in_time_recovery=env_name == "prod",
+        )
+
+        # GSI: conversationId で検索（会話の全参加者を取得）
+        self.user_conversations_table.add_global_secondary_index(
+            index_name="byConversation",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
         )
 
         # =========================================================

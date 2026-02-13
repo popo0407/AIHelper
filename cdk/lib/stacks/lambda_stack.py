@@ -83,7 +83,7 @@ class LambdaStack(Stack):
         common_env = {
             "ENVIRONMENT": env_name,
             "PROJECT_NAME": project_name,
-            "USERS_TABLE": database_stack.users_table.table_name,
+            "USER_CONVERSATIONS_TABLE": database_stack.user_conversations_table.table_name,
             "MESSAGES_TABLE": database_stack.messages_table.table_name,
             "SUMMARY_TABLE": database_stack.summary_table.table_name,
             "LOCKS_TABLE": database_stack.locks_table.table_name,
@@ -105,26 +105,6 @@ class LambdaStack(Stack):
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             removal_policy=RemovalPolicy.DESTROY,
             description=f"{project_name}-{env_name}-common-layer",
-        )
-
-        # =========================================================
-        # User Management Lambda
-        # =========================================================
-        self.user_management_fn = lambda_.Function(
-            self,
-            "UserManagementFunction",
-            function_name=f"{project_name}-{env_name}-user-management",
-            runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="index.lambda_handler",
-            code=lambda_.Code.from_asset(
-                os.path.join(backend_path, "functions", "user_management")
-            ),
-            layers=[common_layer],
-            timeout=Duration.seconds(30),
-            memory_size=256,
-            environment=common_env,
-            role=lambda_role,
-            log_retention=logs.RetentionDays.ONE_WEEK,
         )
 
         # =========================================================

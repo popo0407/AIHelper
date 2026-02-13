@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { signIn, confirmSignIn, fetchAuthSession } from 'aws-amplify/auth';
 import type { User } from '@/types';
-import { graphqlClient, extractData } from '@/lib/appsync';
-import { REGISTER_USER } from '@/graphql/operations';
 
 // Initialize Amplify (via appsync client)
 import '@/lib/appsync';
@@ -62,38 +60,10 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       const user: User = {
         loginId: userId,
         displayName: userName,
-        createdAt: new Date().toISOString(),
-        conversationIds: [],
+        email: userEmail,
       };
 
-      // Register user in DynamoDB
-      try {
-        const registerResult = await graphqlClient.graphql({
-          query: REGISTER_USER,
-          variables: {
-            input: {
-              loginId: userId,
-              displayName: userName,
-            },
-          },
-        });
-        const registerData = extractData<{
-          success: boolean;
-          user: User;
-          error?: string;
-        }>(registerResult, 'registerUser');
-
-        if (registerData.success && registerData.user) {
-          onLogin(registerData.user);
-        } else {
-          // Fall back to Cognito user if registration fails
-          console.warn('User registration failed:', registerData.error);
-          onLogin(user);
-        }
-      } catch (registerErr) {
-        console.warn('User registration error:', registerErr);
-        onLogin(user);
-      }
+      onLogin(user);
     } catch (err: unknown) {
       console.error('Login error:', err);
       const message =

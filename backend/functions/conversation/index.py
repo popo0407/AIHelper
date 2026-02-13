@@ -70,17 +70,23 @@ def handle_get_conversation(args: dict) -> dict | None:
 
 
 def handle_list_conversations(args: dict) -> list[dict]:
-    """List conversations for a user."""
+    """List conversations for a user from UserConversations table."""
     login_id = args.get("loginId")
 
-    # Fetch user's conversation IDs
-    users_table = get_dynamodb_table(config.users_table)
-    user_resp = users_table.get_item(Key={"loginId": login_id})
-    user_item = user_resp.get("Item", {})
-    conversation_ids = user_item.get("conversationIds", [])
-
-    if not conversation_ids:
+    # Query UserConversations table
+    user_conversations_table = get_dynamodb_table(config.user_conversations_table)
+    response = user_conversations_table.query(
+        KeyConditionExpression="loginId = :lid",
+        ExpressionAttributeValues={":lid": login_id}
+    )
+    
+    user_conversation_items = response.get("Items", [])
+    
+    if not user_conversation_items:
         return []
+
+    # Extract conversation IDs
+    conversation_ids = [item["conversationId"] for item in user_conversation_items]
 
     # Fetch each conversation
     conversations_table = get_dynamodb_table(config.conversations_table)
@@ -137,15 +143,14 @@ def handle_create_conversation(args: dict) -> dict[str, Any]:
         }
     )
 
-    # Add conversation to user's list
-    users_table = get_dynamodb_table(config.users_table)
-    users_table.update_item(
-        Key={"loginId": created_by},
-        UpdateExpression="SET conversationIds = list_append(if_not_exists(conversationIds, :empty), :cid)",
-        ExpressionAttributeValues={
-            ":cid": [conversation_id],
-            ":empty": [],
-        },
+    # Add user-conversation relationship
+    user_conversations_table = get_dynamodb_table(config.user_conversations_table)
+    user_conversations_table.put_item(
+        Item={
+            "loginId": created_by,
+            "conversationId": conversation_id,
+            "joinedAt": now,
+        }
     )
 
     conversation_item["title"] = ""
@@ -186,21 +191,20 @@ def handle_join_conversation(args: dict) -> dict[str, Any]:
             ExpressionAttributeValues={":uid": [login_id]},
         )
 
-    # Add conversation to user's list
-    users_table = get_dynamodb_table(config.users_table)
-    user_resp = users_table.get_item(Key={"loginId": login_id})
-    user_item = user_resp.get("Item", {})
-    user_conversations = user_item.get("conversationIds", [])
-
-    if conversation_id not in user_conversations:
-        users_table.update_item(
-            Key={"loginId": login_id},
-            UpdateExpression="SET conversationIds = list_append(if_not_exists(conversationIds, :empty), :cid)",
-            ExpressionAttributeValues={
-                ":cid": [conversation_id],
-                ":empty": [],
+    # Add user-conversation relationship
+    user_conversations_table = get_dynamodb_table(config.user_conversations_table)
+    try:
+        user_conversations_table.put_item(
+            Item={
+                "loginId": login_id,
+                "conversationId": conversation_id,
+                "joinedAt": utc_now_iso(),
             },
+            ConditionExpression="attribute_not_exists(loginId) AND attribute_not_exists(conversationId)"
         )
+    except Exception:
+        # Already joined - ignore
+        pass
 
     # Fetch title
     summary_table = get_dynamodb_table(config.summary_table)
