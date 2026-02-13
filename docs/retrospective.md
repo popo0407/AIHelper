@@ -399,7 +399,183 @@ Branch Structure:
 
 ---
 
-## 🚀 **次フェーズの計画**
+## � **2026年2月14日 — Cognito User Pool 認証統合完了**
+
+### ✅ **完了した内容**
+
+#### **1. Cognito User Pool CDK 定義**
+
+- **新規スタック作成**: `cdk/lib/stacks/cognito_stack.py`（119行）
+- **設定**:
+  - `self_sign_up_enabled=False`（管理者のみユーザー登録可）
+  - `auto_verify=None`（メール認証なし）
+  - カスタム属性: `userName`（表示名、1-100文字、mutable）
+  - パスワードポリシー: 8文字以上、大小英字+数字必須
+- **UserPoolClient**:
+  - 認証フロー: SRP認証（user_srp=True）+ ユーザー名+パスワード認証
+  - トークン有効期限: アクセス/IDトークン 1時間、リフレッシュトークン 30日
+- **Outputs**: UserPoolId, UserPoolClientId, UserPoolArn
+
+#### **2. AppSync 認証設定変更**
+
+- `cdk/lib/stacks/appsync_stack.py` を修正:
+  - `authorization_type`: `API_KEY` → `USER_POOL`
+  - `user_pool_config`: Cognito UserPool 参照追加
+  - API Key 認証を完全削除
+- `cdk/app.py` を修正:
+  - CognitoStack インスタンス追加
+  - AppSyncStack に `user_pool` パラメータ渡す
+  - 依存関係追加: `appsync_stack.add_dependency(cognito_stack)`
+
+#### **3. 管理者用ツール作成**
+
+- `scripts/create-user.ps1`（80行）:
+  - CloudFormation から UserPoolId 自動取得
+  - `admin-create-user` 実行
+  - `email_verified=true` 設定（メール認証スキップ）
+  - `message_action=SUPPRESS`（メール送信なし）
+  - パスワードポリシー検証（8文字、大小英字+数字）
+
+- `scripts/reset-password.ps1`（95行）:
+  - `admin-set-user-password` 実行
+  - `-Permanent` スイッチ: 永続的パスワード設定（初回変更不要）
+  - デフォルト: 仮パスワード設定（初回変更必須）
+
+- `scripts/README.md`（250行）:
+  - 各スクリプトの使用方法
+  - パラメータ一覧
+  - 実行例
+  - トラブルシューティング
+  - セキュリティ注意事項（パスワード管理、IAM権限）
+
+#### **4. フロントエンド Cognito 対応**
+
+- `frontend/src/components/LoginScreen.tsx` を完全書き換え（254行）:
+  - 既存ユーザー選択ドロップダウン削除
+  - 新規登録フォーム削除（管理者のみ登録可のため）
+  - **新機能**:
+    - メールアドレス + パスワード入力フォーム
+    - `aws-amplify/auth` 統合（`signIn`, `confirmSignIn`, `fetchAuthSession`）
+    - 初回ログイン時パスワード変更フロー対応（`CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED`）
+    - パスワード複雑性検証（8文字以上、大小英字+数字）
+    - IDトークンから userId, email, userName 取得
+  - **削除**:
+    - LIST_USERS GraphQL クエリ
+    - REGISTER_USER GraphQL ミューテーション
+
+- `frontend/src/config/aws.ts` を更新:
+  - `Auth.Cognito` 設定追加（UserPoolId, UserPoolClientId）
+  - `defaultAuthMode`: `apiKey` → `userPool`
+  - API Key 削除
+
+- `frontend/.env.local` を更新:
+  - `NEXT_PUBLIC_USER_POOL_ID=ap-northeast-1_37JNHWLS0`
+  - `NEXT_PUBLIC_USER_POOL_CLIENT_ID=3fbv5dbk7rra9qcpdnlclhe7in`
+  - API Key 削除
+
+#### **5. CDK デプロイ実行**
+
+- **修正**: `cognito_stack.py` の `cognito.Duration` → `Duration`（import 追加）
+- **既存スタック削除**: `cdk destroy aichat-dev-appsync --force`（認証方式変更のため）
+- **全スタックデプロイ**: `cdk deploy --all --context environment=dev`
+  - aichat-dev-database（既存）
+  - **aichat-dev-cognito**（新規）
+  - aichat-dev-lambda（既存）
+  - aichat-dev-appsync（再作成、USER_POOL認証）
+- **デプロイ時間**: 約2分
+- **結果**:
+  - UserPoolId: `ap-northeast-1_37JNHWLS0`
+  - UserPoolClientId: `3fbv5dbk7rra9qcpdnlclhe7in`
+  - AppSync Endpoint: `https://37q5govhjjhtrpjgerywf4efkm.appsync-api.ap-northeast-1.amazonaws.com/graphql`
+
+#### **6. テストユーザー作成**
+
+- AWS CLI で直接実行（PowerShell スクリプトの文字エンコーディング問題を回避）:
+  ```bash
+  aws cognito-idp admin-create-user \
+    --user-pool-id ap-northeast-1_37JNHWLS0 \
+    --username "test@example.com" \
+    --user-attributes Name=email,Value="test@example.com" \
+                       Name=email_verified,Value=true \
+                       Name="custom:userName",Value="テストユーザー" \
+    --temporary-password "TestPass123!" \
+    --message-action SUPPRESS
+  ```
+- **結果**:
+  - Username: `97e4fa48-4051-7022-f408-04c5e9da2560`（自動生成UUID）
+  - UserStatus: `FORCE_CHANGE_PASSWORD`（初回ログイン時変更必須）
+
+#### **7. ドキュメント更新**
+
+- `README.md`:
+  - 技術スタックに「認証: Amazon Cognito User Pools」追加
+  - 機能リストに「ユーザー認証」追加
+  - セットアップ手順を更新（Cognito 情報取得、テストユーザー作成）
+  - ディレクトリ構成に `cognito_stack.py` と `scripts/` 追加
+
+- `docs/retrospective.md`:
+  - 今回の実装内容を追加
+
+### **問題と対応**
+
+| 問題                                       | 原因                                      | 対応                                            |
+| ------------------------------------------ | ----------------------------------------- | ----------------------------------------------- |
+| `cognito.Duration` 属性エラー              | `Duration` は `aws_cdk` モジュールに存在  | `from aws_cdk import Duration` import 追加      |
+| PowerShell スクリプトの文字エンコーディング | 日本語ヘルプメッセージの文字化け          | AWS CLI コマンドを直接実行（スクリプトは保留）  |
+| Next.js ポート 3000 使用中                 | 前回のプロセスが残留                      | ポート 3001 で自動起動（問題なし）              |
+
+### **学んだこと**
+
+1. **Cognito User Pool の認証フロー**:
+   - `FORCE_CHANGE_PASSWORD` 状態では `confirmSignIn()` が必要
+   - IDトークンから `sub`, `email`, `custom:userName` を取得可能
+   - JWTトークンは1時間で自動失効（セキュリティ向上）
+
+2. **AppSync 認証の変更**:
+   - API Key → USER_POOL 変更時はスタック再作成が必要
+   - Cognito UserPool はスタックの依存関係を正しく設定する必要がある
+
+3. **管理者用ツールの重要性**:
+   - AWS CLIスクリプトでユーザー作成を効率化
+   - `-Permanent` オプションで初回パスワード変更をスキップ可能
+   - CloudFormation Outputs から動的に UserPoolId 取得
+
+4. **PowerShell のエンコーディング問題**:
+   - 日本語コメントは UTF-8 BOM 必須
+   - 本番環境では AWS CLI を直接実行する方が安全
+
+5. **セキュリティ向上**:
+   - API Key: 全ユーザー共通、無期限 → **Cognito JWT**: ユーザー毎、1時間有効
+   - ブラウザからの API Key 漏洩リスク解消
+   - 管理者のみユーザー登録可（self-signup 無効）
+
+### **再発防止策**
+
+- CDK で `Duration` を使う際は、常に `aws_cdk` モジュールから import
+- AppSync 認証変更時は、事前に既存スタックを削除してから再デプロイ
+- PowerShell スクリプトは UTF-8 BOM で保存、または AWS CLI を直接使用
+- Cognito UserPool 設定は、初回ログイン時のフローを考慮してテスト
+
+### **次のタスク**
+
+1. **ログイン画面の動作テスト**（優先度: 高、見積: 30分）
+   - http://localhost:3001 でログインテスト
+   - 初回ログイン時のパスワード変更フロー確認
+   - IDトークンから userId 取得確認
+
+2. **既存機能の Cognito 統合**（優先度: 中、見積: 1時間）
+   - ConversationSelect コンポーネント: User 型の取得元を Cognito に変更
+   - userId 管理: UUID 自動生成 → Cognito `sub` 使用
+   - REGISTER_USER mutation 廃止または変更（DynamoDB は補助情報のみ保存）
+
+3. **GraphQL Subscription 再実装**（優先度: 低、見積: 2時間）
+   - `schema.graphql` に Subscription セクション再追加
+   - Output 型の厳密チェック
+   - リアルタイム更新機能の復活
+
+---
+
+## �🚀 **次フェーズの計画**
 
 ### **フェーズ 2：バックエンド実装**
 

@@ -8,6 +8,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 
 ### **機能**
 
+- **ユーザー認証:** Amazon Cognito による安全なログイン（管理者のみユーザー登録可）
 - **リアルタイムチャット:** AppSync (GraphQL WebSocket) でリアルタイム更新
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
 - **AIアシスタント:** 複数の相談ボタンで AI に質問・回答を依頼
@@ -18,6 +19,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 
 - **フロントエンド:** React / Next.js （AWS Amplify）
 - **バックエンド:** AWS AppSync（GraphQL）、AWS Lambda
+- **認証:** Amazon Cognito User Pools
 - **ストレージ:** Amazon DynamoDB
 - **AI エンジン:** Amazon Bedrock（Claude Haiku 4.5 推論プロファイルモデル）
 - **リージョン:** Tokyo（東京）（Bedrock のみオレゴン）
@@ -42,6 +44,7 @@ AICHAT/
 │   └── lib/
 │       ├── stacks/
 │       │   ├── database_stack.py   # DynamoDB テーブル定義
+│       │   ├── cognito_stack.py    # Cognito User Pool 定義
 │       │   ├── lambda_stack.py     # Lambda 関数定義
 │       │   └── appsync_stack.py    # AppSync API 定義
 │       └── constructs/
@@ -94,6 +97,10 @@ AICHAT/
 │   ├── tsconfig.json
 │   ├── tailwind.config.js
 │   └── next.config.js
+├── scripts/                        # 管理者用スクリプト
+│   ├── create-user.ps1             # Cognitoユーザー作成（PowerShell）
+│   ├── reset-password.ps1          # パスワードリセット（PowerShell）
+│   └── README.md                   # スクリプト使用方法
 ├── documents/
 │   ├── 要件定義.md
 │   └── AWSシステム構成.md
@@ -131,15 +138,30 @@ cd ..
 # 3. CDK 依存関係をインストール
 pip install -r cdk/requirements-cdk.txt
 
-# 4. 環境変数を設定
-cp frontend/.env.example frontend/.env.local
-# frontend/.env.local を編集（AppSync エンドポイント、API キー）
-
-# 5. CDK スタックをデプロイ（詳細は docs/deploy-guide.md 参照）
+# 4. CDK スタックをデプロイ（詳細は docs/deploy-guide.md 参照）
 cd cdk
 cdk deploy --all --context environment=dev --require-approval never
 
-# 6. フロントエンド開発サーバー起動
+# 5. Cognito UserPool情報を取得して環境変数を設定
+aws cloudformation describe-stacks --stack-name aichat-dev-cognito --query "Stacks[0].Outputs"
+# 上記の出力からUserPoolIdとUserPoolClientIdを取得
+
+# frontend/.env.local を作成して設定
+cat > ../frontend/.env.local << EOF
+NEXT_PUBLIC_AWS_REGION=ap-northeast-1
+NEXT_PUBLIC_APPSYNC_ENDPOINT=<AppSync GraphQL endpoint from deployment>
+NEXT_PUBLIC_USER_POOL_ID=<UserPoolId from Cognito stack>
+NEXT_PUBLIC_USER_POOL_CLIENT_ID=<UserPoolClientId from Cognito stack>
+EOF
+
+# 6. テストユーザーを作成
+cd ../scripts
+# PowerShell (Windows)
+.\create-user.ps1 -Email "user@example.com" -UserName "ユーザー名" -TempPassword "TempPass123!"
+# 直接AWS CLI (Linux/Mac)
+aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username "user@example.com" ...
+
+# 7. フロントエンド開発サーバー起動
 cd ../frontend
 npm run dev
 ```
