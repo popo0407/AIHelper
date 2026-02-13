@@ -136,12 +136,13 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
       const userEmail = idToken.payload.email as string;
       const userName = (idToken.payload['custom:userName'] as string) || userEmail.split('@')[0];
 
-      onLogin({
-        userId,
+      const user: User = {
+        loginId: userId,
+        displayName: userName,
         email: userEmail,
-        userName,
-        createdAt: new Date().toISOString(),
-      });
+      };
+
+      onLogin(user);
     } catch (err: unknown) {
       console.error('Password change error:', err);
       const message =
