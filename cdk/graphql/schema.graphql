@@ -10,6 +10,13 @@ type User {
   email: String!
 }
 
+type UserConversation {
+  loginId: ID!
+  conversationId: ID!
+  joinedAt: AWSDateTime!
+  role: String        # e.g., "owner", "participant"
+}
+
 type Message {
   conversationId: ID!
   messageId: ID!
