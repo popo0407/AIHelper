@@ -74,16 +74,15 @@ def handle_list_messages(args: dict) -> dict:
     result = table.query(**query_params)
     items = result.get("Items", [])
 
-    # Resolve display names
-    users_table = get_dynamodb_table(config.users_table)
-    user_cache: dict[str, str] = {AIHELPER_USER_ID: AIHELPER_DISPLAY_NAME}
-
+    # displayName はメッセージ作成時に保存されているので、解決は不要
+    # メッセージに displayName が含まれていない場合は userId をフォールバック
     for item in items:
-        uid = item.get("userId", "")
-        if uid not in user_cache:
-            user_data = users_table.get_item(Key={"loginId": uid}).get("Item", {})
-            user_cache[uid] = user_data.get("displayName", uid)
-        item["displayName"] = user_cache[uid]
+        if "displayName" not in item or not item["displayName"]:
+            uid = item.get("userId", "")
+            if uid == AIHELPER_USER_ID:
+                item["displayName"] = AIHELPER_DISPLAY_NAME
+            else:
+                item["displayName"] = uid  # フォールバック: userId を displayName として使用
 
     last_key = result.get("LastEvaluatedKey")
     return {
@@ -106,13 +105,14 @@ def handle_send_message(args: dict) -> dict:
             False, error="conversationId, userId, and content are required."
         )
 
-    # Resolve display name
-    if user_id == AIHELPER_USER_ID:
-        display_name = AIHELPER_DISPLAY_NAME
-    else:
-        users_table = get_dynamodb_table(config.users_table)
-        user_data = users_table.get_item(Key={"loginId": user_id}).get("Item", {})
-        display_name = user_data.get("displayName", user_id)
+    # displayName を input から取得（フロントエンドから送信される）
+    display_name = input_data.get("displayName")
+    if not display_name:
+        if user_id == AIHELPER_USER_ID:
+            display_name = AIHELPER_DISPLAY_NAME
+        else:
+            # displayName が提供されていない場合は userId を使用
+            display_name = user_id
 
     now = utc_now_iso()
     message_id = generate_uuid()

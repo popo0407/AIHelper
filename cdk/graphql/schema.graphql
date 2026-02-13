@@ -68,6 +68,7 @@ type Notification {
 input SendMessageInput {
   conversationId: ID!
   userId: String!
+  displayName: String
   content: String!
 }
 

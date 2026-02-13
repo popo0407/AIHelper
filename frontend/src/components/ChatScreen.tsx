@@ -87,7 +87,9 @@ export function ChatScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.conversationId]);
 
-  // ── Real-time subscriptions ──
+  // ── Real-time subscriptions ── (DISABLED: スキーマに Subscription がないため)
+  // TODO: ポーリングまたは Subscription 再実装
+  /*
   useEffect(() => {
     const subscriptions: Array<{ unsubscribe: () => void }> = [];
 
@@ -176,6 +178,7 @@ export function ChatScreen({
       subscriptions.forEach((sub) => sub.unsubscribe());
     };
   }, [conversation.conversationId]);
+  */
 
   // ── Auto-scroll ──
   useEffect(() => {
@@ -185,35 +188,56 @@ export function ChatScreen({
   // ── Data loading ──
   async function loadData() {
     setIsLoading(true);
+    
+    // メッセージを読み込み
     try {
-      const [msgResult, sumResult, lockResult] = await Promise.all([
-        graphqlClient.graphql({
-          query: LIST_MESSAGES,
-          variables: { conversationId: conversation.conversationId, limit: 100 },
-        }),
-        graphqlClient.graphql({
-          query: GET_SUMMARY,
-          variables: { conversationId: conversation.conversationId },
-        }),
-        graphqlClient.graphql({
-          query: GET_LOCKS,
-          variables: { conversationId: conversation.conversationId },
-        }),
-      ]);
-
+      const msgResult = await graphqlClient.graphql({
+        query: LIST_MESSAGES,
+        variables: { conversationId: conversation.conversationId, limit: 100 },
+      });
       const msgData = extractData<{ items: Message[]; nextToken?: string }>(msgResult, 'listMessages');
       setMessages(msgData?.items ?? []);
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+      // GraphQL エラーの詳細を表示
+      if (typeof err === 'object' && err !== null && 'errors' in err) {
+        const graphqlError = err as { errors?: Array<{ message: string }> };
+        if (graphqlError.errors) {
+          graphqlError.errors.forEach((e, i) => {
+            console.error(`GraphQL Error ${i + 1}:`, e.message);
+          });
+        }
+      }
+      setMessages([]);
+    }
 
+    // サマリーを読み込み
+    try {
+      const sumResult = await graphqlClient.graphql({
+        query: GET_SUMMARY,
+        variables: { conversationId: conversation.conversationId },
+      });
       const sumData = extractData<Summary | null>(sumResult, 'getSummary');
       setSummary(sumData ?? null);
+    } catch (err) {
+      console.error('Failed to load summary:', err);
+      setSummary(null);
+    }
 
+    // ロックを読み込み
+    try {
+      const lockResult = await graphqlClient.graphql({
+        query: GET_LOCKS,
+        variables: { conversationId: conversation.conversationId },
+      });
       const lockData = extractData<Lock[]>(lockResult, 'getLocks');
       setLocks(lockData ?? []);
     } catch (err) {
-      console.error('Failed to load data:', err);
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to load locks:', err);
+      setLocks([]);
     }
+
+    setIsLoading(false);
   }
 
   // ── Message selection ──
@@ -254,6 +278,7 @@ export function ChatScreen({
           input: {
             conversationId: conversation.conversationId,
             userId: user.loginId,
+            displayName: user.displayName,
             content,
           },
         },

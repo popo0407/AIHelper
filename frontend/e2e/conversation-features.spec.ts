@@ -6,6 +6,20 @@ const TEST_PASSWORD = 'aE#4344259';
 
 // 各テスト前にログインする
 test.beforeEach(async ({ page }) => {
+  // コンソールエラーをキャプチャ
+  page.on('console', msg => {
+    if (msg.type() === 'error') {
+      console.error('❌ Browser Console Error:', msg.text());
+    } else if (msg.type() === 'warning') {
+      console.warn('⚠️  Browser Console Warning:', msg.text());
+    }
+  });
+
+  // ページエラーをキャプチャ
+  page.on('pageerror', error => {
+    console.error('❌ Page Error:', error.message);
+  });
+
   console.log('✓ ログイン処理開始...');
   await page.goto('http://localhost:3001');
   await page.waitForLoadState('networkidle');
