@@ -9,9 +9,60 @@ AIエージェントがシステム変更を完了した後、Git を通じて�
 
 ---
 
-## 1. ブランチ戦略（Git Flow）
+## 1. GitHub Issue 管理
 
-### 1.1 ブランチ種別
+### 1.1 Issue→ブランチ→PR のフロー
+
+```
+Issue #123 を受け取る
+  ↓
+feature/issue-123-description ブランチ作成
+  ↓
+コード実装 + "Closes #123" をコミットメッセージに記載
+  ↓
+PR 作成 + PR説明に "Closes #123" を記載
+  ↓
+マージ時に Issue は自動クローズ
+```
+
+### 1.2 AI エージェント向け実行フロー
+
+```bash
+# 1. Issue 番号を含むブランチ作成
+git checkout -b feature/issue-123-description
+
+# 2. 実装 + Conventional Commits フォーマット
+git commit -m "feat(scope): description
+
+Details...
+
+Closes #123"
+
+# 3. プッシュ + PR 作成
+git push origin feature/issue-123-description
+gh pr create --body "Closes #123"
+```
+
+### 1.3 Issue リンクキーワード（自動クローズ）
+
+| キーワード | 用途 | 例 |
+| ---------- | ---- | -- |
+| `Closes` | バグ/機能の完了 | `Closes #123` |
+| `Fixes` | バグ修正 | `Fixes #456` |
+| `Resolves` | 問題解決 | `Resolves #789` |
+| `Related to` | 参照のみ（クローズしない） | `Related to #100` |
+
+### 1.4 推奨ラベル
+
+- **Type**: `bug`, `feature`, `docs`, `refactor`, `test`
+- **Priority**: `priority/critical`, `priority/high`, `priority/medium`, `priority/low`
+- **Status**: `status/open`, `status/in-progress`, `status/review`, `status/done`
+
+---
+
+## 2. ブランチ戦略（Git Flow）
+
+### 2.1 ブランチ種別
 
 | ブランチ    | 用途               | 作成元  | マージ先       |
 | ----------- | ------------------ | ------- | -------------- |
@@ -22,7 +73,7 @@ AIエージェントがシステム変更を完了した後、Git を通じて�
 | `hotfix/*`  | 緊急本番対応       | main    | main + develop |
 | `release/*` | リリース準備       | develop | main + develop |
 
-### 1.2 命名規則
+### 2.2 命名規則
 
 ```
 feature/aws-cdk-integration          # 機能追加
@@ -38,9 +89,9 @@ release/v1.2.0                       # リリース準備
 
 ---
 
-## 2. コミット規約（Conventional Commits）
+## 3. コミット規約（Conventional Commits）
 
-### 2.1 コミットメッセージフォーマット
+### 3.1 コミットメッセージフォーマット
 
 ```
 <type>(<scope>): <subject>
@@ -50,7 +101,7 @@ release/v1.2.0                       # リリース準備
 <footer>
 ```
 
-### 2.2 Type の種別
+### 3.2 Type の種別
 
 | Type       | 説明                   | 例                                          |
 | ---------- | ---------------------- | ------------------------------------------- |
@@ -64,7 +115,7 @@ release/v1.2.0                       # リリース準備
 | `chore`    | 依存関係・設定変更     | `chore(cdk): upgrade aws-cdk-lib`           |
 | `ci`       | CI/CD設定変更          | `ci: add github actions workflow`           |
 
-### 2.3 コミットメッセージ例
+### 3.3 コミットメッセージ例
 
 ```
 feat(cdk): implement auto-layer versioning
@@ -77,7 +128,7 @@ feat(cdk): implement auto-layer versioning
 Closes #123
 ```
 
-### 2.4 コミットの粒度
+### 3.4 コミットの粒度
 
 ✅ **良い例**：機能ごとに分けたコミット
 
@@ -96,9 +147,9 @@ Closes #123
 
 ---
 
-## 3. Pull Request（PR）ワークフロー
+## 4. Pull Request（PR）ワークフロー
 
-### 3.1 PR作成時の必須項目
+### 4.1 PR作成時の必須項目
 
 ````markdown
 ## 📝 概要
@@ -151,7 +202,7 @@ cdk deploy --context environment=dev --require-approval never
 
 ````
 
-### 3.2 PR レビュー項目（Reviewer チェックリスト）
+### 4.2 PR レビュー項目（Reviewer チェックリスト）
 
 - [ ] コード品質：命名規則、型定義は適切か？
 - [ ] テスト：ユニットテスト、統合テストは実施されているか？
@@ -161,7 +212,7 @@ cdk deploy --context environment=dev --require-approval never
 - [ ] アクセシビリティ：WCAG 2.2準拠か？（フロントエンド）
 - [ ] ルール遵守：コミットメッセージは Conventional Commits か？
 
-### 3.3 PR マージ前確認
+### 4.3 PR マージ前確認
 
 ```bash
 # mainブランチに切り替え
@@ -185,9 +236,9 @@ git merge --ff-only origin/feature/xxx
 
 ---
 
-## 4. AI エージェント の Git 作業フロー
+## 5. AI エージェント の Git 作業フロー
 
-### 4.1 タスク完了時の標準手順（推奨）
+### 5.1 タスク完了時の標準手順（推奨）
 
 ```bash
 # 1. 作成・修正内容をステージ
@@ -214,7 +265,7 @@ git push origin feature/lambda-stack-implementation
 # https://github.com/YOUR_ORG/YOUR_REPO/pull/new/feature/lambda-stack-implementation
 ```
 
-### 4.2 タスク中の作業記録
+### 5.2 タスク中の作業記録
 
 **各タスク実行時に以下をコメント出力：**
 
@@ -227,7 +278,7 @@ git push origin feature/lambda-stack-implementation
 
 ---
 
-## 5. .gitignore テンプレート
+## 6. .gitignore テンプレート
 
 ```
 # Environment
@@ -280,7 +331,7 @@ yarn-error.log*
 
 ---
 
-## 6. GitHub Actions ワークフロー例（CI/CD）
+## 7. GitHub Actions ワークフロー例（CI/CD）
 
 ```yaml
 # .github/workflows/deploy.yml
@@ -347,9 +398,9 @@ jobs:
 
 ---
 
-## 7. リリース手順
+## 8. リリース手順
 
-### 7.1 リリースブランチ作成
+### 8.1 リリースブランチ作成
 
 ```bash
 # develop から release ブランチを作成
@@ -364,7 +415,7 @@ git commit -m "chore(release): bump version to v1.2.0"
 git push origin release/v1.2.0
 ```
 
-### 7.2 main へのマージとタグ作成
+### 8.2 main へのマージとタグ作成
 
 ```bash
 # main にマージ
@@ -383,7 +434,7 @@ git merge main
 git push origin develop
 ```
 
-### 7.3 リリースノート作成
+### 8.3 リリースノート作成
 
 GitHub UI でリリースを作成：
 
@@ -409,9 +460,9 @@ GitHub UI でリリースを作成：
 
 ---
 
-## 8. トラブルシューティング
+## 9. トラブルシューティング
 
-### 8.1 競合（Conflict）が発生
+### 9.1 競合（Conflict）が発生
 
 ```bash
 # 競合ファイルを確認
@@ -425,7 +476,7 @@ git add <resolved-file>
 git commit -m "chore: resolve merge conflict"
 ```
 
-### 8.2 誤ったコミットをプッシュ
+### 9.2 誤ったコミットをプッシュ
 
 ```bash
 # プッシュ前：直前のコミット修正
@@ -438,7 +489,7 @@ git commit -m "revert: undo incorrect changes"
 git push origin develop
 ```
 
-### 8.3 main に誤ってプッシュ
+### 9.3 main に誤ってプッシュ
 
 1. リポジトリ管理者に通知
 2. GitHub UI で Revert PR を作成
@@ -446,7 +497,7 @@ git push origin develop
 
 ---
 
-## 9. チェックリスト（タスク完了時）
+## 10. チェックリスト（タスク完了時）
 
 - [ ] ローカルで動作確認した
 - [ ] `git status` で不要なファイルがないか確認
