@@ -172,7 +172,7 @@ npm run dev
 # バックエンドテスト（89テスト）
 cd backend && python -m pytest tests/ -v
 
-# フロントエンドテスト（46テスト）
+# フロントエンドテスト（127テスト）
 cd frontend && npm test
 
 # E2Eテスト（PlayWright MCPで自動化）
@@ -283,13 +283,24 @@ Closes #123"
 - [x] 排他制御 UI（ロック表示）
 - [x] AppSync クライアント接続（Amplify v6 統合）
 - [x] リアルタイムサブスクリプション（メッセージ・要約・ロック）
-- [x] コンポーネントテスト（Jest + RTL — 46テスト全合格）
-- [ ] E2E テスト
+- [x] コンポーネントテスト（Jest + RTL — 127テスト全合格）
+    - LoginScreen（Cognito認証フロー: 13テスト）
+    - ConversationSelect（会話一覧: 6テスト）
+    - ChatHeader（ヘッダー操作: 10テスト）
+    - ChatBubble（メッセージ表示）
+    - MessageList（メッセージ一覧: 11テスト）
+    - MessageInput（メッセージ入力）
+    - SummarySidebar（要約サイドバー: 14テスト）
+    - AIHelperButtons（AI相談ボタン: 17テスト）
+    - NotificationBanner（通知バナー: 7テスト）
+    - SubscriptionHandlers（リアルタイム同期ロジック: 28テスト）
+- [x] E2E テスト（PlayWright - ログイン・会話操作・Subscriptionリアルタイム更新テスト作成済み）
 
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**
 
-- [ ] **Cognito 認証への移行**（優先）→ [Issue詳細](.github/ISSUES/cognito-authentication.md)
+- [x] **Cognito 認証への移行**（✅ 完了 - 既にUSER_POOL認証を使用中）
 - [x] GraphQL Subscription の再実装（AWS AppSync ベストプラクティスに準拠）
+- [ ] Subscription リアルタイム更新の手動動作確認
 - [ ] WAF レート制限の追加
 - [ ] 統合テスト
 - [ ] セキュリティ監査
@@ -307,14 +318,12 @@ Closes #123"
 - ✅ AppSync VTL でのデータ検証
 - ✅ Lambda での入力サニタイゼーション
 - ✅ Bedrock API への認証
+- ✅ **Amazon Cognito User Pools 認証**（JWT トークンによるユーザー認証・認可）
 
-### **優先対応事項**
+### **次の優先事項**
 
-- ⚠️ **現在**: API Key 認証（開発環境のみ許容）
-- 🎯 **移行予定**: Amazon Cognito User Pools 認証
-  - 理由: API Key は公開され、全ユーザー共通のため漏洩リスクが高い
-  - 対策: ユーザーごとの JWT トークンを使用（有効期限1時間）
-  - 詳細: [Cognito認証移行Issue](.github/ISSUES/cognito-authentication.md)
+- ⚠️ **WAF レート制限**: API 呼び出し制限の追加（DDoS 対策）
+- ⚠️ **本番環境設定**: HTTPS、カスタムドメイン、CloudFront CDN
 
 詳細は [.github/skills/security/SKILL.md](.github/skills/security/SKILL.md) を参照。
 
@@ -334,4 +343,4 @@ MIT License
 
 **プロジェクトステータス:** 🟢 開発中（フェーズ 2・3 完了、フェーズ 4 準備中）
 
-最終更新：2026年2月14日
+最終更新：2026年2月15日

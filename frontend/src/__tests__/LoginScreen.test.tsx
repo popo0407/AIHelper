@@ -6,187 +6,370 @@ import userEvent from '@testing-library/user-event';
 import { LoginScreen } from '@/components/LoginScreen';
 import type { User } from '@/types';
 
-// ── Mock AppSync client ──
-const mockGraphql = jest.fn();
-jest.mock('@/lib/appsync', () => ({
-  graphqlClient: { graphql: (...args: unknown[]) => mockGraphql(...args) },
-  extractData: <T,>(result: { data: Record<string, unknown> }, key: string): T =>
-    result.data[key] as T,
+// ── Mock aws-amplify/auth ──
+const mockSignIn = jest.fn();
+const mockConfirmSignIn = jest.fn();
+const mockFetchAuthSession = jest.fn();
+const mockSignOut = jest.fn();
+const mockGetCurrentUser = jest.fn();
+
+jest.mock('aws-amplify/auth', () => ({
+  signIn: (...args: unknown[]) => mockSignIn(...args),
+  confirmSignIn: (...args: unknown[]) => mockConfirmSignIn(...args),
+  fetchAuthSession: (...args: unknown[]) => mockFetchAuthSession(...args),
+  signOut: (...args: unknown[]) => mockSignOut(...args),
+  getCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
 }));
 
-// ── Helpers ──
-const mockUsers: User[] = [
-  {
-    loginId: 'tanaka',
-    displayName: '田中太郎',
-    createdAt: '2026-01-01T00:00:00Z',
-    conversationIds: [],
-  },
-  {
-    loginId: 'suzuki',
-    displayName: '鈴木花子',
-    createdAt: '2026-01-02T00:00:00Z',
-    conversationIds: ['conv-1'],
-  },
-];
-
-function setupListUsersSuccess(users: User[] = mockUsers) {
-  mockGraphql.mockResolvedValueOnce({
-    data: { listUsers: users },
-  });
-}
-
-function setupRegisterUserSuccess(user: User) {
-  mockGraphql.mockResolvedValueOnce({
-    data: {
-      registerUser: { success: true, user },
-    },
-  });
-}
-
-function setupRegisterUserFailure(error: string) {
-  mockGraphql.mockResolvedValueOnce({
-    data: {
-      registerUser: { success: false, error },
-    },
-  });
-}
+// ── Mock appsync (Amplify configure) ──
+jest.mock('@/lib/appsync', () => ({
+  ensureAmplifyConfigured: jest.fn(),
+  graphqlClient: { graphql: jest.fn() },
+  extractData: jest.fn(),
+}));
 
 describe('LoginScreen', () => {
   const onLogin = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // デフォルト: 既存セッションなし
+    mockGetCurrentUser.mockRejectedValue(new Error('Not signed in'));
   });
 
-  // ── 1. ユーザー一覧が表示されること ──
-  it('ユーザー一覧を読み込んでセレクトボックスに表示する', async () => {
-    setupListUsersSuccess();
-    render(<LoginScreen onLogin={onLogin} />);
-
-    // ユーザー一覧がフェッチされるのを待つ
-    await waitFor(() => {
-      expect(screen.getByText(/田中太郎/)).toBeInTheDocument();
-    });
-
-    expect(screen.getByText(/鈴木花子/)).toBeInTheDocument();
-  });
-
-  // ── 2. ユーザーを選択してログインできること ──
-  it('ユーザーを選択してログインボタンで onLogin が呼ばれる', async () => {
-    setupListUsersSuccess();
-    const user = userEvent.setup();
-    render(<LoginScreen onLogin={onLogin} />);
-
-    // ユーザーが読み込まれるまで待つ
-    await waitFor(() => {
-      expect(screen.getByText(/田中太郎/)).toBeInTheDocument();
-    });
-
-    // セレクトボックスで田中を選択
-    const select = screen.getByLabelText('登録済みユーザーを選択');
-    await user.selectOptions(select, 'tanaka');
-
-    // ログインボタンをクリック
-    const loginButton = screen.getByLabelText('選択したユーザーでログイン');
-    await user.click(loginButton);
-
-    expect(onLogin).toHaveBeenCalledWith(mockUsers[0]);
-  });
-
-  // ── 3. 新規ユーザー登録ができること ──
-  it('新規ユーザーを登録して onLogin が呼ばれる', async () => {
-    const newUser: User = {
-      loginId: 'yamada',
-      displayName: '山田一郎',
-      createdAt: '2026-02-01T00:00:00Z',
-      conversationIds: [],
-    };
-    setupListUsersSuccess();
-    render(<LoginScreen onLogin={onLogin} />);
-
-    // ユーザーが読み込まれるまで待つ
-    await waitFor(() => {
-      expect(screen.getByText(/田中太郎/)).toBeInTheDocument();
-    });
-
-    const user = userEvent.setup();
-
-    // フォームに入力
-    const loginIdInput = screen.getByLabelText('ログインID');
-    const displayNameInput = screen.getByLabelText('表示名');
-
-    await user.type(loginIdInput, 'yamada');
-    await user.type(displayNameInput, '山田一郎');
-
-    // 登録ボタンをクリック
-    setupRegisterUserSuccess(newUser);
-    const registerButton = screen.getByLabelText('新規ユーザーを登録');
-    await user.click(registerButton);
-
-    await waitFor(() => {
-      expect(onLogin).toHaveBeenCalledWith(newUser);
-    });
-  });
-
-  // ── 4. バリデーションエラーが表示されること ──
-  it('ログインIDまたは表示名が空の場合バリデーションエラーを表示する', async () => {
-    setupListUsersSuccess();
-    render(<LoginScreen onLogin={onLogin} />);
-
-    // ユーザーが読み込まれるまで待つ
-    await waitFor(() => {
-      expect(screen.getByText(/田中太郎/)).toBeInTheDocument();
-    });
-
-    const user = userEvent.setup();
-
-    // ログインIDのみ入力して登録ボタンを押す — ボタンが disabled なので直接関数を検証
-    // ボタンは !newLoginId.trim() || !newDisplayName.trim() の場合 disabled
-    const registerButton = screen.getByLabelText('新規ユーザーを登録');
-    expect(registerButton).toBeDisabled();
-
-    // ログインIDだけ入力 — まだ disabled
-    const loginIdInput = screen.getByLabelText('ログインID');
-    await user.type(loginIdInput, 'yamada');
-    expect(registerButton).toBeDisabled();
-  });
-
-  it('APIがエラーを返した場合エラーメッセージを表示する', async () => {
-    setupListUsersSuccess();
+  // ── 1. ログイン画面が表示されること ──
+  it('ログインフォームが表示される', async () => {
     render(<LoginScreen onLogin={onLogin} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/田中太郎/)).toBeInTheDocument();
+      expect(screen.getByText('AI常駐型グループチャット')).toBeInTheDocument();
     });
 
-    const user = userEvent.setup();
+    expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    expect(screen.getByLabelText('パスワード')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
+  });
 
-    await user.type(screen.getByLabelText('ログインID'), 'existing');
-    await user.type(screen.getByLabelText('表示名'), '既存ユーザー');
-
-    setupRegisterUserFailure('このログインIDは既に使用されています。');
-
-    await user.click(screen.getByLabelText('新規ユーザーを登録'));
+  it('説明テキストが表示される', async () => {
+    render(<LoginScreen onLogin={onLogin} />);
 
     await waitFor(() => {
       expect(
-        screen.getByText('このログインIDは既に使用されています。')
+        screen.getByText('メールアドレスとパスワードでログインしてください')
       ).toBeInTheDocument();
     });
-    expect(onLogin).not.toHaveBeenCalled();
   });
 
-  // ── 5. ユーザーが選択されていない場合ログインボタンが無効 ──
-  it('ユーザー未選択の場合ログインボタンが disabled', async () => {
-    setupListUsersSuccess();
+  // ── 2. 空入力ではログインボタンが disabled ──
+  it('メールアドレスとパスワードが空の場合ログインボタンが disabled', async () => {
     render(<LoginScreen onLogin={onLogin} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/田中太郎/)).toBeInTheDocument();
+      const loginButton = screen.getByRole('button', { name: 'ログイン' });
+      expect(loginButton).toBeDisabled();
+    });
+  });
+
+  it('メールアドレスのみ入力ではログインボタンが disabled', async () => {
+    const user = userEvent.setup();
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
     });
 
-    const loginButton = screen.getByLabelText('選択したユーザーでログイン');
-    expect(loginButton).toBeDisabled();
+    await user.type(screen.getByLabelText('メールアドレス'), 'test@example.com');
+
+    expect(screen.getByRole('button', { name: 'ログイン' })).toBeDisabled();
+  });
+
+  it('パスワードのみ入力ではログインボタンが disabled', async () => {
+    const user = userEvent.setup();
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('パスワード')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('パスワード'), 'TestPass123!');
+
+    expect(screen.getByRole('button', { name: 'ログイン' })).toBeDisabled();
+  });
+
+  // ── 3. 正常ログイン ──
+  it('メール・パスワードを入力してログインが成功する', async () => {
+    const user = userEvent.setup();
+
+    const expectedUser: User = {
+      loginId: 'user-uuid-123',
+      displayName: 'テストユーザー',
+      email: 'test@example.com',
+    };
+
+    mockSignIn.mockResolvedValue({
+      nextStep: { signInStep: 'DONE' },
+    });
+
+    mockFetchAuthSession.mockResolvedValue({
+      tokens: {
+        idToken: {
+          payload: {
+            sub: expectedUser.loginId,
+            email: expectedUser.email,
+            'custom:userName': expectedUser.displayName,
+          },
+        },
+      },
+    });
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'test@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'TestPass123!');
+
+    const loginButton = screen.getByRole('button', { name: 'ログイン' });
+    expect(loginButton).toBeEnabled();
+    await user.click(loginButton);
+
+    await waitFor(() => {
+      expect(onLogin).toHaveBeenCalledWith(expectedUser);
+    });
+
+    expect(mockSignIn).toHaveBeenCalledWith({
+      username: 'test@example.com',
+      password: 'TestPass123!',
+    });
+  });
+
+  // ── 4. ログインエラー ──
+  it('ログイン失敗時にエラーメッセージが表示される', async () => {
+    const user = userEvent.setup();
+
+    mockSignIn.mockRejectedValue(new Error('Incorrect username or password.'));
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'test@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'wrongpassword');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('Incorrect username or password.')).toBeInTheDocument();
+    });
+
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  // ── 5. 仮パスワード変更フロー ──
+  it('初回ログインでパスワード変更画面が表示される', async () => {
+    const user = userEvent.setup();
+
+    mockSignIn.mockResolvedValue({
+      nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+    });
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'TempPass123!');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('パスワード変更（初回ログイン）')).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
+    expect(screen.getByLabelText('パスワード確認')).toBeInTheDocument();
+  });
+
+  it('新しいパスワードが一致しない場合エラーが表示される', async () => {
+    const user = userEvent.setup();
+
+    mockSignIn.mockResolvedValue({
+      nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+    });
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'TempPass123!');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('新しいパスワード'), 'NewPass123!');
+    await user.type(screen.getByLabelText('パスワード確認'), 'DifferentPass123!');
+    await user.click(screen.getByRole('button', { name: 'パスワードを変更' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('パスワードが一致しません。')).toBeInTheDocument();
+    });
+  });
+
+  it('8文字未満のパスワードはエラーが表示される', async () => {
+    const user = userEvent.setup();
+
+    mockSignIn.mockResolvedValue({
+      nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+    });
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'TempPass123!');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('新しいパスワード'), 'Ab1');
+    await user.type(screen.getByLabelText('パスワード確認'), 'Ab1');
+    await user.click(screen.getByRole('button', { name: 'パスワードを変更' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('パスワードは8文字以上である必要があります。')).toBeInTheDocument();
+    });
+  });
+
+  it('大文字・小文字・数字が含まれないパスワードはエラーが表示される', async () => {
+    const user = userEvent.setup();
+
+    mockSignIn.mockResolvedValue({
+      nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+    });
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'TempPass123!');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('新しいパスワード'), 'lowercaseonly');
+    await user.type(screen.getByLabelText('パスワード確認'), 'lowercaseonly');
+    await user.click(screen.getByRole('button', { name: 'パスワードを変更' }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('パスワードは小文字・大文字・数字を含む必要があります。')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('正しいパスワード変更でログインが完了する', async () => {
+    const user = userEvent.setup();
+
+    const expectedUser: User = {
+      loginId: 'new-user-uuid',
+      displayName: 'new',
+      email: 'new@example.com',
+    };
+
+    mockSignIn.mockResolvedValue({
+      nextStep: { signInStep: 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED' },
+    });
+
+    mockConfirmSignIn.mockResolvedValue({ isSignedIn: true });
+
+    mockFetchAuthSession.mockResolvedValue({
+      tokens: {
+        idToken: {
+          payload: {
+            sub: expectedUser.loginId,
+            email: expectedUser.email,
+            // custom:userName がない場合はメールのローカル部分が使われる
+          },
+        },
+      },
+    });
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('メールアドレス')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    await user.type(screen.getByLabelText('パスワード'), 'TempPass123!');
+    await user.click(screen.getByRole('button', { name: 'ログイン' }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText('新しいパスワード'), 'NewStrong1Pass');
+    await user.type(screen.getByLabelText('パスワード確認'), 'NewStrong1Pass');
+    await user.click(screen.getByRole('button', { name: 'パスワードを変更' }));
+
+    await waitFor(() => {
+      expect(onLogin).toHaveBeenCalledWith({
+        loginId: 'new-user-uuid',
+        displayName: 'new', // email.split('@')[0]
+        email: 'new@example.com',
+      });
+    });
+
+    expect(mockConfirmSignIn).toHaveBeenCalledWith({
+      challengeResponse: 'NewStrong1Pass',
+    });
+  });
+
+  // ── 6. 管理者案内テキスト ──
+  it('アカウント作成の案内テキストが表示される', async () => {
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('アカウントをお持ちでない場合は、管理者にお問い合わせください。')
+      ).toBeInTheDocument();
+    });
+  });
+
+  // ── 7. 既存セッションのクリア ──
+  it('既存セッションがある場合サインアウトされる', async () => {
+    mockGetCurrentUser.mockResolvedValue({ userId: 'existing-user' });
+    mockSignOut.mockResolvedValue(undefined);
+
+    render(<LoginScreen onLogin={onLogin} />);
+
+    await waitFor(() => {
+      expect(mockGetCurrentUser).toHaveBeenCalled();
+    });
+
+    // signOut is called when an existing session is found
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalled();
+    });
   });
 });

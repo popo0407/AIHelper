@@ -18,8 +18,7 @@ jest.mock('@/lib/appsync', () => ({
 const testUser: User = {
   loginId: 'tanaka',
   displayName: '田中太郎',
-  createdAt: '2026-01-01T00:00:00Z',
-  conversationIds: ['conv-1'],
+  email: 'tanaka@example.com',
 };
 
 const testConversations: Conversation[] = [
