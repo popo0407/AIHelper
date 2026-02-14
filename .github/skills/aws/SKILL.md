@@ -304,6 +304,23 @@ auth_function = lambda_python.PythonFunction(
 )
 ```
 
+#### 7.7.1 モック応答デバッグ機能
+
+`USE_MOCK_AI=true`時、Lambda関数のモック応答には実データフローが可視化されたデバッグ情報が含まれる：
+
+**summarizer関数**（\_mock_summary）:
+
+- DynamoDBから取得した現在の要約テキスト
+- messageIdで取得したメッセージ内容
+- Bedrockプロンプト用テンプレート形式で整形
+
+**ai_support関数**（\_mock_response）:
+
+- 各アクション（summarize/opinion/answer/next_action）の入力データ（要約・メッセージ・ユーザー入力）
+- Bedrockに渡すべき全プロンプト要素
+
+**メリット**: 本番Bedrock APIを用いず、DynamoDBｄもLambda処理フローのデータ取得が正しいか検証可能。
+
 ---
 
 ## 8. 実行前・実行中の思考プロセス
