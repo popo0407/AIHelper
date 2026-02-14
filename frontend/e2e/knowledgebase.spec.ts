@@ -139,7 +139,7 @@ test.describe('ナレッジベース機能のテスト', () => {
     const isButtonVisible = await kbButton.isVisible().catch(() => false);
     
     if (!isButtonVisible) {
-      console.log('⚠️  ナレッジベース機能が利用できません');
+      console.log('⚠️  ナレッジベース機能が利用できません（機能未実装）');
       test.skip();
       return;
     }
@@ -149,13 +149,7 @@ test.describe('ナレッジベース機能のテスト', () => {
     
     // アップロードボタンをクリック
     const uploadButton = page.locator('button', { hasText: /アップロード|📎/ });
-    const isUploadVisible = await uploadButton.isVisible().catch(() => false);
-    
-    if (!isUploadVisible) {
-      console.log('⚠️  アップロードボタンが見つかりません');
-      test.skip();
-      return;
-    }
+    await expect(uploadButton).toBeVisible();
     
     // テスト用ファイルを一時的に作成
     const tempDir = path.join(process.cwd(), 'test-results', 'temp');
@@ -179,15 +173,10 @@ test.describe('ナレッジベース機能のテスト', () => {
     
     await page.screenshot({ path: 'test-results/kb-after-upload.png', fullPage: true });
     
-    // ファイルが一覧に表示されることを確認
+    // ファイルが一覧に表示されることを厳格に確認（失敗したらテスト失敗）
     const fileListItem = page.locator(`text=${TEST_FILE_NAME}`);
-    const isFileVisible = await fileListItem.isVisible({ timeout: 10000 }).catch(() => false);
-    
-    if (isFileVisible) {
-      console.log('✓ アップロードしたファイルが一覧に表示された');
-    } else {
-      console.log('⚠️  ファイルアップロードがAPIで失敗した可能性があります');
-    }
+    await expect(fileListItem).toBeVisible({ timeout: 10000 });
+    console.log('✓ アップロードしたファイルが一覧に表示された');
     
     // クリーンアップ
     fs.unlinkSync(testFilePath);

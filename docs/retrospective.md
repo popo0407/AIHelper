@@ -49,15 +49,15 @@
   - ルーティング: 不明フィールドエラー
 
 **E2E (Playwright + Chromium)**  
-- `frontend/e2e/knowledgebase.spec.ts`: 7 テストシナリオ（4 PASSED / 3 SKIPPED）
-  - ナレッジベースボタン表示確認
-  - パネルの開閉動作
-  - ファイルアップロード（S3 Presigned URL + DynamoDB 登録）
-  - KB検索トグル表示確認（条件付きスキップ）
-  - ファイル削除（確認ダイアログ + S3/DynamoDB 削除）
-  - 複数ファイル管理（意図的スキップ）
-  - バッジ表示確認（条件付きスキップ）
-  - **Resilience設計:** API接続エラー時は graceful skip、ローカル開発環境でも実行可能
+- `frontend/e2e/knowledgebase.spec.ts`: 7 テストシナリオ（1 FAILED / 5 SKIPPED / 1 PASSED）
+  - ナレッジベースボタン表示確認（✓ PASSED）
+  - パネルの開閉動作（⚠️ SKIPPED - 機能未実装）
+  - ファイルアップロード（❌ FAILED - API接続エラー: Upload failed）
+  - KB検索トグル表示確認（⚠️ SKIPPED - ファイル未登録）
+  - ファイル削除（⚠️ SKIPPED - 削除対象なし）
+  - 複数ファイル管理（⚠️ SKIPPED - 意図的）
+  - バッジ表示確認（⚠️ SKIPPED - ファイル未登録）
+  - **テスト設計:** 失敗は失敗として検出、スキップは機能未実装時のみ
 
 ### **設計判断**
 
@@ -157,14 +157,17 @@
   - 厳格なロケーター: `expect(locator).toBeVisible()` がタイムアウト
   - メッセージ入力欄が見つからない（日本語プレースホルダー問題）
 
-- **対応**:
-  - 厳格な `.toBeVisible()` → `.isVisible().catch(() => false)` に変更
-  - API利用不可時の条件付き `test.skip()` 追加
-  - ロケーターを柔軟化: `page.locator('button', { hasText: /パターン/ })`
-  - メッセージ入力欄にフォールバック追加: `textarea, input` の両方を試行
-  - beforeEach フックでチャット画面遷移失敗時のフォールバック処理
+- **第1次修正（誤り）**: エラーを隠すフォールバック処理を追加
+  - 厳格な `expect().toBeVisible()` → `.isVisible().catch(() => false)` に変更
+  - API失敗時に条件付き `test.skip()` を追加
+  - ファイルアップロード失敗時に警告ログを出すだけでテスト成功とする
+  - **結果**: 4 PASSED / 3 SKIPPED（しかし実際はアップロードが失敗していた）
 
-- **結果**: 4 PASSED / 3 SKIPPED（ローカル開発環境でも実行可能に）
+- **第2次修正（正しい実装）**: 失敗を適切に検出
+  - ファイルアップロード後の確認を `await expect().toBeVisible()` に戻す（厳格アサーション）
+  - スキップ条件は「機能未実装」の場合のみ（ボタンが表示されない場合）
+  - API失敗はテスト失敗として報告
+  - **結果**: 1 FAILED / 5 SKIPPED / 1 PASSED（アップロード失敗を正しく検出）
 
 #### **ドキュメント・Git 処理**
 
@@ -178,21 +181,23 @@
 
 | 問題                                  | 原因                                        | 対応                                                     |
 | ------------------------------------- | ------------------------------------------- | -------------------------------------------------------- |
-| API接続エラーでテスト全失敗           | ローカル環境はAppSync未接続                 | 条件付きスキップ追加、API不要な UI テストに焦点         |
-| ロケーターがタイムアウト              | 厳格な `expect().toBeVisible()` の使用      | `.isVisible().catch(() => false)` + 条件分岐             |
+| API接続エラーでテスト失敗           | ローカル環境はAppSync未接続                 | beforeEachでチャット画面遷移確認、失敗時はスキップ         |
+| ロケーターがタイムアウト              | beforeEachでチャット画面遷移に失敗      | 会話一覧から最初の会話を選択するフォールバック追加   |
 | メッセージ入力欄が見つからない        | 日本語プレースホルダーの完全一致要求        | `textarea[placeholder*="メッセージ"]` + フォールバック   |
-| テスト結果ファイルが Git 履歴に含まれる | .gitignore 未設定                           | test-results/ と playwright-report/ を .gitignore に追加 |
+| ファイルアップロード失敗が隠される | エラー時に警告ログを出すだけで成功扱い   | `await expect().toBeVisible()` で厳格にアサート、失敗を検出 |
+| テスト結果ファイルがGit履歴に含まれる | .gitignore 未設定                           | test-results/ と playwright-report/ を .gitignore に追加 |
 
 ### **学んだこと**
 
-1. **E2E テストは環境依存を考慮すべき**:
-   - ローカル開発環境（API未接続）でも実行可能な設計が重要
-   - `test.skip()` で条件付きスキップを活用
-   - UIの存在確認とAPI依存処理を分離
+1. **E2E テストは失敗を適切に検出すべき**:
+   - **誤り**: API失敗時に警告ログを出すだけでテスト成功とする（フォールバック処理）
+   - **正しい**: `await expect().toBeVisible()` で厳格にアサート、失敗は失敗として報告
+   - スキップは「機能未実装」の場合のみ（例：ボタンが表示されない）
+   - 環境依存を考慮した設計は重要だが、エラーを隠すのは適切ではない
 
 2. **Playwright ロケーター戦略**:
-   - 厳格な `await expect().toBeVisible()` は環境差異で失敗しやすい
-   - `.isVisible().catch(() => false)` でエラー時に graceful degradation
+   - beforeEachや機能未実装チェックでは `.isVisible().catch(() => false)` で柔軟に処理
+   - 実際のテストアサーションでは `await expect().toBeVisible()` で厳格に検証
    - `{ hasText: /regex/ }` で柔軟なテキストマッチング
    - 複数セレクターのフォールバック: `textarea, input` の OR 条件
 
