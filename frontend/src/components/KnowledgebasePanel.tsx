@@ -56,13 +56,16 @@ export function KnowledgebasePanel({
         query: LIST_KNOWLEDGE_SOURCES,
         variables: { conversationId },
       });
+      console.log('listKnowledgeSources result:', JSON.stringify(result, null, 2));
       const data = extractData<KnowledgeSource[]>(result, 'listKnowledgeSources');
+      console.log('extracted knowledge sources:', data);
       const items = data ?? [];
       setSources(items);
       onSourceCountChange?.(items.length);
     } catch (err) {
       console.error('Failed to load knowledge sources:', err);
-      setError('ナレッジソースの読み込みに失敗しました');
+      const errorMessage = err instanceof Error ? err.message : 'ナレッジソースの読み込みに失敗しました';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -129,7 +132,11 @@ export function KnowledgebasePanel({
           'uploadKnowledgebase'
         );
 
+        console.log('uploadKnowledgebase result:', JSON.stringify(result, null, 2));
+        console.log('extracted data:', data);
+
         if (!data?.success || !data.presignedUrl) {
+          console.error('Upload preparation failed:', data);
           setError(data?.error ?? 'アップロードの準備に失敗しました');
           return;
         }
@@ -152,7 +159,8 @@ export function KnowledgebasePanel({
         await loadSources();
       } catch (err) {
         console.error('Upload failed:', err);
-        setError('アップロード中にエラーが発生しました');
+        const errorMessage = err instanceof Error ? err.message : 'アップロード中にエラーが発生しました';
+        setError(errorMessage);
       } finally {
         setIsUploading(false);
       }

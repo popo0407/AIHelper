@@ -2,7 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'export',
-  devIndicators: false,
+  devIndicators: {
+    buildActivity: false,
+  },
 };
 
 module.exports = nextConfig;
