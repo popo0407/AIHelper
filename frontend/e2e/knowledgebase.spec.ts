@@ -22,7 +22,7 @@ test.describe('ナレッジベース機能のテスト', () => {
 
     // ログイン
     console.log('ログイン処理開始');
-    await page.goto('http://localhost:3002');
+    await page.goto('http://localhost:3000');
     await page.waitForLoadState('networkidle');
 
     await page.locator('input[type="email"]').fill(TEST_EMAIL);

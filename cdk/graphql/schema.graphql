@@ -157,6 +157,7 @@ input UploadKnowledgebaseInput {
   fileName: String!
   fileSize: Int!
   contentType: String!
+  uploadedBy: String
 }
 
 input DeleteKnowledgebaseInput {
