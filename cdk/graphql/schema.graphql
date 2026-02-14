@@ -75,12 +75,14 @@ input SendMessageInput {
 input UpdateSummaryInput {
   conversationId: ID!
   userId: String!
+  displayName: String
   selectedMessageIds: [String!]!
 }
 
 input SaveSummaryEditInput {
   conversationId: ID!
   userId: String!
+  displayName: String
   content: String!
 }
 
@@ -105,6 +107,11 @@ input AskAIHelperInput {
 
 input CreateConversationInput {
   createdBy: String!
+}
+
+input UpdateConversationTitleInput {
+  conversationId: ID!
+  title: String!
 }
 
 input JoinConversationInput {
@@ -160,6 +167,7 @@ type Mutation {
   acquireLock(input: AcquireLockInput!): Lock!
   releaseLock(input: ReleaseLockInput!): Lock!
   askAIHelper(input: AskAIHelperInput!): Message!
+  updateConversationTitle(input: UpdateConversationTitleInput!): Conversation!
 }
 
 # ------ Subscriptions ------

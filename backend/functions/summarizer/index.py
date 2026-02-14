@@ -84,6 +84,7 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
     inp = args.get("input", {})
     conversation_id = inp.get("conversationId")
     user_id = inp.get("userId")
+    display_name = inp.get("displayName") or user_id
     selected_message_ids = inp.get("selectedMessageIds", [])
 
     if not conversation_id or not selected_message_ids:
@@ -126,13 +127,9 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
         client = get_bedrock_client(config.bedrock_region)
         new_summary = invoke_bedrock(client, config.bedrock_model_id, prompt)
 
-    # Extract title (first line starting with #)
-    title = ""
-    for line in new_summary.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("# "):
-            title = stripped[2:].strip()
-            break
+    # タイトルはユーザーが手動管理するため、AI要約からは抽出しない（ISSUE 05対応）
+    # 既存タイトルを維持
+    existing_title = current_summary_item.get("title", "")
 
     now = utc_now_iso()
 
@@ -140,11 +137,11 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
     summary_table.put_item(
         Item={
             "conversationId": conversation_id,
-            "title": title,
+            "title": existing_title,
             "current": new_summary,
             "previous": current_text,
             "updatedAt": now,
-            "updatedBy": user_id,
+            "updatedBy": display_name,
         }
     )
 
@@ -158,11 +155,11 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
 
     summary_data = {
         "conversationId": conversation_id,
-        "title": title,
+        "title": existing_title,
         "current": new_summary,
         "previous": current_text,
         "updatedAt": now,
-        "updatedBy": user_id,
+        "updatedBy": display_name,
     }
 
     logger.info("Summary updated: conv=%s by=%s", conversation_id, user_id)
@@ -225,6 +222,7 @@ def handle_save_summary_edit(args: dict) -> dict[str, Any]:
     inp = args.get("input", {})
     conversation_id = inp.get("conversationId")
     user_id = inp.get("userId")
+    display_name = inp.get("displayName") or user_id
     content = inp.get("content", "")
 
     if not conversation_id:
@@ -257,7 +255,7 @@ def handle_save_summary_edit(args: dict) -> dict[str, Any]:
             "current": content,
             "previous": old_current,
             "updatedAt": now,
-            "updatedBy": user_id,
+            "updatedBy": display_name,
         }
     )
 
@@ -267,7 +265,7 @@ def handle_save_summary_edit(args: dict) -> dict[str, Any]:
         "current": content,
         "previous": old_current,
         "updatedAt": now,
-        "updatedBy": user_id,
+        "updatedBy": display_name,
     }
 
     logger.info("Summary edited: conv=%s by=%s", conversation_id, user_id)
