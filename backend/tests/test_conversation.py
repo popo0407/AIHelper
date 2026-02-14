@@ -363,3 +363,54 @@ class TestUnknownField:
 
         assert result["success"] is False
         assert "Unknown field" in result["error"]
+
+
+# ================================================================
+# updateConversationTitle
+# ================================================================
+
+class TestUpdateConversationTitle:
+    """Mutation.updateConversationTitle のテスト群."""
+
+    def test_タイトルを更新できる(self, dynamodb_tables, conversations_table, summary_table):
+        """会話のタイトルが正常に更新される。"""
+        _seed_conversation(conversations_table, "conv-title", "user1")
+        summary_table.put_item(Item={
+            "conversationId": "conv-title",
+            "title": "",
+            "current": "",
+            "previous": "",
+            "updatedAt": "2024-01-01T00:00:00+00:00",
+            "updatedBy": "user1",
+        })
+
+        event = make_appsync_event("updateConversationTitle", {
+            "input": {
+                "conversationId": "conv-title",
+                "title": "新しいタイトル",
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["conversationId"] == "conv-title"
+        assert result["title"] == "新しいタイトル"
+
+        # Conversations テーブルも更新されていること
+        conv = conversations_table.get_item(
+            Key={"conversationId": "conv-title"}
+        )["Item"]
+        assert conv["title"] == "新しいタイトル"
+
+        # Summary テーブルも更新されていること
+        summary = summary_table.get_item(
+            Key={"conversationId": "conv-title"}
+        )["Item"]
+        assert summary["title"] == "新しいタイトル"
+
+    def test_conversationIdが未指定の場合エラー(self, dynamodb_tables):
+        """conversationId がない場合はエラー。"""
+        event = make_appsync_event("updateConversationTitle", {
+            "input": {"title": "タイトル"}
+        })
+        with pytest.raises(ValueError, match="conversationId is required"):
+            _handler()(event, None)

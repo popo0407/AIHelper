@@ -84,6 +84,7 @@ class TestUpdateSummary:
             "input": {
                 "conversationId": "conv-upd",
                 "userId": "user1",
+                "displayName": "テストユーザー",
                 "selectedMessageIds": msg_ids,
             }
         })
@@ -92,10 +93,16 @@ class TestUpdateSummary:
         # GraphQL resolver レスポンス（直接 Summary 型）
         assert result["conversationId"] == "conv-upd"
         assert result["current"] != ""
-        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
-        assert "[モック要約 - デバッグ情報]" in result["current"]
-        # DynamoDB から取得したメッセージが含まれているか確認（データ取得検証）
-        assert "テストメッセージ" in result["current"] or "【追加するメッセージ】" in result["current"]
+        assert result["updatedBy"] == "テストユーザー"
+        
+        # モック要約の検証
+        content = result["current"]
+        assert "[モック要約 - デバッグ情報]" in content
+        
+        # 実際にDynamoDBから取得されたメッセージが含まれているか確認
+        # _seed_messages で作成した"テストメッセージ0", "テストメッセージ1"が含まれているはず
+        assert "テストメッセージ" in content, f"DynamoDBから取得したメッセージが含まれていません。content: {content}"
+        assert "【追加するメッセージ】" in content
         assert "updatedAt" in result
 
     def test_メッセージが選択されていない場合エラー(self, dynamodb_tables):
@@ -199,6 +206,7 @@ class TestUpdateSummary:
                 "input": {
                     "conversationId": "conv-bedrock",
                     "userId": "user1",
+                    "displayName": "Bedrockユーザー",
                     "selectedMessageIds": msg_ids,
                 }
             })
@@ -207,7 +215,8 @@ class TestUpdateSummary:
         # Summary型を直接返す（Subscriptionに対応）
         assert result["conversationId"] == "conv-bedrock"
         assert result["current"] == mock_bedrock_response
-        assert result["title"] == "AI要約"
+        # ISSUE 05: タイトルはAI要約から抽出しない（ユーザー管理）
+        assert result["updatedBy"] == "Bedrockユーザー"
 
 
 # ================================================================
@@ -292,6 +301,7 @@ class TestSaveSummaryEdit:
             "input": {
                 "conversationId": "conv-edit",
                 "userId": "user2",
+                "displayName": "編集ユーザー",
                 "content": new_content,
             }
         })
@@ -302,7 +312,7 @@ class TestSaveSummaryEdit:
         assert result["current"] == new_content
         assert result["title"] == "新タイトル"
         assert result["previous"] == "旧内容"
-        assert result["updatedBy"] == "user2"
+        assert result["updatedBy"] == "編集ユーザー"
 
     def test_5000文字超過でエラー(self, dynamodb_tables, summary_table):
         """要約が5000文字を超える場合はエラーを返す。"""
