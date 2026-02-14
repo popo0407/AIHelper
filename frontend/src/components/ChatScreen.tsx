@@ -546,33 +546,14 @@ export function ChatScreen({
             lockState={lockState}
           />
 
-          {/* Message input + Add to summary */}
+          {/* Message input */}
           <div className="border-t border-serendie-gray-200 bg-white p-4">
-            <div className="flex items-center gap-3">
-              {selectedMessageIds.size > 0 && (
-                <button
-                  className="btn-primary whitespace-nowrap"
-                  onClick={handleAddToSummary}
-                  disabled={!canAddToSummary || isSummaryProcessing}
-                  aria-label="要約に追加"
-                >
-                  {isSummaryProcessing ? (
-                    <span className="flex items-center gap-2">
-                      <span className="loading-weave" />
-                      要約中...
-                    </span>
-                  ) : (
-                    `要約に追加 (${selectedMessageIds.size})`
-                  )}
-                </button>
-              )}
-              <MessageInput
-                value={inputText}
-                onChange={setInputText}
-                onSend={handleSendMessage}
-                disabled={isLoading}
-              />
-            </div>
+            <MessageInput
+              value={inputText}
+              onChange={setInputText}
+              onSend={handleSendMessage}
+              disabled={isLoading}
+            />
           </div>
         </div>
 
@@ -591,6 +572,9 @@ export function ChatScreen({
             canUndo={canUndo}
             lockState={lockState}
             isSummaryProcessing={isSummaryProcessing}
+            onAddToSummary={handleAddToSummary}
+            canAddToSummary={canAddToSummary}
+            selectedMessageCount={selectedMessageIds.size}
           />
         </div>
       </div>

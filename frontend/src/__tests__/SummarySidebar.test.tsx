@@ -53,6 +53,9 @@ const defaultProps = {
   canUndo: true,
   lockState: defaultLockState,
   isSummaryProcessing: false,
+  onAddToSummary: jest.fn(),
+  canAddToSummary: true,
+  selectedMessageCount: 0,
 };
 
 describe('SummarySidebar', () => {

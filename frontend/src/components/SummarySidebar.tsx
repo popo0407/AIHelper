@@ -16,6 +16,9 @@ interface SummarySidebarProps {
   canUndo: boolean;
   lockState: LockState;
   isSummaryProcessing: boolean;
+  onAddToSummary?: () => void;
+  canAddToSummary?: boolean;
+  selectedMessageCount?: number;
 }
 
 /**
@@ -39,6 +42,9 @@ export function SummarySidebar({
   canUndo,
   lockState,
   isSummaryProcessing,
+  onAddToSummary,
+  canAddToSummary = false,
+  selectedMessageCount = 0,
 }: SummarySidebarProps) {
   const charCount = isEditing ? editContent.length : (summary?.current?.length ?? 0);
   const isOverLimit = charCount > SUMMARY_MAX_LENGTH;
@@ -55,7 +61,24 @@ export function SummarySidebar({
             {charCount} / {SUMMARY_MAX_LENGTH}
           </span>
         </div>
-
+        {/* Add to summary button */}
+        {selectedMessageCount > 0 && (
+          <button
+            className="mt-2 w-full btn-primary text-sm"
+            onClick={onAddToSummary}
+            disabled={!canAddToSummary || isSummaryProcessing}
+            aria-label="要約に追加"
+          >
+            {isSummaryProcessing ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="loading-weave" />
+                要約中...
+              </span>
+            ) : (
+              `要約に追加 (${selectedMessageCount})`
+            )}
+          </button>
+        )}
         {/* Lock notification */}
         {lockState.isLocked && lockState.lockedBy && (
           <div className="mt-2 text-sm text-serendie-accent bg-purple-50 rounded-lg px-3 py-2">
