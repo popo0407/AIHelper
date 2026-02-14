@@ -97,7 +97,12 @@ AICHAT/
 │   │   ├── types/                  # TypeScript 型定義
 │   │   ├── config/                 # AWS 設定
 │   │   ├── styles/                 # グローバル CSS
-│   │   └── __tests__/              # コンポーネントテスト
+│   │   └── __tests__/              # コンポーネントテスト (Jest + React Testing Library)
+│   ├── e2e/                        # E2Eテスト (Playwright)
+│   │   ├── login.spec.ts           # ログインフロー
+│   │   ├── conversation-features.spec.ts  # 会話機能
+│   │   ├── knowledgebase.spec.ts   # ナレッジベース機能（アップロード/削除/検索）
+│   │   └── subscription-realtime.spec.ts  # リアルタイムメッセージ配信
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.js

@@ -39,6 +39,7 @@
 
 #### **テスト**
 
+**Backend (pytest + moto)**  
 - `conftest.py`: KnowledgeSources テーブル + S3 バケットフィクスチャ追加
 - `test_knowledgebase.py`: 11 テストケース（全 PASSED）
   - listKnowledgeSources: 空リスト / 登録済み一覧 / 会話分離
@@ -47,15 +48,26 @@
   - searchKnowledgebase: ソースなし案内 / モック AI 検索
   - ルーティング: 不明フィールドエラー
 
+**E2E (Playwright + Chromium)**  
+- `frontend/e2e/knowledgebase.spec.ts`: 7 テストシナリオ（4 PASSED / 3 SKIPPED）
+  - ナレッジベースボタン表示確認
+  - パネルの開閉動作
+  - ファイルアップロード（S3 Presigned URL + DynamoDB 登録）
+  - KB検索トグル表示確認（条件付きスキップ）
+  - ファイル削除（確認ダイアログ + S3/DynamoDB 削除）
+  - 複数ファイル管理（意図的スキップ）
+  - バッジ表示確認（条件付きスキップ）
+  - **Resilience設計:** API接続エラー時は graceful skip、ローカル開発環境でも実行可能
+
 ### **設計判断**
 
-| 判断項目 | 採用方針 | 理由 |
-| -------- | -------- | ---- |
-| ファイル形式 | PDF/DOCX/DOC/HTML/MD/TXT | ビジネス文書の主要形式をカバー |
-| 検索UI | トグル方式 | 通常チャットとKB検索の切り替えが直感的 |
-| 会話分離 | conversationId ベース | セッション横断不要、セキュリティ確保 |
-| 削除方式 | S3 物理削除 + DynamoDB メタデータ削除 | Knowledge Bases API 明示削除不要 |
-| テキスト抽出 | Lambda 内 S3 直接取得 | 初期実装、将来 Knowledge Bases Retrieve API に移行可能 |
+| 判断項目     | 採用方針                              | 理由                                                   |
+| ------------ | ------------------------------------- | ------------------------------------------------------ |
+| ファイル形式 | PDF/DOCX/DOC/HTML/MD/TXT              | ビジネス文書の主要形式をカバー                         |
+| 検索UI       | トグル方式                            | 通常チャットとKB検索の切り替えが直感的                 |
+| 会話分離     | conversationId ベース                 | セッション横断不要、セキュリティ確保                   |
+| 削除方式     | S3 物理削除 + DynamoDB メタデータ削除 | Knowledge Bases API 明示削除不要                       |
+| テキスト抽出 | Lambda 内 S3 直接取得                 | 初期実装、将来 Knowledge Bases Retrieve API に移行可能 |
 
 ### **再発防止策**
 
