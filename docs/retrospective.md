@@ -742,13 +742,13 @@ Branch Structure:
 
 ### **問題と対応**
 
-| 問題                                              | 原因                                                                   | 対応                                                                                        |
-| ------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Subscription デプロイ時に "invalid output type"   | `@aws_subscribe` は複雑な wrapper 型をサポートしない                  | Mutation の戻り値をエンティティ型に変更し、Subscription も同じ型を使用                     |
-| エラー時の Response 処理方法                      | Mutation がエンティティを返すため、エラー情報を含められない           | Lambda 関数で例外を throw し、AppSync が GraphQL エラーとして自動処理                       |
-| フロントエンドでの型不整合                        | GraphQL クエリが古い Response 型を期待                                 | `operations.ts` と `ChatScreen.tsx` を更新し、エンティティを直接抽出                        |
-| 後方互換性のための削除可能コード                  | Response 型定義と `build_response` が残っていたが、どこからも参照なし | E2E テスト成功を確認後、非推奨コードをクリーンアップ                                        |
-| Response wrapper 型の必要性（一部 Mutation のみ） | `createConversation` と `joinConversation` は複数データを返す          | これらは Subscription に関連しないため、Response 型のまま保持（後で個別エンティティに分離可） |
+| 問題                                              | 原因                                                                  | 対応                                                                                          |
+| ------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Subscription デプロイ時に "invalid output type"   | `@aws_subscribe` は複雑な wrapper 型をサポートしない                  | Mutation の戻り値をエンティティ型に変更し、Subscription も同じ型を使用                        |
+| エラー時の Response 処理方法                      | Mutation がエンティティを返すため、エラー情報を含められない           | Lambda 関数で例外を throw し、AppSync が GraphQL エラーとして自動処理                         |
+| フロントエンドでの型不整合                        | GraphQL クエリが古い Response 型を期待                                | `operations.ts` と `ChatScreen.tsx` を更新し、エンティティを直接抽出                          |
+| 後方互換性のための削除可能コード                  | Response 型定義と `build_response` が残っていたが、どこからも参照なし | E2E テスト成功を確認後、非推奨コードをクリーンアップ                                          |
+| Response wrapper 型の必要性（一部 Mutation のみ） | `createConversation` と `joinConversation` は複数データを返す         | これらは Subscription に関連しないため、Response 型のまま保持（後で個別エンティティに分離可） |
 
 ### **学んだこと**
 
@@ -811,7 +811,6 @@ Branch Structure:
 
 **最終更新:** 2026年2月14日
 
-
 ---
 
 ## ?? **2026�N2��14�� ? PlayWright MCP�iE2E�e�X�g�������j��������**
@@ -819,14 +818,17 @@ Branch Structure:
 ### ? **�������e**
 
 #### **1. PlayWright �C���X�g�[���Z�b�g�A�b�v**
+
 - @playwright/test ���C���X�g�[��
 - Chromium�AFirefox�AWebKit �����[�J���ɃC���X�g�[��
 - frontend/playwright.config.ts ���쐬
 
 #### **2. E2E�e�X�g�T���v������**
+
 - frontend/e2e/login.spec.ts ���쐬�i7�̃e�X�g�j
 
 #### **3. npm �X�N���v�g�ǉ�**
+
 - npm run e2e�i�w�b�h���X���[�h�j
 - npm run e2e:ui�iUI�őΘb�I���s�j
 - npm run e2e:debug�i�f�o�b�O���[�h�j
@@ -834,10 +836,11 @@ Branch Structure:
 - npm run e2e:headed�i�u���E�U�\�����[�h�j
 
 #### **4. �h�L�������g�ݒ�X�V**
+
 - docs/playwright-guide.md ���쐬�i�ڍ׃K�C�h�j
 - README.md ���X�V�iE2E�e�X�g���s���@�ǉ��j
 - .vscode/settings.json ���X�V
 - .github/copilot-instructions.md ���X�V�iMCP���ǉ��j
 
-**�X�e�[�^�X:** ? **PlayWright MCP E2E�e�X�g�����������{�i�ғ��\**
-**�ŏI�X�V:** 2026�N2��14��
+**�X�e�[�^�X:** ? **PlayWright MCP E2E�e�X�g�����������{�i�ғ��\*\*
+**�ŏI�X�V:\*\* 2026�N2��14��
