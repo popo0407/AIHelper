@@ -41,25 +41,30 @@ SUMMARY_PROMPT_TEMPLATE = """あなたは会議の議事録を作成するAIア�
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route AppSync resolver events to the appropriate handler."""
-    info = event.get("info", {})
-    field_name = info.get("fieldName", "")
-    arguments = event.get("arguments", {})
+    try:
+        info = event.get("info", {})
+        field_name = info.get("fieldName", "")
+        arguments = event.get("arguments", {})
 
-    logger.info("Summarizer invoked: field=%s", field_name)
+        logger.info("Summarizer invoked: field=%s", field_name)
 
-    handlers = {
-        "getSummary": handle_get_summary,
-        "updateSummary": handle_update_summary,
-        "undoSummary": handle_undo_summary,
-        "saveSummaryEdit": handle_save_summary_edit,
-    }
+        handlers = {
+            "getSummary": handle_get_summary,
+            "updateSummary": handle_update_summary,
+            "undoSummary": handle_undo_summary,
+            "saveSummaryEdit": handle_save_summary_edit,
+        }
 
-    handler = handlers.get(field_name)
-    if not handler:
-        logger.error("Unknown field: %s", field_name)
-        raise ValueError(f"Unknown field: {field_name}")
+        handler = handlers.get(field_name)
+        if not handler:
+            logger.error("Unknown field: %s", field_name)
+            return {"success": False, "error": f"Unknown field: {field_name}"}
 
-    return handler(arguments)
+        return handler(arguments)
+    
+    except Exception as e:
+        logger.error("Summarizer error: %s", str(e))
+        return {"success": False, "error": str(e)}
 
 
 # ------------------------------------------------------------------
@@ -275,7 +280,25 @@ def handle_save_summary_edit(args: dict) -> dict[str, Any]:
 # ------------------------------------------------------------------
 
 def _mock_summary(current: str, messages: str) -> str:
-    """Generate a mock summary for dev environment."""
-    if current:
-        return f"{current}\n\n## 追加メッセージ\n{messages}"
-    return f"# 会話の要約\n\n## 決定事項\n- (要約生成中のモック)\n\n## TODO\n- メッセージ内容を確認\n\n## その他\n{messages}"
+    """Generate a mock summary for dev environment with debug info.
+    
+    Returns the prompt that would be sent to Bedrock for debugging Lambda data flow.
+    """
+    return f"""# [モック要約 - デバッグ情報]
+
+## Lambda が Bedrock に渡すはずの情報
+
+### 【現在の要約】（DynamoDB 取得）
+{current if current else '(初回・要約なし)'}
+
+### 【追加するメッセージ】（messageId で取得したテキスト）
+{messages if messages else '(メッセージ未選択)'}
+
+---
+
+## 注釈
+- "現在の要約" が空の場合 → 要約が初回作成
+- "追加するメッセージ" が空の場合 → selectedMessageIds が空またはメッセージ取得失敗
+- 上記の内容が正常に表示されれば、Lambda は正しくデータベースからデータを取得できています
+- 本番時（USE_MOCK_AI=false）はこの部分が Claude Haiku 4.5 の実際の要約に置き換わります
+"""

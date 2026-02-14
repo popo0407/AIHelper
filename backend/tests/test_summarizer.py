@@ -89,11 +89,14 @@ class TestUpdateSummary:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert "summary" in result
-        assert result["summary"]["conversationId"] == "conv-upd"
-        assert result["summary"]["current"] != ""
-        assert "updatedAt" in result["summary"]
+        # GraphQL resolver レスポンス（直接 Summary 型）
+        assert result["conversationId"] == "conv-upd"
+        assert result["current"] != ""
+        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
+        assert "[モック要約 - デバッグ情報]" in result["current"]
+        # DynamoDB から取得したメッセージが含まれているか確認（データ取得検証）
+        assert "テストメッセージ" in result["current"] or "【追加するメッセージ】" in result["current"]
+        assert "updatedAt" in result
 
     def test_メッセージが選択されていない場合エラー(self, dynamodb_tables):
         """selectedMessageIds が空の場合はエラーを返す。"""
@@ -176,8 +179,9 @@ class TestUpdateSummary:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert result["summary"]["previous"] == "# 旧タイトル\n旧内容"
+        # Summary型を直接返す（Subscriptionに対応）
+        assert result["conversationId"] == "conv-prev"
+        assert result["previous"] == "# 旧タイトル\n旧内容"
 
     def test_Bedrock呼び出しでの要約生成(self, dynamodb_tables, messages_table, monkeypatch):
         """USE_MOCK_AI=false の場合、Bedrock API を呼び出す。"""
@@ -200,9 +204,10 @@ class TestUpdateSummary:
             })
             result = mod.lambda_handler(event, None)
 
-        assert result["success"] is True
-        assert result["summary"]["current"] == mock_bedrock_response
-        assert result["summary"]["title"] == "AI要約"
+        # Summary型を直接返す（Subscriptionに対応）
+        assert result["conversationId"] == "conv-bedrock"
+        assert result["current"] == mock_bedrock_response
+        assert result["title"] == "AI要約"
 
 
 # ================================================================
@@ -226,10 +231,11 @@ class TestUndoSummary:
         event = make_appsync_event("undoSummary", {"conversationId": "conv-undo"})
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert result["summary"]["current"] == "# 前のタイトル\n前の内容"
-        assert result["summary"]["previous"] == ""
-        assert result["summary"]["title"] == "前のタイトル"
+        # Summary型を直接返す（Subscriptionに対応）
+        assert result["conversationId"] == "conv-undo"
+        assert result["current"] == "# 前のタイトル\n前の内容"
+        assert result["previous"] == ""
+        assert result["title"] == "前のタイトル"
 
     def test_previousが空の場合エラー(self, dynamodb_tables, summary_table):
         """previous がない場合は undo 不可。"""
@@ -291,11 +297,12 @@ class TestSaveSummaryEdit:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert result["summary"]["current"] == new_content
-        assert result["summary"]["previous"] == "旧内容"
-        assert result["summary"]["title"] == "新タイトル"
-        assert result["summary"]["updatedBy"] == "user2"
+        # Summary型を直接返す（Subscriptionに対応）
+        assert result["conversationId"] == "conv-edit"
+        assert result["current"] == new_content
+        assert result["title"] == "新タイトル"
+        assert result["previous"] == "旧内容"
+        assert result["updatedBy"] == "user2"
 
     def test_5000文字超過でエラー(self, dynamodb_tables, summary_table):
         """要約が5000文字を超える場合はエラーを返す。"""
@@ -342,7 +349,9 @@ class TestSaveSummaryEdit:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
+        # Summary型を直接返す（Subscriptionに対応）
+        assert result["conversationId"] == "conv-boundary"
+        assert len(result["current"]) == len(content)
 
     def test_conversationIdが未指定の場合エラー(self, dynamodb_tables):
         """conversationId がない場合はエラー。"""

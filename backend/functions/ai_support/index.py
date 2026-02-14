@@ -78,16 +78,21 @@ NEXT_ACTION_PROMPT = """あなたはグループチャットのAIアシスタン
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle askAIHelper mutation."""
-    info = event.get("info", {})
-    field_name = info.get("fieldName", "")
-    arguments = event.get("arguments", {})
+    try:
+        info = event.get("info", {})
+        field_name = info.get("fieldName", "")
+        arguments = event.get("arguments", {})
 
-    logger.info("AISupport invoked: field=%s", field_name)
+        logger.info("AISupport invoked: field=%s", field_name)
 
-    if field_name != "askAIHelper":
-        raise ValueError(f"Unknown field: {field_name}")
+        if field_name != "askAIHelper":
+            return {"success": False, "error": f"Unknown field: {field_name}"}
 
-    return handle_ask_ai_helper(arguments)
+        return handle_ask_ai_helper(arguments)
+    
+    except Exception as e:
+        logger.error("AISupport error: %s", str(e))
+        return {"success": False, "error": str(e)}
 
 
 def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
@@ -99,6 +104,7 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
     user_input = inp.get("userInput", "")
     selected_message_ids = inp.get("selectedMessageIds", [])
 
+    # Validate required fields before try block (so validation errors aren't caught)
     if not conversation_id or not user_id or not action_type:
         raise ValueError("conversationId, userId, and actionType are required.")
 
@@ -130,7 +136,7 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
 
         # Generate response
         if config.use_mock_ai:
-            ai_response = _mock_response(action_type)
+            ai_response = _mock_response(action_type, current_summary, selected_messages_text, user_input)
         else:
             client = get_bedrock_client(config.bedrock_region)
             ai_response = invoke_bedrock(client, config.bedrock_model_id, prompt)
@@ -208,12 +214,36 @@ def _build_prompt(
     )
 
 
-def _mock_response(action_type: str) -> str:
-    """Generate a mock AI response for dev environment."""
-    mock_responses = {
-        "summarize": "【モック要約】選択されたメッセージの要約です。実際のAI要約はBedrock接続時に生成されます。",
-        "opinion": "【モック意見】選択されたメッセージに対する意見です。多角的な視点からの分析をお伝えします。",
-        "answer": "【モック回答】ご質問への回答です。会話の文脈を考慮した回答をお伝えします。",
-        "next_action": "【モック提案】\n1. タスクの優先順位を整理する\n2. 未解決の課題を確認する\n3. 次回のミーティングを設定する",
-    }
-    return mock_responses.get(action_type, "【モック応答】処理が完了しました。")
+def _mock_response(action_type: str, current_summary: str = "", selected_messages: str = "", user_input: str = "") -> str:
+    """Generate a mock AI response for dev environment with debug info.
+    
+    Returns the prompt that would be sent to Bedrock for debugging Lambda data flow.
+    """
+    return f"""【モック応答 - デバッグ情報】
+
+アクションタイプ: {action_type}
+
+## Lambda が Bedrock に渡すはずのプロンプト要素
+
+### 【現在の要約】（DynamoDB 取得）
+{current_summary if current_summary else '(要約なし)'}
+
+### 【選択されたメッセージ】（messageId で取得したテキスト）
+{selected_messages if selected_messages else '(メッセージ未選択)'}
+
+### 【ユーザー入力】（answer/next_action で使用）
+{user_input if user_input else '(入力なし)'}
+
+---
+
+## アクション別ガイド
+
+**summarize**: 選択メッセージの内容が表示される → データ取得 OK
+**opinion**: 選択メッセージ + 要約が表示される → データ取得 OK
+**answer**: ユーザー入力が表示される → ユーザー入力の受け取り OK
+**next_action**: 現在の要約が表示される → 要約取得 OK
+
+---
+
+本番時（USE_MOCK_AI=false）はこの部分が Claude Haiku 4.5 の実際の回答に置き換わります。
+"""

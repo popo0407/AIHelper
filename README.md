@@ -284,16 +284,16 @@ Closes #123"
 - [x] AppSync クライアント接続（Amplify v6 統合）
 - [x] リアルタイムサブスクリプション（メッセージ・要約・ロック）
 - [x] コンポーネントテスト（Jest + RTL — 127テスト全合格）
-    - LoginScreen（Cognito認証フロー: 13テスト）
-    - ConversationSelect（会話一覧: 6テスト）
-    - ChatHeader（ヘッダー操作: 10テスト）
-    - ChatBubble（メッセージ表示）
-    - MessageList（メッセージ一覧: 11テスト）
-    - MessageInput（メッセージ入力）
-    - SummarySidebar（要約サイドバー: 14テスト）
-    - AIHelperButtons（AI相談ボタン: 17テスト）
-    - NotificationBanner（通知バナー: 7テスト）
-    - SubscriptionHandlers（リアルタイム同期ロジック: 28テスト）
+  - LoginScreen（Cognito認証フロー: 13テスト）
+  - ConversationSelect（会話一覧: 6テスト）
+  - ChatHeader（ヘッダー操作: 10テスト）
+  - ChatBubble（メッセージ表示）
+  - MessageList（メッセージ一覧: 11テスト）
+  - MessageInput（メッセージ入力）
+  - SummarySidebar（要約サイドバー: 14テスト）
+  - AIHelperButtons（AI相談ボタン: 17テスト）
+  - NotificationBanner（通知バナー: 7テスト）
+  - SubscriptionHandlers（リアルタイム同期ロジック: 28テスト）
 - [x] E2E テスト（PlayWright - ログイン・会話操作・Subscriptionリアルタイム更新テスト作成済み）
 
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**

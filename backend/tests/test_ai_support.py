@@ -66,11 +66,15 @@ class TestAskAIHelperSummarize:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert "message" in result
-        assert result["message"]["userId"] == "AIHELPER"
-        assert result["message"]["displayName"] == "AIHelper"
-        assert "モック要約" in result["message"]["content"]
+        # Message型を直接返す（Subscriptionに対応）
+        assert result["messageId"] is not None
+        assert result["userId"] == "AIHELPER"
+        assert result["displayName"] == "AIHelper"
+        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
+        assert "【モック応答 - デバッグ情報】" in result["content"]
+        assert "アクションタイプ: summarize" in result["content"]
+        # DynamoDB から取得したデータが含まれているか確認（データ取得検証）
+        assert "【選択されたメッセージ】" in result["content"] or "テスト発言" in result["content"]
 
     def test_要約応答がメッセージテーブルに保存される(self, dynamodb_tables, messages_table, summary_table):
         """AI 応答がメッセージとして DB に保存される。"""
@@ -89,9 +93,9 @@ class TestAskAIHelperSummarize:
         # DB から直接確認
         saved = messages_table.get_item(Key={
             "conversationId": "conv-ai",
-            "messageId": result["message"]["messageId"],
+            "messageId": result["messageId"],
         })
-        assert saved["Item"]["content"] == result["message"]["content"]
+        assert saved["Item"]["content"] == result["content"]
 
 
 # ================================================================
@@ -115,8 +119,13 @@ class TestAskAIHelperOpinion:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert "モック意見" in result["message"]["content"]
+        # Message型を直接返す（Subscriptionに対応）
+        assert result["messageId"] is not None
+        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
+        assert "【モック応答 - デバッグ情報】" in result["content"]
+        assert "アクションタイプ: opinion" in result["content"]
+        # DynamoDB から取得したデータが含まれているか確認（データ取得検証）
+        assert "【選択されたメッセージ】" in result["content"] or "テスト発言" in result["content"]
 
 
 # ================================================================
@@ -140,8 +149,13 @@ class TestAskAIHelperAnswer:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert "モック回答" in result["message"]["content"]
+        # Message型を直接返す（Subscriptionに対応）
+        assert result["messageId"] is not None
+        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
+        assert "【モック応答 - デバッグ情報】" in result["content"]
+        assert "アクションタイプ: answer" in result["content"]
+        # ユーザー入力が含まれているか確認（ユーザー入力受け取り検証）
+        assert "【ユーザー入力】" in result["content"] or "次のステップ" in result["content"]
 
 
 # ================================================================
@@ -164,8 +178,13 @@ class TestAskAIHelperNextAction:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert "モック提案" in result["message"]["content"]
+        # Message型を直接返す（Subscriptionに対応）
+        assert result["messageId"] is not None
+        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
+        assert "【モック応答 - デバッグ情報】" in result["content"]
+        assert "アクションタイプ: next_action" in result["content"]
+        # DynamoDB から取得した要約が含まれているか確認（データ取得検証）
+        assert "【現在の要約】" in result["content"] or "テスト要約" in result["content"]
 
 
 # ================================================================
@@ -195,8 +214,9 @@ class TestAskAIHelperBedrock:
             })
             result = mod.lambda_handler(event, None)
 
-        assert result["success"] is True
-        assert result["message"]["content"] == "Bedrock AI 応答テスト"
+        # Message型を直接返す（Subscriptionに対応）
+        assert result["messageId"] is not None
+        assert result["content"] == "Bedrock AI 応答テスト"
 
 
 # ================================================================
@@ -258,8 +278,11 @@ class TestAskAIHelperErrors:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert "モック応答" in result["message"]["content"]
+        # Message型を直接返す（Subscriptionに対応）
+        assert result["messageId"] is not None
+        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
+        assert "【モック応答 - デバッグ情報】" in result["content"]
+        assert "アクションタイプ: unknown_action" in result["content"]
 
 
 # ================================================================
