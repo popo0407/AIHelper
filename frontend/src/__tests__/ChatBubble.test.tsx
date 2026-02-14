@@ -144,6 +144,35 @@ describe('ChatBubble', () => {
     expect(button.className).toContain('chat-bubble-selected');
   });
 
+  it('選択状態のときチェックマークアイコンが表示される（ISSUE 02）', () => {
+    render(
+      <ChatBubble
+        message={baseMessage}
+        isOwn={false}
+        isAI={false}
+        isSelected={true}
+        onToggleSelect={onToggleSelect}
+      />
+    );
+
+    // チェックマーク ✓ が表示される
+    expect(screen.getByText('✓')).toBeInTheDocument();
+  });
+
+  it('未選択のときチェックマークアイコンは表示されない（ISSUE 02）', () => {
+    render(
+      <ChatBubble
+        message={baseMessage}
+        isOwn={false}
+        isAI={false}
+        isSelected={false}
+        onToggleSelect={onToggleSelect}
+      />
+    );
+
+    expect(screen.queryByText('✓')).not.toBeInTheDocument();
+  });
+
   it('未選択のとき aria-pressed=false', () => {
     render(
       <ChatBubble

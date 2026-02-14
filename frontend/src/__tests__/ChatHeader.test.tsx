@@ -11,6 +11,7 @@ describe('ChatHeader', () => {
   const onSwitchUser = jest.fn();
   const onCopyLink = jest.fn();
   const onReload = jest.fn();
+  const onTitleChange = jest.fn();
 
   const defaultProps = {
     conversationTitle: 'テスト会話',
@@ -20,6 +21,7 @@ describe('ChatHeader', () => {
     onSwitchUser,
     onCopyLink,
     onReload,
+    onTitleChange,
   };
 
   beforeEach(() => {
@@ -127,5 +129,63 @@ describe('ChatHeader', () => {
     await user.click(screen.getByLabelText('セッション再読み込み'));
 
     expect(onReload).toHaveBeenCalledTimes(1);
+  });
+
+  // ── 4. タイトル編集機能（ISSUE 05）──
+  it('タイトルクリックで編集モードに切り替わる', async () => {
+    const user = userEvent.setup();
+    render(<ChatHeader {...defaultProps} />);
+
+    // タイトルをクリック
+    await user.click(screen.getByText('テスト会話'));
+
+    // 入力欄が表示される
+    expect(screen.getByLabelText('会話タイトルを編集')).toBeInTheDocument();
+  });
+
+  it('タイトル編集でEnterキー押下時にonTitleChangeが呼ばれる', async () => {
+    const user = userEvent.setup();
+    render(<ChatHeader {...defaultProps} />);
+
+    // 編集モードに入る
+    await user.click(screen.getByText('テスト会話'));
+
+    const input = screen.getByLabelText('会話タイトルを編集');
+    await user.clear(input);
+    await user.type(input, '新しいタイトル{Enter}');
+
+    expect(onTitleChange).toHaveBeenCalledWith('新しいタイトル');
+  });
+
+  it('タイトル編集でEscキー押下時にキャンセルされる', async () => {
+    const user = userEvent.setup();
+    render(<ChatHeader {...defaultProps} />);
+
+    await user.click(screen.getByText('テスト会話'));
+
+    const input = screen.getByLabelText('会話タイトルを編集');
+    await user.clear(input);
+    await user.type(input, '破棄するタイトル{Escape}');
+
+    // onTitleChange は呼ばれない
+    expect(onTitleChange).not.toHaveBeenCalled();
+    // 元のタイトルが表示される
+    expect(screen.getByText('テスト会話')).toBeInTheDocument();
+  });
+
+  it('onTitleChangeがない場合タイトルはクリックできない', () => {
+    const { onTitleChange: _, ...propsWithoutTitleChange } = defaultProps;
+    render(<ChatHeader {...propsWithoutTitleChange} />);
+
+    const title = screen.getByText('テスト会話');
+    // role=button がないことを確認
+    expect(title).not.toHaveAttribute('role', 'button');
+  });
+
+  it('タイトルに編集アイコンが表示される', () => {
+    render(<ChatHeader {...defaultProps} />);
+
+    // 編集アイコン ✏️ が表示
+    expect(screen.getByText('テスト会話').parentElement?.textContent).toContain('✏️');
   });
 });

@@ -51,6 +51,12 @@ export function ChatBubble({
         aria-pressed={isSelected}
         aria-label={`メッセージを${isSelected ? '選択解除' : '選択'}: ${message.content.slice(0, 30)}`}
       >
+        {/* Selection indicator (ISSUE 02) */}
+        {isSelected && (
+          <div className="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-serendie-accent text-white flex items-center justify-center text-xs shadow-md z-10" aria-hidden="true">
+            ✓
+          </div>
+        )}
         {/* Sender name (shown for others & AI) */}
         {!isOwn && (
           <div className="flex items-center gap-1.5 mb-1">

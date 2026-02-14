@@ -152,6 +152,11 @@ class AppSyncStack(Stack):
             type_name="Mutation",
             field_name="askAIHelper",
         )
+        conversation_ds.create_resolver(
+            "UpdateConversationTitleResolver",
+            type_name="Mutation",
+            field_name="updateConversationTitle",
+        )
 
         # =========================================================
         # Outputs

@@ -36,6 +36,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "listConversations": handle_list_conversations,
         "createConversation": handle_create_conversation,
         "joinConversation": handle_join_conversation,
+        "updateConversationTitle": handle_update_conversation_title,
     }
 
     handler = handlers.get(field_name)
@@ -215,3 +216,41 @@ def handle_join_conversation(args: dict) -> dict[str, Any]:
         "User joined conversation: %s -> %s", login_id, conversation_id
     )
     return build_response(True, data={"conversation": conv_item})
+
+
+def handle_update_conversation_title(args: dict) -> dict:
+    """Update the title of a conversation."""
+    inp = args.get("input", {})
+    conversation_id = inp.get("conversationId")
+    title = inp.get("title", "").strip()
+
+    if not conversation_id:
+        raise ValueError("conversationId is required.")
+
+    # Update title in Conversations table
+    conversations_table = get_dynamodb_table(config.conversations_table)
+    conversations_table.update_item(
+        Key={"conversationId": conversation_id},
+        UpdateExpression="SET title = :title",
+        ExpressionAttributeValues={":title": title},
+    )
+
+    # Also update title in Summary table for consistency
+    summary_table = get_dynamodb_table(config.summary_table)
+    summary_table.update_item(
+        Key={"conversationId": conversation_id},
+        UpdateExpression="SET title = :title",
+        ExpressionAttributeValues={":title": title},
+    )
+
+    # Return updated conversation
+    conv_resp = conversations_table.get_item(
+        Key={"conversationId": conversation_id}
+    )
+    conv_item = conv_resp.get("Item", {})
+    conv_item["title"] = title
+
+    logger.info(
+        "Conversation title updated: %s -> %s", conversation_id, title
+    )
+    return conv_item

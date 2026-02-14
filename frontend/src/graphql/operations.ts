@@ -170,6 +170,20 @@ export const SAVE_SUMMARY_EDIT = /* GraphQL */ `
   }
 `;
 
+export const UPDATE_CONVERSATION_TITLE = /* GraphQL */ `
+  mutation UpdateConversationTitle($input: UpdateConversationTitleInput!) {
+    updateConversationTitle(input: $input) {
+      conversationId
+      createdBy
+      createdAt
+      participants
+      status
+      shareLink
+      title
+    }
+  }
+`;
+
 export const ACQUIRE_LOCK = /* GraphQL */ `
   mutation AcquireLock($input: AcquireLockInput!) {
     acquireLock(input: $input) {

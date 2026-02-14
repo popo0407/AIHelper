@@ -20,6 +20,7 @@ import {
   RELEASE_LOCK,
   ASK_AI_HELPER,
   CREATE_CONVERSATION,
+  UPDATE_CONVERSATION_TITLE,
   ON_NEW_MESSAGE,
   ON_SUMMARY_UPDATE,
   ON_LOCK_CHANGE,
@@ -68,8 +69,14 @@ export function ChatScreen({
   const [isAIProcessing, setIsAIProcessing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [previousSummary, setPreviousSummary] = useState<string>('');
+  const [conversationTitle, setConversationTitle] = useState(
+    conversation.title || '無題の会話'
+  );
+  const [sidebarWidth, setSidebarWidth] = useState(384); // default w-96 = 384px
+  const [isResizing, setIsResizing] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isFirstMessageSentRef = useRef(false);
 
   // ── Derived state ──
   const lockState: LockState = deriveLockState(locks, user.loginId);
@@ -84,6 +91,8 @@ export function ChatScreen({
   // ── Initial load ──
   useEffect(() => {
     loadData();
+    setConversationTitle(conversation.title || '無題の会話');
+    isFirstMessageSentRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.conversationId]);
 
@@ -288,6 +297,13 @@ export function ChatScreen({
             m.messageId === tempMessage.messageId ? message : m
           )
         );
+
+        // ISSUE 05: Auto-set title from first user message
+        if (!isFirstMessageSentRef.current && conversationTitle === '無題の会話') {
+          isFirstMessageSentRef.current = true;
+          const autoTitle = content.slice(0, 50) + (content.length > 50 ? '...' : '');
+          handleTitleChange(autoTitle);
+        }
       }
     } catch (err) {
       console.error('Failed to send message:', err);
@@ -320,6 +336,7 @@ export function ChatScreen({
             conversationId: conversation.conversationId,
             selectedMessageIds: Array.from(selectedMessageIds),
             userId: user.loginId,
+            displayName: user.displayName,
           },
         },
       });
@@ -393,6 +410,7 @@ export function ChatScreen({
               conversationId: conversation.conversationId,
               content: editContent,
               userId: user.loginId,
+              displayName: user.displayName,
             },
           },
         }),
@@ -483,6 +501,54 @@ export function ChatScreen({
     });
   }, [conversation.conversationId]);
 
+  // ── Title change (ISSUE 05) ──
+  const handleTitleChange = useCallback(
+    async (newTitle: string) => {
+      setConversationTitle(newTitle);
+      try {
+        await graphqlClient.graphql({
+          query: UPDATE_CONVERSATION_TITLE,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              title: newTitle,
+            },
+          },
+        });
+      } catch (err) {
+        console.error('Failed to update conversation title:', err);
+      }
+    },
+    [conversation.conversationId]
+  );
+
+  // ── Sidebar resize (ISSUE 04) ──
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+
+      const startX = e.clientX;
+      const startWidth = sidebarWidth;
+
+      function onMouseMove(ev: MouseEvent) {
+        const delta = startX - ev.clientX;
+        const newWidth = Math.max(200, Math.min(800, startWidth + delta));
+        setSidebarWidth(newWidth);
+      }
+
+      function onMouseUp() {
+        setIsResizing(false);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [sidebarWidth]
+  );
+
   // ── Reload data ──
   const handleReload = useCallback(() => {
     loadData();
@@ -493,9 +559,7 @@ export function ChatScreen({
     <div className="flex flex-col h-screen">
       {/* Header */}
       <ChatHeader
-        conversationTitle={
-          summary?.title || conversation.title || '無題の会話'
-        }
+        conversationTitle={conversationTitle}
         userName={user.displayName}
         onNewConversation={async () => {
           try {
@@ -518,13 +582,14 @@ export function ChatScreen({
         onSwitchUser={onSwitchUser}
         onCopyLink={handleCopyLink}
         onReload={handleReload}
+        onTitleChange={handleTitleChange}
       />
 
       {/* Notification banner */}
       {notification && <NotificationBanner message={notification} />}
 
       {/* Main content: 2-pane layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className={`flex-1 flex overflow-hidden ${isResizing ? 'select-none' : ''}`}>
         {/* Left pane: Chat */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Messages */}
@@ -557,8 +622,27 @@ export function ChatScreen({
           </div>
         </div>
 
+        {/* Resize handle (ISSUE 04) */}
+        <div
+          className="w-1 cursor-col-resize bg-serendie-gray-200 hover:bg-serendie-blue-400 active:bg-serendie-blue-500 transition-colors flex-shrink-0 relative group"
+          onMouseDown={handleResizeMouseDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="サイドバーの幅を調整"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              setSidebarWidth((w) => Math.min(800, w + 20));
+            } else if (e.key === 'ArrowRight') {
+              setSidebarWidth((w) => Math.max(200, w - 20));
+            }
+          }}
+        >
+          <div className="absolute inset-y-0 -left-1 -right-1 group-hover:bg-serendie-blue-400/20" />
+        </div>
+
         {/* Right pane: Summary sidebar */}
-        <div className="w-96 flex-shrink-0">
+        <div style={{ width: sidebarWidth }} className="flex-shrink-0">
           <SummarySidebar
             summary={summary}
             isEditing={isEditing}

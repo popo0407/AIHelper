@@ -70,11 +70,16 @@ class TestAskAIHelperSummarize:
         assert result["messageId"] is not None
         assert result["userId"] == "AIHELPER"
         assert result["displayName"] == "AIHelper"
-        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
-        assert "【モック応答 - デバッグ情報】" in result["content"]
-        assert "アクションタイプ: summarize" in result["content"]
-        # DynamoDB から取得したデータが含まれているか確認（データ取得検証）
-        assert "【選択されたメッセージ】" in result["content"] or "テスト発言" in result["content"]
+        
+        # モック応答の検証
+        content = result["content"]
+        assert "【モック応答 - デバッグ情報】" in content
+        assert "アクションタイプ: summarize" in content
+        
+        # 実際にDBから取得されたメッセージが含まれているか（データ取得検証）
+        # _seed_dataで作成したメッセージ"テスト発言0"と"テスト発言1"が含まれているはず
+        assert "テスト発言" in content, f"DynamoDBから取得したメッセージが含まれていません。content: {content}"
+        assert "【選択されたメッセージ】" in content
 
     def test_要約応答がメッセージテーブルに保存される(self, dynamodb_tables, messages_table, summary_table):
         """AI 応答がメッセージとして DB に保存される。"""
@@ -121,11 +126,17 @@ class TestAskAIHelperOpinion:
 
         # Message型を直接返す（Subscriptionに対応）
         assert result["messageId"] is not None
-        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
-        assert "【モック応答 - デバッグ情報】" in result["content"]
-        assert "アクションタイプ: opinion" in result["content"]
-        # DynamoDB から取得したデータが含まれているか確認（データ取得検証）
-        assert "【選択されたメッセージ】" in result["content"] or "テスト発言" in result["content"]
+        
+        # モック応答の検証
+        content = result["content"]
+        assert "【モック応答 - デバッグ情報】" in content
+        assert "アクションタイプ: opinion" in content
+        
+        # opinionアクションでは選択メッセージと要約の両方が含まれるべき
+        assert "テスト発言" in content, f"DynamoDBから取得したメッセージが含まれていません。content: {content}"
+        assert "テスト要約" in content, f"DynamoDBから取得した要約が含まれていません。content: {content}"
+        assert "【選択されたメッセージ】" in content
+        assert "【現在の要約】" in content
 
 
 # ================================================================
@@ -151,11 +162,15 @@ class TestAskAIHelperAnswer:
 
         # Message型を直接返す（Subscriptionに対応）
         assert result["messageId"] is not None
-        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
-        assert "【モック応答 - デバッグ情報】" in result["content"]
-        assert "アクションタイプ: answer" in result["content"]
+        
+        # モック応答の検証
+        content = result["content"]
+        assert "【モック応答 - デバッグ情報】" in content
+        assert "アクションタイプ: answer" in content
+        
         # ユーザー入力が含まれているか確認（ユーザー入力受け取り検証）
-        assert "【ユーザー入力】" in result["content"] or "次のステップ" in result["content"]
+        assert "次のステップは？" in content, f"ユーザー入力が含まれていません。content: {content}"
+        assert "【ユーザー入力】" in content
 
 
 # ================================================================
@@ -180,11 +195,15 @@ class TestAskAIHelperNextAction:
 
         # Message型を直接返す（Subscriptionに対応）
         assert result["messageId"] is not None
-        # デバッグ情報フォーマットの確認（モック機能の有効性検証）
-        assert "【モック応答 - デバッグ情報】" in result["content"]
-        assert "アクションタイプ: next_action" in result["content"]
+        
+        # モック応答の検証
+        content = result["content"]
+        assert "【モック応答 - デバッグ情報】" in content
+        assert "アクションタイプ: next_action" in content
+        
         # DynamoDB から取得した要約が含まれているか確認（データ取得検証）
-        assert "【現在の要約】" in result["content"] or "テスト要約" in result["content"]
+        assert "テスト要約" in content, f"DynamoDBから取得した要約が含まれていません。content: {content}"
+        assert "【現在の要約】" in content
 
 
 # ================================================================

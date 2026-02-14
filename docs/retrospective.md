@@ -2,6 +2,57 @@
 
 ---
 
+## 📅 **2026年2月14日 — ISSUE一括対応（5件）**
+
+### ✅ **完了した内容**
+
+#### **ISSUE 01: ユーザーID表示の改善（UUID→ユーザー名）**
+- GraphQL schema: `UpdateSummaryInput`, `SaveSummaryEditInput` に `displayName` フィールド追加
+- Backend summarizer: `updatedBy` に `displayName` を使用するよう変更
+- Frontend: summary mutation に `displayName` を渡すよう変更
+
+#### **ISSUE 02: メッセージ選択UIの強調改善**
+- ChatBubble: 選択時にチェックマーク(✓)アイコンを表示
+- CSS: 選択時の背景色変更、shadow-lg強化、translate-y-1で立体感向上
+- 自分のメッセージと他者メッセージで選択スタイルを分離
+
+#### **ISSUE 03: nextjs-toast要素がチャット入力の邪魔になる問題**
+- `next.config.js`: `devIndicators: false` を追加
+- `globals.css`: `.nextjs-toast` を `opacity:0; pointer-events:none` で非表示化
+- 本番ビルドでは元から表示されないため影響なし
+
+#### **ISSUE 04: 要約・チャット欄の幅スライダー**
+- ChatScreen: リサイズハンドル追加（ドラッグで200px〜800pxに調整可能）
+- キーボード操作対応（ArrowLeft/Right）
+- `role=separator`, `aria-orientation`, `aria-label` でアクセシビリティ対応
+
+#### **ISSUE 05: 会話タイトルの自動登録・編集機能**
+- ChatHeader: クリックでタイトル編集可能（Enter確定/Esc取消/blur保存）
+- ChatScreen: 初回メッセージからタイトル自動設定（50文字まで）
+- Backend: `updateConversationTitle` mutation追加（Conversations + Summary テーブル更新）
+- Summarizer: AI要約からのタイトル自動抽出ロジック削除
+
+### **テスト追加**
+- ChatHeader: タイトル編集テスト5件（編集モード切替/Enter確定/Escキャンセル/disabled/アイコン表示）
+- ChatBubble: チェックマーク表示テスト2件（選択時/未選択時）
+- Backend summarizer: `displayName` 対応での `updatedBy` 検証更新
+- Backend conversation: `updateConversationTitle` テスト2件
+
+### **問題と対応**
+
+| 問題 | 原因 | 対応 |
+| ---- | ---- | ---- |
+| updatedByにUUIDが表示される | バックエンドがuserId(UUID)をそのまま保存 | displayNameパラメータ追加、フロントから送信 |
+| nextjs-toastが入力欄を遮る | Next.js開発インジケーターが常時表示 | devIndicators:false + CSS非表示 |
+| タイトルがAI要約タイトルに上書きされる | SummarizerがAI出力から#タイトルを抽出 | AI抽出ロジック削除、ユーザー管理に変更 |
+
+### **学んだこと**
+1. GraphQL schema変更時はCDKリゾルバーの追加も忘れずに行う
+2. `devIndicators: false` はNext.js 14+で有効なオプション
+3. リサイズハンドルはmousedown→document.addEventListener→mouseupパターンが安定
+
+---
+
 ## 📅 **2026年2月13日（続） — AWS デプロイ完了・フロントエンド起動・セキュリティ課題の識別**
 
 ### ✅ **完了した内容**

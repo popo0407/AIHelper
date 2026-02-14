@@ -55,7 +55,7 @@ export function SummarySidebar({
       <div className="p-4 border-b border-serendie-gray-200">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold text-serendie-gray-900">
-            要約・議事録
+            要約
           </h2>
           <span className="text-xs text-serendie-gray-400">
             {charCount} / {SUMMARY_MAX_LENGTH}

@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   output: 'export',
+  devIndicators: false,
 };
 
 module.exports = nextConfig;
