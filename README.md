@@ -289,7 +289,7 @@ Closes #123"
 ### **フェーズ 4：統合テスト＆本番デプロイ（予定）**
 
 - [ ] **Cognito 認証への移行**（優先）→ [Issue詳細](.github/ISSUES/cognito-authentication.md)
-- [ ] GraphQL Subscription の再実装
+- [x] GraphQL Subscription の再実装（AWS AppSync ベストプラクティスに準拠）
 - [ ] WAF レート制限の追加
 - [ ] 統合テスト
 - [ ] セキュリティ監査
@@ -334,4 +334,4 @@ MIT License
 
 **プロジェクトステータス:** 🟢 開発中（フェーズ 2・3 完了、フェーズ 4 準備中）
 
-最終更新：2026年2月13日
+最終更新：2026年2月14日

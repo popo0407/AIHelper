@@ -677,34 +677,167 @@ Branch Structure:
 **次のチェックイン:** AppSync クライアント接続 → テスト → 本番デプロイ
 
 **作成者:** AI Development Agent  
-**最終更新:** 2026年2月13日
+**最終更新:** 2026年2月14日
 
 ---
 
-## ?? **2026�N2��14�� ? PlayWright MCP�iE2E�e�X�g�������j��������**
+## 📅 **2026年2月14日 — GraphQL Subscription 再実装（AWS AppSync ベストプラクティス準拠）**
 
-### ? **�������e**
+### ✅ **完了した内容**
 
-#### **1. PlayWright �C���X�g�[���Z�b�g�A�b�v**
-- @playwright/test ���C���X�g�[��
-- Chromium�AFirefox�AWebKit �����[�J���ɃC���X�g�[��
-- frontend/playwright.config.ts ���쐬
+#### **1. AWS AppSync Subscription の制約発見**
 
-#### **2. E2E�e�X�g�T���v������**
-- frontend/e2e/login.spec.ts ���쐬�i7�̃e�X�g�j
+- **問題**: Subscription の output type に複雑な Response wrapper 型（`SendMessageResponse`、`UpdateSummaryResponse` など）を使用すると "invalid output type" エラーが発生
+- **原因**: AppSync の `@aws_subscribe` ディレクティブは、シンプルなエンティティ型のみをサポート（例: `Message`, `Summary`, `Lock`）
+- **学習**: AWS ベストプラクティスドキュメントより「1 event = 1 entity」原則を確認
 
-#### **3. npm �X�N���v�g�ǉ�**
-- npm run e2e�i�w�b�h���X���[�h�j
-- npm run e2e:ui�iUI�őΘb�I���s�j
-- npm run e2e:debug�i�f�o�b�O���[�h�j
-- npm run e2e:chromium/firefox/webkit�i�u���E�U�w��j
-- npm run e2e:headed�i�u���E�U�\�����[�h�j
+#### **2. GraphQL スキーマの大規模リファクタリング**
 
-#### **4. �h�L�������g�ݒ�X�V**
-- docs/playwright-guide.md ���쐬�i�ڍ׃K�C�h�j
-- README.md ���X�V�iE2E�e�X�g���s���@�ǉ��j
-- .vscode/settings.json ���X�V
-- .github/copilot-instructions.md ���X�V�iMCP���ǉ��j
+- **変更内容**:
+  - Mutation の戻り値を Response wrapper 型からエンティティ型に変更
+    - `sendMessage: SendMessageResponse → Message!`
+    - `updateSummary: UpdateSummaryResponse → Summary!`
+    - `acquireLock: LockResponse → Lock!`
+    - `askAIHelper: AIHelperResponse → Message!` など
+  - Subscription を再有効化し、エンティティ型を出力型として指定
+    - `onNewMessage(conversationId: ID!): Message @aws_subscribe(mutations: ["sendMessage", "askAIHelper"])`
+    - `onSummaryUpdate(conversationId: ID!): Summary @aws_subscribe(mutations: ["updateSummary"])`
+    - `onLockChange(conversationId: ID!): Lock @aws_subscribe(mutations: ["acquireLock", "releaseLock"])`
+  - 非推奨の Response 型定義を削除（`SendMessageResponse`, `UpdateSummaryResponse`, `LockResponse`, `AIHelperResponse`, `UndoSummaryResponse`）
+  - `CreateConversationResponse` と `JoinConversationResponse` は、Subscription に関連しないため保持
 
-**�X�e�[�^�X:** ? **PlayWright MCP E2E�e�X�g�����������{�i�ғ��\**
-**�ŏI�X�V:** 2026�N2��14��
+#### **3. バックエンド Lambda 関数の更新**
+
+- **変更内容**:
+  - `chat/index.py`: `sendMessage` がエンティティ `Message` を直接返すように変更
+  - `summarizer/index.py`: `updateSummary`, `undoSummary`, `saveSummaryEdit` がエンティティ `Summary` を直接返すように変更
+  - `lock_manager/index.py`: `acquireLock`, `releaseLock` がエンティティ `Lock` を直接返すように変更
+  - `ai_support/index.py`: `askAIHelper` がエンティティ `Message` を直接返すように変更
+  - エラー処理: エラー時は Response オブジェクトではなく、例外を throw するように変更（AppSync が自動的にエラーレスポンスを生成）
+  - クリーンアップ: 不要になった `build_response` インポートを4つの Lambda 関数から削除
+
+#### **4. フロントエンド GraphQL 操作の更新**
+
+- **変更内容**:
+  - `frontend/src/graphql/operations.ts`: すべての Mutation と Subscription クエリをエンティティ型に変更
+    - `sendMessage` の戻り値を `{ success, message, error }` から `{ id, userId, userName, content, timestamp, ...}` に変更
+    - Subscription クエリに `conversationId` 引数を追加（フィルタリング用）
+  - `frontend/src/app/chat/[conversationId]/ChatScreen.tsx`: レスポンスハンドラーをエンティティ直接抽出に変更
+    - `extractData<Message>`, `extractData<Summary>`, `extractData<Lock>` による型安全な抽出
+    - エラー処理: GraphQL エラーは `error` オブジェクトから取得
+
+#### **5. 動作確認とクリーンアップ**
+
+- **テスト実行**:
+  - Playwright E2E テスト実行: `e2e/conversation-features.spec.ts`「新しい会話を作成できる」
+  - **結果**: ✅ 成功（1 passed, 14.6s）
+  - ブラウザコンソールエラー: なし
+- **クリーンアップ**:
+  - GraphQL スキーマから非推奨の Response 型を7つ削除
+  - Lambda 関数から不要な `build_response` インポートを削除（4ファイル）
+- **デプロイ**:
+  - `cdk deploy aichat-dev-lambda aichat-dev-appsync` を2回実行
+  - Lambda 関数: 4つ更新（Chat, Summarizer, LockManager, AISupport）
+  - AppSync GraphQL スキーマ: 更新完了
+
+### **問題と対応**
+
+| 問題                                              | 原因                                                                   | 対応                                                                                        |
+| ------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Subscription デプロイ時に "invalid output type"   | `@aws_subscribe` は複雑な wrapper 型をサポートしない                  | Mutation の戻り値をエンティティ型に変更し、Subscription も同じ型を使用                     |
+| エラー時の Response 処理方法                      | Mutation がエンティティを返すため、エラー情報を含められない           | Lambda 関数で例外を throw し、AppSync が GraphQL エラーとして自動処理                       |
+| フロントエンドでの型不整合                        | GraphQL クエリが古い Response 型を期待                                 | `operations.ts` と `ChatScreen.tsx` を更新し、エンティティを直接抽出                        |
+| 後方互換性のための削除可能コード                  | Response 型定義と `build_response` が残っていたが、どこからも参照なし | E2E テスト成功を確認後、非推奨コードをクリーンアップ                                        |
+| Response wrapper 型の必要性（一部 Mutation のみ） | `createConversation` と `joinConversation` は複数データを返す          | これらは Subscription に関連しないため、Response 型のまま保持（後で個別エンティティに分離可） |
+
+### **学んだこと**
+
+1. **AWS AppSync Subscription の制約**:
+   - `@aws_subscribe` ディレクティブは、シンプルなエンティティ型のみをサポート
+   - **ベストプラクティス**: "1 event = 1 entity" — Mutation は単一のエンティティを返す
+   - 複雑な wrapper 型（`{ success, data, error }`）は Subscription の output type として使用不可
+   - Mutation で返された型が Subscription の型と一致しないと、"invalid output type" エラー
+
+2. **GraphQL エラーハンドリングの変更**:
+   - **従来**: Lambda 関数が `{ success: false, error: "..." }` を返す
+   - **新方式**: Lambda 関数が例外を throw → AppSync が自動的に GraphQL エラーレスポンスを生成
+   - フロントエンドは `error` オブジェクトから `error.errors[0].message` を取得
+
+3. **フロントエンド型安全性の向上**:
+   - Response wrapper を経由せず、エンティティを直接扱うことで型定義が明確化
+   - `extractData<Message>` 等のジェネリック型により、型推論が正確に機能
+
+4. **リファクタリングのスコープ管理**:
+   - すべての Mutation を一度に変更するのではなく、Subscription に関連するもののみを先に変更
+   - `createConversation` と `joinConversation` は Subscription を持たないため、Response 型のまま保持
+   - **段階的な移行**: 必要最小限の変更で機能を有効化し、後で追加リファクタリング可能
+
+5. **cdk deploy の依存関係**:
+   - Lambda と AppSync を同時にデプロイする際、Lambda が先に更新される（依存関係解決）
+   - スキーマ変更時は `aichat-dev-appsync` のデプロイが最後に実行される
+
+### **再発防止策**
+
+- **Subscription 実装時のチェックリスト**:
+  1. Mutation の戻り値が単一のエンティティ型であることを確認
+  2. `@aws_subscribe` の output type が同じエンティティ型であることを確認
+  3. Lambda 関数がエンティティ dict を直接返すことを確認
+  4. エラー時は例外を throw（Response wrapper でエラーを返さない）
+- **AWS AppSync ベストプラクティスの遵守**:
+  - "1 event = 1 entity" 原則を常に適用
+  - 複雑な Response wrapper 型は Subscription に使用しない
+  - Mutation と Subscription の型を一致させる
+- **段階的なデプロイ検証**:
+  - スキーマ変更後は E2E テストを実行して動作確認
+  - デプロイ成功後、不要なコードをクリーンアップ
+  - クリーンアップ後も再度デプロイして整合性を確認
+
+### **次のタスク**
+
+1. **Subscription の動作確認**（優先度: 高、見積: 30分）
+   - ブラウザで実際にリアルタイム更新が動作することを確認
+   - 複数ユーザーで同時アクセスして、メッセージ・要約・ロックの Subscription が機能することを確認
+   - `onNewMessage`, `onSummaryUpdate`, `onLockChange` がトリガーされることを確認
+
+2. **CreateConversationResponse と JoinConversationResponse のリファクタリング**（優先度: 中、見積: 1時間）
+   - これらも単純なエンティティに分離可能か検討
+   - 複数エンティティを返す場合のベストプラクティスを調査（複数 Mutation に分割？）
+
+3. **Cognito 認証への移行**（優先度: 高、見積: 2-3時間）
+   - Issue: `.github/ISSUES/cognito-authentication.md`
+   - API Key 認証からの移行
+
+**ステータス:** ✅ **GraphQL Subscription 再実装完了（AWS AppSync ベストプラクティス準拠）**
+
+**最終更新:** 2026年2月14日
+
+
+---
+
+## ?? **2026�N2��14�� ? PlayWright MCP�iE2E�e�X�g�������j��������**
+
+### ? **�������e**
+
+#### **1. PlayWright �C���X�g�[���Z�b�g�A�b�v**
+- @playwright/test ���C���X�g�[��
+- Chromium�AFirefox�AWebKit �����[�J���ɃC���X�g�[��
+- frontend/playwright.config.ts ���쐬
+
+#### **2. E2E�e�X�g�T���v������**
+- frontend/e2e/login.spec.ts ���쐬�i7�̃e�X�g�j
+
+#### **3. npm �X�N���v�g�ǉ�**
+- npm run e2e�i�w�b�h���X���[�h�j
+- npm run e2e:ui�iUI�őΘb�I���s�j
+- npm run e2e:debug�i�f�o�b�O���[�h�j
+- npm run e2e:chromium/firefox/webkit�i�u���E�U�w��j
+- npm run e2e:headed�i�u���E�U�\�����[�h�j
+
+#### **4. �h�L�������g�ݒ�X�V**
+- docs/playwright-guide.md ���쐬�i�ڍ׃K�C�h�j
+- README.md ���X�V�iE2E�e�X�g���s���@�ǉ��j
+- .vscode/settings.json ���X�V
+- .github/copilot-instructions.md ���X�V�iMCP���ǉ��j
+
+**�X�e�[�^�X:** ? **PlayWright MCP E2E�e�X�g�����������{�i�ғ��\**
+**�ŏI�X�V:** 2026�N2��14��
