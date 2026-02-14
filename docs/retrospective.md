@@ -2,37 +2,106 @@
 
 ---
 
+## 📅 **ISSUE #2 — ナレッジベース登録・検索機能の追加**
+
+### ✅ **完了した内容**
+
+#### **CDK Infrastructure**
+
+- `database_stack.py`: KnowledgeSources DynamoDB テーブル (PK: conversationId, SK: knowledgeSourceId) + S3 バケット追加
+- `lambda_stack.py`: Bedrock/S3 IAM ポリシー追加、knowledgebase Lambda 関数追加 (120s timeout, 512MB)
+- `appsync_stack.py`: KnowledgebaseDS データソース + 4 リゾルバー追加
+
+#### **GraphQL Schema**
+
+- `KnowledgeSource` 型、`KnowledgeSearchResult` 型追加
+- `UploadKnowledgebaseResponse`、`DeleteKnowledgebaseResponse` 型追加
+- `listKnowledgeSources` クエリ + `uploadKnowledgebase` / `deleteKnowledgebase` / `searchKnowledgebase` ミューテーション追加
+
+#### **Backend Lambda**
+
+- `backend/functions/knowledgebase/index.py`: 4つのハンドラー実装
+  - `listKnowledgeSources`: 会話ごとのナレッジソース一覧
+  - `uploadKnowledgebase`: Presigned URL 生成 + DynamoDB メタデータ登録
+  - `deleteKnowledgebase`: S3 ファイル削除 + DynamoDB メタデータ削除
+  - `searchKnowledgebase`: キーワード抽出 → S3 テキスト検索 → Bedrock RAG 回答生成
+- `common/config.py`: `knowledge_sources_table` / `knowledge_bucket` フィールド追加
+- `common/models.py`: `KnowledgeSource` データクラス追加
+
+#### **Frontend**
+
+- `types/index.ts`: KnowledgeSource / KnowledgeSearchResult / Upload/Delete Response 型追加
+- `graphql/operations.ts`: KB関連 4 オペレーション追加
+- `KnowledgebasePanel.tsx`: ファイルアップロード/一覧表示/削除 UI（オーバーレイパネル）
+- `ChatHeader.tsx`: 📚ナレッジベース ボタン追加 (バッジ付き)
+- `MessageInput.tsx`: KB検索トグル（ON/OFF）+ 検索モード UI
+- `ChatScreen.tsx`: KnowledgebasePanel 統合 + KB検索フロー
+
+#### **テスト**
+
+- `conftest.py`: KnowledgeSources テーブル + S3 バケットフィクスチャ追加
+- `test_knowledgebase.py`: 11 テストケース（全 PASSED）
+  - listKnowledgeSources: 空リスト / 登録済み一覧 / 会話分離
+  - uploadKnowledgebase: 正常アップロード / 非対応形式エラー / サイズ超過エラー
+  - deleteKnowledgebase: 正常削除 / 存在しないソースエラー
+  - searchKnowledgebase: ソースなし案内 / モック AI 検索
+  - ルーティング: 不明フィールドエラー
+
+### **設計判断**
+
+| 判断項目 | 採用方針 | 理由 |
+| -------- | -------- | ---- |
+| ファイル形式 | PDF/DOCX/DOC/HTML/MD/TXT | ビジネス文書の主要形式をカバー |
+| 検索UI | トグル方式 | 通常チャットとKB検索の切り替えが直感的 |
+| 会話分離 | conversationId ベース | セッション横断不要、セキュリティ確保 |
+| 削除方式 | S3 物理削除 + DynamoDB メタデータ削除 | Knowledge Bases API 明示削除不要 |
+| テキスト抽出 | Lambda 内 S3 直接取得 | 初期実装、将来 Knowledge Bases Retrieve API に移行可能 |
+
+### **再発防止策**
+
+- CDK スタック間の依存関係は `database_stack → lambda_stack → appsync_stack` の順序を厳守
+- Lambda 環境変数は `config.py` に一元管理し、CDK 側と対応を確認
+- フロントエンド型定義は GraphQL スキーマと必ず同期
+
+---
+
 ## 📅 **2026年2月14日 — ISSUE一括対応（5件）**
 
 ### ✅ **完了した内容**
 
 #### **ISSUE 01: ユーザーID表示の改善（UUID→ユーザー名）**
+
 - GraphQL schema: `UpdateSummaryInput`, `SaveSummaryEditInput` に `displayName` フィールド追加
 - Backend summarizer: `updatedBy` に `displayName` を使用するよう変更
 - Frontend: summary mutation に `displayName` を渡すよう変更
 
 #### **ISSUE 02: メッセージ選択UIの強調改善**
+
 - ChatBubble: 選択時にチェックマーク(✓)アイコンを表示
 - CSS: 選択時の背景色変更、shadow-lg強化、translate-y-1で立体感向上
 - 自分のメッセージと他者メッセージで選択スタイルを分離
 
 #### **ISSUE 03: nextjs-toast要素がチャット入力の邪魔になる問題**
+
 - `next.config.js`: `devIndicators: false` を追加
 - `globals.css`: `.nextjs-toast` を `opacity:0; pointer-events:none` で非表示化
 - 本番ビルドでは元から表示されないため影響なし
 
 #### **ISSUE 04: 要約・チャット欄の幅スライダー**
+
 - ChatScreen: リサイズハンドル追加（ドラッグで200px〜800pxに調整可能）
 - キーボード操作対応（ArrowLeft/Right）
 - `role=separator`, `aria-orientation`, `aria-label` でアクセシビリティ対応
 
 #### **ISSUE 05: 会話タイトルの自動登録・編集機能**
+
 - ChatHeader: クリックでタイトル編集可能（Enter確定/Esc取消/blur保存）
 - ChatScreen: 初回メッセージからタイトル自動設定（50文字まで）
 - Backend: `updateConversationTitle` mutation追加（Conversations + Summary テーブル更新）
 - Summarizer: AI要約からのタイトル自動抽出ロジック削除
 
 ### **テスト追加**
+
 - ChatHeader: タイトル編集テスト5件（編集モード切替/Enter確定/Escキャンセル/disabled/アイコン表示）
 - ChatBubble: チェックマーク表示テスト2件（選択時/未選択時）
 - Backend summarizer: `displayName` 対応での `updatedBy` 検証更新
@@ -40,13 +109,14 @@
 
 ### **問題と対応**
 
-| 問題 | 原因 | 対応 |
-| ---- | ---- | ---- |
-| updatedByにUUIDが表示される | バックエンドがuserId(UUID)をそのまま保存 | displayNameパラメータ追加、フロントから送信 |
-| nextjs-toastが入力欄を遮る | Next.js開発インジケーターが常時表示 | devIndicators:false + CSS非表示 |
-| タイトルがAI要約タイトルに上書きされる | SummarizerがAI出力から#タイトルを抽出 | AI抽出ロジック削除、ユーザー管理に変更 |
+| 問題                                   | 原因                                     | 対応                                        |
+| -------------------------------------- | ---------------------------------------- | ------------------------------------------- |
+| updatedByにUUIDが表示される            | バックエンドがuserId(UUID)をそのまま保存 | displayNameパラメータ追加、フロントから送信 |
+| nextjs-toastが入力欄を遮る             | Next.js開発インジケーターが常時表示      | devIndicators:false + CSS非表示             |
+| タイトルがAI要約タイトルに上書きされる | SummarizerがAI出力から#タイトルを抽出    | AI抽出ロジック削除、ユーザー管理に変更      |
 
 ### **学んだこと**
+
 1. GraphQL schema変更時はCDKリゾルバーの追加も忘れずに行う
 2. `devIndicators: false` はNext.js 14+で有効なオプション
 3. リサイズハンドルはmousedown→document.addEventListener→mouseupパターンが安定

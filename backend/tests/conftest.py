@@ -27,6 +27,8 @@ TEST_ENV_VARS = {
     "SUMMARY_TABLE": "test-summary",
     "LOCKS_TABLE": "test-locks",
     "CONVERSATIONS_TABLE": "test-conversations",
+    "KNOWLEDGE_SOURCES_TABLE": "test-knowledge-sources",
+    "KNOWLEDGE_BUCKET": "test-knowledge-bucket",
     "USE_MOCK_AI": "true",
     "BEDROCK_REGION": "us-west-2",
     "BEDROCK_MODEL_ID": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -127,6 +129,22 @@ def _create_conversations_table(dynamodb):
     )
 
 
+def _create_knowledge_sources_table(dynamodb):
+    """KnowledgeSources テーブルを作成する。"""
+    dynamodb.create_table(
+        TableName=TEST_ENV_VARS["KNOWLEDGE_SOURCES_TABLE"],
+        KeySchema=[
+            {"AttributeName": "conversationId", "KeyType": "HASH"},
+            {"AttributeName": "knowledgeSourceId", "KeyType": "RANGE"},
+        ],
+        AttributeDefinitions=[
+            {"AttributeName": "conversationId", "AttributeType": "S"},
+            {"AttributeName": "knowledgeSourceId", "AttributeType": "S"},
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
+
+
 @pytest.fixture()
 def dynamodb_tables():
     """全 DynamoDB テーブルを moto でモック作成するフィクスチャ。"""
@@ -137,6 +155,7 @@ def dynamodb_tables():
         _create_summary_table(dynamodb)
         _create_locks_table(dynamodb)
         _create_conversations_table(dynamodb)
+        _create_knowledge_sources_table(dynamodb)
         yield dynamodb
 
 
@@ -168,6 +187,23 @@ def locks_table(dynamodb_tables):
 def conversations_table(dynamodb_tables):
     """Conversations テーブルリソースを返す。"""
     return dynamodb_tables.Table(TEST_ENV_VARS["CONVERSATIONS_TABLE"])
+
+
+@pytest.fixture()
+def knowledge_sources_table(dynamodb_tables):
+    """KnowledgeSources テーブルリソースを返す。"""
+    return dynamodb_tables.Table(TEST_ENV_VARS["KNOWLEDGE_SOURCES_TABLE"])
+
+
+@pytest.fixture()
+def s3_knowledge_bucket(dynamodb_tables):
+    """S3 ナレッジバケットを moto でモック作成するフィクスチャ。"""
+    s3 = boto3.client("s3", region_name="ap-northeast-1")
+    s3.create_bucket(
+        Bucket=TEST_ENV_VARS["KNOWLEDGE_BUCKET"],
+        CreateBucketConfiguration={"LocationConstraint": "ap-northeast-1"},
+    )
+    yield s3
 
 
 

@@ -3,6 +3,7 @@ from aws_cdk import (
     Stack,
     RemovalPolicy,
     aws_dynamodb as dynamodb,
+    aws_s3 as s3,
 )
 from constructs import Construct
 
@@ -132,4 +133,47 @@ class DatabaseStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=removal,
             point_in_time_recovery=env_name == "prod",
+        )
+
+        # =========================================================
+        # KnowledgeSources Table  PK: conversationId, SK: knowledgeSourceId
+        # ナレッジベースのメタデータを管理
+        # =========================================================
+        self.knowledge_sources_table = dynamodb.Table(
+            self,
+            "KnowledgeSourcesTable",
+            table_name=f"{project_name}-{env_name}-knowledge-sources",
+            partition_key=dynamodb.Attribute(
+                name="conversationId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="knowledgeSourceId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
+
+        # =========================================================
+        # S3 Bucket for Knowledgebase files
+        # =========================================================
+        self.knowledge_bucket = s3.Bucket(
+            self,
+            "KnowledgeBucket",
+            bucket_name=f"{project_name}-{env_name}-knowledge-{self.account}",
+            removal_policy=removal,
+            auto_delete_objects=env_name == "dev",
+            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            cors=[
+                s3.CorsRule(
+                    allowed_headers=["*"],
+                    allowed_methods=[
+                        s3.HttpMethods.PUT,
+                        s3.HttpMethods.GET,
+                    ],
+                    allowed_origins=["*"],
+                    max_age=3600,
+                )
+            ],
         )

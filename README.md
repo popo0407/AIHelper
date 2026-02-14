@@ -12,6 +12,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **リアルタイムチャット:** AppSync (GraphQL WebSocket) でリアルタイム更新
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
 - **AIアシスタント:** 複数の相談ボタンで AI に質問・回答を依頼
+- **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、Bedrock RAG で検索・回答
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
 - **会話管理:** 複数会話のサポート、リンク共有機能
 
@@ -22,6 +23,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **認証:** Amazon Cognito User Pools
 - **ストレージ:** Amazon DynamoDB
 - **AI エンジン:** Amazon Bedrock（Claude Haiku 4.5 推論プロファイルモデル）
+- **ナレッジベース:** Amazon S3 + Bedrock RAG（ドキュメント検索）
 - **リージョン:** Tokyo（東京）（Bedrock のみオレゴン）
 - **Infrastructure:** AWS CDK
 
@@ -58,6 +60,7 @@ AICHAT/
 │   │   ├── chat/                   # チャット Lambda
 │   │   ├── summarizer/             # 要約 Lambda (Bedrock 連携)
 │   │   ├── ai_support/             # AI 相談 Lambda (Bedrock 連携)
+│   │   ├── knowledgebase/          # ナレッジベース Lambda (RAG 検索)
 │   │   ├── lock_manager/           # ロック管理 Lambda
 │   │   └── conversation/           # 会話管理 Lambda
 │   ├── tests/                      # ユニットテスト（pytest / moto）
@@ -67,6 +70,7 @@ AICHAT/
 │   │   ├── test_chat.py
 │   │   ├── test_summarizer.py
 │   │   ├── test_ai_support.py
+│   │   ├── test_knowledgebase.py
 │   │   ├── test_lock_manager.py
 │   │   └── test_conversation.py
 │   ├── layers/                     # Lambda Layer
@@ -86,6 +90,7 @@ AICHAT/
 │   │   │   ├── MessageInput.tsx
 │   │   │   ├── SummarySidebar.tsx
 │   │   │   ├── AIHelperButtons.tsx
+│   │   │   ├── KnowledgebasePanel.tsx
 │   │   │   └── NotificationBanner.tsx
 │   │   ├── graphql/                # GraphQL 操作定義
 │   │   ├── lib/                    # AppSync クライアント
@@ -334,17 +339,19 @@ Closes #123"
 不具合報告やフィードバックは GitHub Issues で お願いします。
 
 ---
+
 ## 📌 **進行中の ISSUE**
 
-| # | タイトル | ステータス | 優先度 |
-|---|---------|------------|-------|
-| [ISSUE-01](docs/ISSUE-knowledgebase.md) | **Knowledgebase 登録・検索機能の追加** | 🔄 設計完了 | 🔴 高 |
+| #                                       | タイトル                               | ステータス  | 優先度 |
+| --------------------------------------- | -------------------------------------- | ----------- | ------ |
+| [ISSUE-01](docs/ISSUE-knowledgebase.md) | **Knowledgebase 登録・検索機能の追加** | 🔄 設計完了 | 🔴 高  |
 
 ### **Knowledgebase 機能追加**
 
 PDF、Word、HTML などのドキュメントをセッションに登録し、会話内容の質問に対して Bedrock が該当ドキュメントから検索・回答できる機能を追加予定。
 
 **主な機能:**
+
 - 🔹 ファイルアップロード（PDF / Word / HTML / Markdown / テキスト形式対応）
 - 🔹 セッション内の Knowledgebase 一覧表示・削除
 - 🔹 Knowledgebase 検索トグル（チャット欄に追加）
@@ -357,6 +364,7 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 詳細は [docs/ISSUE-knowledgebase.md](docs/ISSUE-knowledgebase.md) を参照。
 
 ---
+
 ## � **変更履歴**
 
 ### v0.5.0 (2026-02-14)

@@ -225,6 +225,70 @@ export const ASK_AI_HELPER = /* GraphQL */ `
 `;
 
 // ============================
+// Knowledgebase Operations
+// ============================
+
+export const LIST_KNOWLEDGE_SOURCES = /* GraphQL */ `
+  query ListKnowledgeSources($conversationId: ID!) {
+    listKnowledgeSources(conversationId: $conversationId) {
+      knowledgeSourceId
+      conversationId
+      fileName
+      fileSize
+      s3Key
+      contentType
+      uploadedBy
+      uploadedAt
+      status
+      errorMessage
+    }
+  }
+`;
+
+export const UPLOAD_KNOWLEDGEBASE = /* GraphQL */ `
+  mutation UploadKnowledgebase($input: UploadKnowledgebaseInput!) {
+    uploadKnowledgebase(input: $input) {
+      success
+      knowledgeSource {
+        knowledgeSourceId
+        conversationId
+        fileName
+        fileSize
+        s3Key
+        contentType
+        uploadedBy
+        uploadedAt
+        status
+        errorMessage
+      }
+      presignedUrl
+      error
+    }
+  }
+`;
+
+export const DELETE_KNOWLEDGEBASE = /* GraphQL */ `
+  mutation DeleteKnowledgebase($input: DeleteKnowledgebaseInput!) {
+    deleteKnowledgebase(input: $input) {
+      success
+      knowledgeSourceId
+      error
+    }
+  }
+`;
+
+export const SEARCH_KNOWLEDGEBASE = /* GraphQL */ `
+  mutation SearchKnowledgebase($input: SearchKnowledgebaseInput!) {
+    searchKnowledgebase(input: $input) {
+      conversationId
+      query
+      answer
+      sources
+    }
+  }
+`;
+
+// ============================
 // Subscriptions
 // ============================
 

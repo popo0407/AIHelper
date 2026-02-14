@@ -127,8 +127,55 @@ export const AI_BUTTONS: AIButtonConfig[] = [
   },
 ];
 
+// ------ Knowledgebase Types ------
+
+export interface KnowledgeSource {
+  knowledgeSourceId: string;
+  conversationId: string;
+  fileName: string;
+  fileSize: number;
+  s3Key: string;
+  contentType: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  status: string;
+  errorMessage?: string | null;
+}
+
+export interface KnowledgeSearchResult {
+  conversationId: string;
+  query: string;
+  answer: string;
+  sources: string[];
+}
+
+export interface UploadKnowledgebaseResponse {
+  success: boolean;
+  knowledgeSource?: KnowledgeSource;
+  presignedUrl?: string;
+  error?: string;
+}
+
+export interface DeleteKnowledgebaseResponse {
+  success: boolean;
+  knowledgeSourceId?: string;
+  error?: string;
+}
+
 // ------ Constants ------
 
 export const AIHELPER_USER_ID = 'AIHELPER';
 export const AIHELPER_DISPLAY_NAME = 'AIHelper';
 export const SUMMARY_MAX_LENGTH = 5000;
+
+// Knowledgebase constants
+export const ALLOWED_KB_CONTENT_TYPES: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/msword': 'doc',
+  'text/html': 'html',
+  'text/markdown': 'md',
+  'text/plain': 'txt',
+};
+
+export const MAX_KB_FILE_SIZE = 25 * 1024 * 1024; // 25MB
