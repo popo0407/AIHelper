@@ -7,6 +7,7 @@ import { MessageInput } from '@/components/MessageInput';
 import { SummarySidebar } from '@/components/SummarySidebar';
 import { AIHelperButtons } from '@/components/AIHelperButtons';
 import { NotificationBanner } from '@/components/NotificationBanner';
+import { KnowledgebasePanel } from '@/components/KnowledgebasePanel';
 import { graphqlClient, extractData } from '@/lib/appsync';
 import {
   LIST_MESSAGES,
@@ -21,6 +22,7 @@ import {
   ASK_AI_HELPER,
   CREATE_CONVERSATION,
   UPDATE_CONVERSATION_TITLE,
+  SEARCH_KNOWLEDGEBASE,
   ON_NEW_MESSAGE,
   ON_SUMMARY_UPDATE,
   ON_LOCK_CHANGE,
@@ -33,6 +35,7 @@ import type {
   Lock,
   LockState,
   AIActionType,
+  KnowledgeSearchResult,
 } from '@/types';
 import { AIHELPER_USER_ID } from '@/types';
 
@@ -74,6 +77,9 @@ export function ChatScreen({
   );
   const [sidebarWidth, setSidebarWidth] = useState(384); // default w-96 = 384px
   const [isResizing, setIsResizing] = useState(false);
+  const [isKBPanelOpen, setIsKBPanelOpen] = useState(false);
+  const [kbSearchEnabled, setKbSearchEnabled] = useState(false);
+  const [kbSourceCount, setKbSourceCount] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstMessageSentRef = useRef(false);
@@ -264,6 +270,12 @@ export function ChatScreen({
     const content = inputText.trim();
     if (!content) return;
 
+    // KB search mode: send to knowledgebase instead of chat
+    if (kbSearchEnabled) {
+      await handleKBSearch(content);
+      return;
+    }
+
     // Optimistic update
     const tempMessage: Message = {
       conversationId: conversation.conversationId,
@@ -309,6 +321,67 @@ export function ChatScreen({
       console.error('Failed to send message:', err);
     }
   }, [inputText, conversation.conversationId, user]);
+
+  // ── KB Search ──
+  const handleKBSearch = useCallback(
+    async (query: string) => {
+      setIsAIProcessing(true);
+      setNotification('ナレッジベースを検索中...');
+      setInputText('');
+
+      try {
+        const result = await graphqlClient.graphql({
+          query: SEARCH_KNOWLEDGEBASE,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              query,
+            },
+          },
+        });
+        const data = extractData<KnowledgeSearchResult>(
+          result,
+          'searchKnowledgebase'
+        );
+
+        if (data?.answer) {
+          // Add the user query as a message
+          const userMsg: Message = {
+            conversationId: conversation.conversationId,
+            messageId: `kb-q-${Date.now()}`,
+            userId: user.loginId,
+            displayName: user.displayName,
+            content: `📚 KB検索: ${query}`,
+            timestamp: new Date().toISOString(),
+            isUsedInSummary: false,
+          };
+
+          // Add KB answer as an AI message
+          const sourcesText =
+            data.sources.length > 0
+              ? `\n\n【参照元: ${data.sources.join(', ')}】`
+              : '';
+          const answerMsg: Message = {
+            conversationId: conversation.conversationId,
+            messageId: `kb-a-${Date.now()}`,
+            userId: 'AIHELPER',
+            displayName: 'AIHelper (KB)',
+            content: data.answer + sourcesText,
+            timestamp: new Date().toISOString(),
+            isUsedInSummary: false,
+          };
+
+          setMessages((prev) => [...prev, userMsg, answerMsg]);
+        }
+      } catch (err) {
+        console.error('KB search error:', err);
+      } finally {
+        setIsAIProcessing(false);
+        setNotification(null);
+      }
+    },
+    [conversation.conversationId, user]
+  );
 
   // ── Add to summary ──
   const handleAddToSummary = useCallback(async () => {
@@ -583,6 +656,8 @@ export function ChatScreen({
         onCopyLink={handleCopyLink}
         onReload={handleReload}
         onTitleChange={handleTitleChange}
+        onToggleKnowledgebase={() => setIsKBPanelOpen(true)}
+        knowledgeSourceCount={kbSourceCount}
       />
 
       {/* Notification banner */}
@@ -618,6 +693,9 @@ export function ChatScreen({
               onChange={setInputText}
               onSend={handleSendMessage}
               disabled={isLoading}
+              kbSearchEnabled={kbSearchEnabled}
+              onToggleKbSearch={() => setKbSearchEnabled((prev) => !prev)}
+              hasKnowledgeSources={kbSourceCount > 0}
             />
           </div>
         </div>
@@ -662,6 +740,15 @@ export function ChatScreen({
           />
         </div>
       </div>
+
+      {/* Knowledgebase Panel (overlay) */}
+      <KnowledgebasePanel
+        conversationId={conversation.conversationId}
+        userId={user.loginId}
+        isOpen={isKBPanelOpen}
+        onClose={() => setIsKBPanelOpen(false)}
+        onSourceCountChange={setKbSourceCount}
+      />
     </div>
   );
 }

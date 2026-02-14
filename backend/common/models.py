@@ -58,6 +58,22 @@ class Conversation:
     createdBy: str
     createdAt: str
     participants: list[str] = field(default_factory=list)
+
+
+@dataclass
+class KnowledgeSource:
+    """Knowledge source metadata model."""
+
+    knowledgeSourceId: str
+    conversationId: str
+    fileName: str
+    fileSize: int
+    s3Key: str
+    contentType: str
+    uploadedBy: str
+    uploadedAt: str
+    status: str = "pending"
+    errorMessage: Optional[str] = None
     status: str = "active"
     shareLink: Optional[str] = None
     title: Optional[str] = None

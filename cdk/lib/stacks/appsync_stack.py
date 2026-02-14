@@ -74,6 +74,9 @@ class AppSyncStack(Stack):
         conversation_ds = self.api.add_lambda_data_source(
             "ConversationDS", lambda_stack.conversation_fn
         )
+        knowledgebase_ds = self.api.add_lambda_data_source(
+            "KnowledgebaseDS", lambda_stack.knowledgebase_fn
+        )
 
         # =========================================================
         # Query Resolvers
@@ -102,6 +105,11 @@ class AppSyncStack(Stack):
             "GetLocksResolver",
             type_name="Query",
             field_name="getLocks",
+        )
+        knowledgebase_ds.create_resolver(
+            "ListKnowledgeSourcesResolver",
+            type_name="Query",
+            field_name="listKnowledgeSources",
         )
 
         # =========================================================
@@ -156,6 +164,21 @@ class AppSyncStack(Stack):
             "UpdateConversationTitleResolver",
             type_name="Mutation",
             field_name="updateConversationTitle",
+        )
+        knowledgebase_ds.create_resolver(
+            "UploadKnowledgebaseResolver",
+            type_name="Mutation",
+            field_name="uploadKnowledgebase",
+        )
+        knowledgebase_ds.create_resolver(
+            "DeleteKnowledgebaseResolver",
+            type_name="Mutation",
+            field_name="deleteKnowledgebase",
+        )
+        knowledgebase_ds.create_resolver(
+            "SearchKnowledgebaseResolver",
+            type_name="Mutation",
+            field_name="searchKnowledgebase",
         )
 
         # =========================================================

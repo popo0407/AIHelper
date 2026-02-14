@@ -63,6 +63,39 @@ type Notification {
   timestamp: AWSDateTime!
 }
 
+type KnowledgeSource {
+  knowledgeSourceId: ID!
+  conversationId: ID!
+  fileName: String!
+  fileSize: Int!
+  s3Key: String!
+  contentType: String!
+  uploadedBy: String!
+  uploadedAt: AWSDateTime!
+  status: String!
+  errorMessage: String
+}
+
+type KnowledgeSearchResult {
+  conversationId: ID!
+  query: String!
+  answer: String!
+  sources: [String!]!
+}
+
+type UploadKnowledgebaseResponse {
+  success: Boolean!
+  knowledgeSource: KnowledgeSource
+  presignedUrl: String
+  error: String
+}
+
+type DeleteKnowledgebaseResponse {
+  success: Boolean!
+  knowledgeSourceId: ID
+  error: String
+}
+
 # ------ Inputs ------
 
 input SendMessageInput {
@@ -119,6 +152,23 @@ input JoinConversationInput {
   conversationId: ID!
 }
 
+input UploadKnowledgebaseInput {
+  conversationId: ID!
+  fileName: String!
+  fileSize: Int!
+  contentType: String!
+}
+
+input DeleteKnowledgebaseInput {
+  conversationId: ID!
+  knowledgeSourceId: ID!
+}
+
+input SearchKnowledgebaseInput {
+  conversationId: ID!
+  query: String!
+}
+
 # ------ Responses ------
 
 type CreateConversationResponse {
@@ -145,6 +195,7 @@ type Query {
   ): MessageConnection!
   getSummary(conversationId: ID!): Summary
   getLocks(conversationId: ID!): [Lock!]!
+  listKnowledgeSources(conversationId: ID!): [KnowledgeSource!]!
 }
 
 type MessageConnection {
@@ -168,6 +219,13 @@ type Mutation {
   releaseLock(input: ReleaseLockInput!): Lock!
   askAIHelper(input: AskAIHelperInput!): Message!
   updateConversationTitle(input: UpdateConversationTitleInput!): Conversation!
+  uploadKnowledgebase(
+    input: UploadKnowledgebaseInput!
+  ): UploadKnowledgebaseResponse!
+  deleteKnowledgebase(
+    input: DeleteKnowledgebaseInput!
+  ): DeleteKnowledgebaseResponse!
+  searchKnowledgebase(input: SearchKnowledgebaseInput!): KnowledgeSearchResult!
 }
 
 # ------ Subscriptions ------

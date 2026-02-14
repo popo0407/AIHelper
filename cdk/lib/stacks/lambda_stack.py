@@ -79,6 +79,35 @@ class LambdaStack(Stack):
             )
         )
 
+        # Bedrock Agent (Knowledge Bases) access
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "bedrock:Retrieve",
+                    "bedrock:RetrieveAndGenerate",
+                ],
+                resources=["*"],
+            )
+        )
+
+        # S3 access for knowledge bucket
+        lambda_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                    "s3:ListBucket",
+                ],
+                resources=[
+                    database_stack.knowledge_bucket.bucket_arn,
+                    f"{database_stack.knowledge_bucket.bucket_arn}/*",
+                ],
+            )
+        )
+
         # Common environment variables
         common_env = {
             "ENVIRONMENT": env_name,
@@ -88,6 +117,8 @@ class LambdaStack(Stack):
             "SUMMARY_TABLE": database_stack.summary_table.table_name,
             "LOCKS_TABLE": database_stack.locks_table.table_name,
             "CONVERSATIONS_TABLE": database_stack.conversations_table.table_name,
+            "KNOWLEDGE_SOURCES_TABLE": database_stack.knowledge_sources_table.table_name,
+            "KNOWLEDGE_BUCKET": database_stack.knowledge_bucket.bucket_name,
             "USE_MOCK_AI": "true" if env_name == "dev" else "false",
             "BEDROCK_REGION": "us-west-2",
             "BEDROCK_MODEL_ID": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -202,6 +233,26 @@ class LambdaStack(Stack):
             layers=[common_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
+            environment=common_env,
+            role=lambda_role,
+            log_retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        # =========================================================
+        # Knowledgebase Lambda
+        # =========================================================
+        self.knowledgebase_fn = lambda_.Function(
+            self,
+            "KnowledgebaseFunction",
+            function_name=f"{project_name}-{env_name}-knowledgebase",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="index.lambda_handler",
+            code=lambda_.Code.from_asset(
+                os.path.join(backend_path, "functions", "knowledgebase")
+            ),
+            layers=[common_layer],
+            timeout=Duration.seconds(120),
+            memory_size=512,
             environment=common_env,
             role=lambda_role,
             log_retention=logs.RetentionDays.ONE_WEEK,

@@ -11,6 +11,8 @@ interface ChatHeaderProps {
   onCopyLink: () => void;
   onReload: () => void;
   onTitleChange?: (newTitle: string) => void;
+  onToggleKnowledgebase?: () => void;
+  knowledgeSourceCount?: number;
 }
 
 /**
@@ -26,6 +28,8 @@ export function ChatHeader({
   onCopyLink,
   onReload,
   onTitleChange,
+  onToggleKnowledgebase,
+  knowledgeSourceCount = 0,
 }: ChatHeaderProps) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(conversationTitle);
@@ -126,6 +130,21 @@ export function ChatHeader({
           >
             ユーザー切り替え
           </button>
+          {onToggleKnowledgebase && (
+            <button
+              className="btn-secondary text-sm relative"
+              onClick={onToggleKnowledgebase}
+              aria-label="ナレッジベースを開く"
+              title="ナレッジベース管理"
+            >
+              📚 ナレッジベース
+              {knowledgeSourceCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-serendie-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {knowledgeSourceCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             className="btn-secondary text-sm"
             onClick={onCopyLink}

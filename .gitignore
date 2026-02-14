@@ -47,5 +47,12 @@ coverage/
 htmlcov/
 .pytest_cache/
 
+# Playwright E2E test results
+frontend/test-results/
+frontend/playwright-report/
+
+# TypeScript build info
+frontend/tsconfig.tsbuildinfo
+
 # Logs
 *.log
