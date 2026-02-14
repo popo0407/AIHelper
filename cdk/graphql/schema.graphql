@@ -114,30 +114,6 @@ input JoinConversationInput {
 
 # ------ Responses ------
 
-type SendMessageResponse {
-  success: Boolean!
-  message: Message
-  error: String
-}
-
-type UpdateSummaryResponse {
-  success: Boolean!
-  summary: Summary
-  error: String
-}
-
-type LockResponse {
-  success: Boolean!
-  lock: Lock
-  error: String
-}
-
-type AIHelperResponse {
-  success: Boolean!
-  message: Message
-  error: String
-}
-
 type CreateConversationResponse {
   success: Boolean!
   conversation: Conversation
@@ -147,12 +123,6 @@ type CreateConversationResponse {
 type JoinConversationResponse {
   success: Boolean!
   conversation: Conversation
-  error: String
-}
-
-type UndoSummaryResponse {
-  success: Boolean!
-  summary: Summary
   error: String
 }
 
@@ -182,11 +152,23 @@ type Mutation {
     input: CreateConversationInput!
   ): CreateConversationResponse!
   joinConversation(input: JoinConversationInput!): JoinConversationResponse!
-  sendMessage(input: SendMessageInput!): SendMessageResponse!
-  updateSummary(input: UpdateSummaryInput!): UpdateSummaryResponse!
-  undoSummary(conversationId: ID!): UndoSummaryResponse!
-  saveSummaryEdit(input: SaveSummaryEditInput!): UpdateSummaryResponse!
-  acquireLock(input: AcquireLockInput!): LockResponse!
-  releaseLock(input: ReleaseLockInput!): LockResponse!
-  askAIHelper(input: AskAIHelperInput!): AIHelperResponse!
+  # Subscription対応: 単純な型を返す
+  sendMessage(input: SendMessageInput!): Message!
+  updateSummary(input: UpdateSummaryInput!): Summary!
+  undoSummary(conversationId: ID!): Summary!
+  saveSummaryEdit(input: SaveSummaryEditInput!): Summary!
+  acquireLock(input: AcquireLockInput!): Lock!
+  releaseLock(input: ReleaseLockInput!): Lock!
+  askAIHelper(input: AskAIHelperInput!): Message!
+}
+
+# ------ Subscriptions ------
+
+type Subscription {
+  onNewMessage(conversationId: ID!): Message
+    @aws_subscribe(mutations: ["sendMessage"])
+  onSummaryUpdate(conversationId: ID!): Summary
+    @aws_subscribe(mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"])
+  onLockChange(conversationId: ID!): Lock
+    @aws_subscribe(mutations: ["acquireLock", "releaseLock"])
 }

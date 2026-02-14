@@ -120,17 +120,13 @@ export const JOIN_CONVERSATION = /* GraphQL */ `
 export const SEND_MESSAGE = /* GraphQL */ `
   mutation SendMessage($input: SendMessageInput!) {
     sendMessage(input: $input) {
-      success
-      message {
-        conversationId
-        messageId
-        userId
-        displayName
-        content
-        timestamp
-        isUsedInSummary
-      }
-      error
+      conversationId
+      messageId
+      userId
+      displayName
+      content
+      timestamp
+      isUsedInSummary
     }
   }
 `;
@@ -138,16 +134,12 @@ export const SEND_MESSAGE = /* GraphQL */ `
 export const UPDATE_SUMMARY = /* GraphQL */ `
   mutation UpdateSummary($input: UpdateSummaryInput!) {
     updateSummary(input: $input) {
-      success
-      summary {
-        conversationId
-        title
-        current
-        previous
-        updatedAt
-        updatedBy
-      }
-      error
+      conversationId
+      title
+      current
+      previous
+      updatedAt
+      updatedBy
     }
   }
 `;
@@ -155,16 +147,12 @@ export const UPDATE_SUMMARY = /* GraphQL */ `
 export const UNDO_SUMMARY = /* GraphQL */ `
   mutation UndoSummary($conversationId: ID!) {
     undoSummary(conversationId: $conversationId) {
-      success
-      summary {
-        conversationId
-        title
-        current
-        previous
-        updatedAt
-        updatedBy
-      }
-      error
+      conversationId
+      title
+      current
+      previous
+      updatedAt
+      updatedBy
     }
   }
 `;
@@ -172,16 +160,12 @@ export const UNDO_SUMMARY = /* GraphQL */ `
 export const SAVE_SUMMARY_EDIT = /* GraphQL */ `
   mutation SaveSummaryEdit($input: SaveSummaryEditInput!) {
     saveSummaryEdit(input: $input) {
-      success
-      summary {
-        conversationId
-        title
-        current
-        previous
-        updatedAt
-        updatedBy
-      }
-      error
+      conversationId
+      title
+      current
+      previous
+      updatedAt
+      updatedBy
     }
   }
 `;
@@ -189,16 +173,12 @@ export const SAVE_SUMMARY_EDIT = /* GraphQL */ `
 export const ACQUIRE_LOCK = /* GraphQL */ `
   mutation AcquireLock($input: AcquireLockInput!) {
     acquireLock(input: $input) {
-      success
-      lock {
-        conversationId
-        lockType
-        userId
-        operationType
-        startTime
-        ttl
-      }
-      error
+      conversationId
+      lockType
+      userId
+      operationType
+      startTime
+      ttl
     }
   }
 `;
@@ -206,16 +186,12 @@ export const ACQUIRE_LOCK = /* GraphQL */ `
 export const RELEASE_LOCK = /* GraphQL */ `
   mutation ReleaseLock($input: ReleaseLockInput!) {
     releaseLock(input: $input) {
-      success
-      lock {
-        conversationId
-        lockType
-        userId
-        operationType
-        startTime
-        ttl
-      }
-      error
+      conversationId
+      lockType
+      userId
+      operationType
+      startTime
+      ttl
     }
   }
 `;
@@ -223,17 +199,13 @@ export const RELEASE_LOCK = /* GraphQL */ `
 export const ASK_AI_HELPER = /* GraphQL */ `
   mutation AskAIHelper($input: AskAIHelperInput!) {
     askAIHelper(input: $input) {
-      success
-      message {
-        conversationId
-        messageId
-        userId
-        displayName
-        content
-        timestamp
-        isUsedInSummary
-      }
-      error
+      conversationId
+      messageId
+      userId
+      displayName
+      content
+      timestamp
+      isUsedInSummary
     }
   }
 `;

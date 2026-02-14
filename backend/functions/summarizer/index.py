@@ -11,7 +11,6 @@ from typing import Any
 
 from common.config import get_config
 from common.utils import (
-    build_response,
     get_bedrock_client,
     get_dynamodb_table,
     invoke_bedrock,
@@ -58,7 +57,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     handler = handlers.get(field_name)
     if not handler:
         logger.error("Unknown field: %s", field_name)
-        return build_response(False, error=f"Unknown field: {field_name}")
+        raise ValueError(f"Unknown field: {field_name}")
 
     return handler(arguments)
 
@@ -83,9 +82,7 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
     selected_message_ids = inp.get("selectedMessageIds", [])
 
     if not conversation_id or not selected_message_ids:
-        return build_response(
-            False, error="conversationId and selectedMessageIds are required."
-        )
+        raise ValueError("conversationId and selectedMessageIds are required.")
 
     # Fetch selected messages
     messages_table = get_dynamodb_table(config.messages_table)
@@ -99,7 +96,7 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
             selected_messages.append(item)
 
     if not selected_messages:
-        return build_response(False, error="No valid messages found.")
+        raise ValueError("No valid messages found.")
 
     # Fetch current summary
     summary_table = get_dynamodb_table(config.summary_table)
@@ -164,21 +161,22 @@ def handle_update_summary(args: dict) -> dict[str, Any]:
     }
 
     logger.info("Summary updated: conv=%s by=%s", conversation_id, user_id)
-    return build_response(True, data={"summary": summary_data})
+    # Subscription対応: Summary型を直接返す
+    return summary_data
 
 
 def handle_undo_summary(args: dict) -> dict[str, Any]:
     """Revert summary to the previous version."""
     conversation_id = args.get("conversationId")
     if not conversation_id:
-        return build_response(False, error="conversationId is required.")
+        raise ValueError("conversationId is required.")
 
     table = get_dynamodb_table(config.summary_table)
     response = table.get_item(Key={"conversationId": conversation_id})
     item = response.get("Item")
 
     if not item or not item.get("previous"):
-        return build_response(False, error="No previous summary to undo.")
+        raise ValueError("No previous summary to undo.")
 
     previous_text = item["previous"]
     now = utc_now_iso()
@@ -213,7 +211,8 @@ def handle_undo_summary(args: dict) -> dict[str, Any]:
     }
 
     logger.info("Summary undone: conv=%s", conversation_id)
-    return build_response(True, data={"summary": summary_data})
+    # Subscription対応: Summary型を直接返す
+    return summary_data
 
 
 def handle_save_summary_edit(args: dict) -> dict[str, Any]:
@@ -224,10 +223,10 @@ def handle_save_summary_edit(args: dict) -> dict[str, Any]:
     content = inp.get("content", "")
 
     if not conversation_id:
-        return build_response(False, error="conversationId is required.")
+        raise ValueError("conversationId is required.")
 
     if len(content) > 5000:
-        return build_response(False, error="Summary must be 5000 characters or less.")
+        raise ValueError("Summary must be 5000 characters or less.")
 
     table = get_dynamodb_table(config.summary_table)
 
@@ -267,7 +266,8 @@ def handle_save_summary_edit(args: dict) -> dict[str, Any]:
     }
 
     logger.info("Summary edited: conv=%s by=%s", conversation_id, user_id)
-    return build_response(True, data={"summary": summary_data})
+    # Subscription対応: Summary型を直接返す
+    return summary_data
 
 
 # ------------------------------------------------------------------

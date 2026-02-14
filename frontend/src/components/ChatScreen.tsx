@@ -87,9 +87,7 @@ export function ChatScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.conversationId]);
 
-  // ── Real-time subscriptions ── (DISABLED: スキーマに Subscription がないため)
-  // TODO: ポーリングまたは Subscription 再実装
-  /*
+  // ── Real-time subscriptions ──
   useEffect(() => {
     const subscriptions: Array<{ unsubscribe: () => void }> = [];
 
@@ -178,7 +176,6 @@ export function ChatScreen({
       subscriptions.forEach((sub) => sub.unsubscribe());
     };
   }, [conversation.conversationId]);
-  */
 
   // ── Auto-scroll ──
   useEffect(() => {
@@ -283,12 +280,12 @@ export function ChatScreen({
           },
         },
       });
-      const data = extractData<{ success: boolean; message: Message; error?: string }>(result, 'sendMessage');
-      if (data?.success && data.message) {
+      const message = extractData<Message>(result, 'sendMessage');
+      if (message) {
         // Replace temp message with server response
         setMessages((prev) =>
           prev.map((m) =>
-            m.messageId === tempMessage.messageId ? data.message : m
+            m.messageId === tempMessage.messageId ? message : m
           )
         );
       }
@@ -326,9 +323,9 @@ export function ChatScreen({
           },
         },
       });
-      const data = extractData<{ success: boolean; summary: Summary; error?: string }>(result, 'updateSummary');
-      if (data?.success && data.summary) {
-        setSummary(data.summary);
+      const newSummary = extractData<Summary>(result, 'updateSummary');
+      if (newSummary) {
+        setSummary(newSummary);
       }
 
       // Mark messages as used
@@ -356,9 +353,9 @@ export function ChatScreen({
         query: UNDO_SUMMARY,
         variables: { conversationId: conversation.conversationId },
       });
-      const data = extractData<{ success: boolean; summary: Summary; error?: string }>(result, 'undoSummary');
-      if (data?.success && data.summary) {
-        setSummary(data.summary);
+      const newSummary = extractData<Summary>(result, 'undoSummary');
+      if (newSummary) {
+        setSummary(newSummary);
       }
     } catch (err) {
       console.error('Failed to undo summary:', err);
@@ -409,9 +406,9 @@ export function ChatScreen({
           },
         }),
       ]);
-      const data = extractData<{ success: boolean; summary: Summary; error?: string }>(saveResult, 'saveSummaryEdit');
-      if (data?.success && data.summary) {
-        setSummary(data.summary);
+      const newSummary = extractData<Summary>(saveResult, 'saveSummaryEdit');
+      if (newSummary) {
+        setSummary(newSummary);
       }
       setIsEditing(false);
     } catch (err) {
@@ -463,9 +460,9 @@ export function ChatScreen({
             },
           },
         });
-        const data = extractData<{ success: boolean; message: Message; error?: string }>(result, 'askAIHelper');
-        if (data?.success && data.message) {
-          setMessages((prev) => [...prev, data.message]);
+        const message = extractData<Message>(result, 'askAIHelper');
+        if (message) {
+          setMessages((prev) => [...prev, message]);
         }
       } catch (err) {
         console.error('AI Helper error:', err);

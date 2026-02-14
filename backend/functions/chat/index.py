@@ -11,7 +11,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from common.config import get_config
 from common.utils import (
-    build_response,
     generate_uuid,
     get_dynamodb_table,
     utc_now_iso,
@@ -42,7 +41,7 @@ def lambda_handler(event: dict, context) -> dict:
 
     handler = handlers.get(field)
     if not handler:
-        return build_response(False, error=f"Unknown field: {field}")
+        raise ValueError(f"Unknown field: {field}")
 
     return handler(arguments)
 
@@ -101,9 +100,7 @@ def handle_send_message(args: dict) -> dict:
     content = input_data.get("content", "").strip()
 
     if not conversation_id or not user_id or not content:
-        return build_response(
-            False, error="conversationId, userId, and content are required."
-        )
+        raise ValueError("conversationId, userId, and content are required.")
 
     # displayName を input から取得（フロントエンドから送信される）
     display_name = input_data.get("displayName")
@@ -137,4 +134,5 @@ def handle_send_message(args: dict) -> dict:
         message_id,
     )
 
-    return build_response(True, data={"message": message_item})
+    # Subscription対応: Message型を直接返す
+    return message_item

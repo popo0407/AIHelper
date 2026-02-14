@@ -13,7 +13,6 @@ from typing import Any
 
 from common.config import get_config
 from common.utils import (
-    build_response,
     generate_uuid,
     get_bedrock_client,
     get_dynamodb_table,
@@ -86,7 +85,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     logger.info("AISupport invoked: field=%s", field_name)
 
     if field_name != "askAIHelper":
-        return build_response(False, error=f"Unknown field: {field_name}")
+        raise ValueError(f"Unknown field: {field_name}")
 
     return handle_ask_ai_helper(arguments)
 
@@ -101,9 +100,7 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
     selected_message_ids = inp.get("selectedMessageIds", [])
 
     if not conversation_id or not user_id or not action_type:
-        return build_response(
-            False, error="conversationId, userId, and actionType are required."
-        )
+        raise ValueError("conversationId, userId, and actionType are required.")
 
     try:
         # Fetch current summary
@@ -160,7 +157,8 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
             action_type,
             message_id,
         )
-        return build_response(True, data={"message": message_item})
+        # Subscription対応: Message型を直接返す
+        return message_item
 
     except Exception as e:
         logger.error("AIHelper error: %s", str(e))
@@ -178,9 +176,11 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
         try:
             messages_table = get_dynamodb_table(config.messages_table)
             messages_table.put_item(Item=error_message_item)
+            # エラーメッセージを投稿できた場合はそれを返す
+            return error_message_item
         except Exception:
-            pass
-        return build_response(False, data={"message": error_message_item}, error=str(e))
+            # 投稿も失敗した場合は例外を投げる
+            raise
 
 
 def _build_prompt(
