@@ -6,7 +6,127 @@
 
 ## 📋 スクリプト一覧
 
-### 1. `create-user.ps1` - 新規ユーザー作成
+### 1. `deploy-aws.ps1` - AWS へのデプロイ
+
+フロントエンドをビルドしてから AWS CDK でデプロイするスクリプトです。
+
+#### 使用方法
+
+```powershell
+cd c:\Users\user\Downloads\AICHAT
+
+# 開発環境にデプロイ
+.\scripts\deploy-aws.ps1 -Environment dev
+
+# 本番環境にデプロイ
+.\scripts\deploy-aws.ps1 -Environment prod
+```
+
+#### パラメータ
+
+| パラメータ  | 必須 | 説明                                        | デフォルト |
+| ----------- | ---- | ------------------------------------------- | ---------- |
+| `-Environment` | -  | デプロイする環境（`dev` または `prod`）     | `dev`      |
+| `-SetEnv`   | -    | デプロイ後に .env.local を自動生成するか    | `$true`    |
+
+#### スクリプト処理フロー
+
+1. ✅ **前提条件チェック**
+   - Node.js、npm、AWS CLI のインストール確認
+   - AWS 認証情報の確認（未認証の場合は SSO ログイン）
+
+2. 🏗️ **フロントエンドビルド**
+   - `npm install` で依存関係をインストール
+   - `npm run build` でビルド実行
+
+3. 🚀 **CDK デプロイ**
+   - `cdk deploy --all` で全スタックをデプロイ
+   - `outputs.json` を自動生成
+
+4. ⚙️ **環境変数セットアップ（オプション）**
+   - `update-frontend-env.ps1` で AppSync、Cognito 設定を自動反映
+
+#### 実行例
+
+```powershell
+# 開発環境にデプロイ（デフォルト）
+.\scripts\deploy-aws.ps1
+
+# 本番環境にデプロイ
+.\scripts\deploy-aws.ps1 -Environment prod
+
+# 環境変数セットアップをスキップ
+.\scripts\deploy-aws.ps1 -Environment dev -SetEnv $false
+```
+
+---
+
+### 2. `dev-local.ps1` - ローカル開発環境起動
+
+ローカルで npm run dev を実行してフロントエンド開発サーバーを起動するスクリプトです。
+
+#### 使用方法
+
+```powershell
+cd c:\Users\user\Downloads\AICHAT
+
+# デフォルトポート 3000 で起動
+.\scripts\dev-local.ps1
+
+# カスタムポート 3001 で起動
+.\scripts\dev-local.ps1 -Port 3001
+```
+
+#### パラメータ
+
+| パラメータ    | 必須 | 説明                                          | デフォルト |
+| ------------- | ---- | --------------------------------------------- | ---------- |
+| `-Port`       | -    | 開発サーバーのポート番号                      | `3000`     |
+| `-NoEnvSetup` | -    | 環境変数セットアップをスキップするか           | `$false`   |
+
+#### スクリプト処理フロー
+
+1. ✅ **前提条件チェック**
+   - Node.js、npm のインストール確認
+
+2. 🧹 **既存プロセスクリーンアップ**
+   - 同一ポートで動作中のプロセスを停止
+   - `.next` キャッシュをクリア
+
+3. ⚙️ **環境変数セットアップ（オプション）**
+   - `.env.local` が未作成の場合は自動生成
+   - CDK デプロイの `outputs.json` から設定を取得
+
+4. 📦 **npm 依存関係インストール**
+   - `npm install` で最新の依存関係をインストール
+
+5. 🚀 **開発サーバー起動**
+   - `npm run dev` でローカル開発サーバーを起動
+   - `http://localhost:PORT` でアクセス可能
+
+#### 実行例
+
+```powershell
+# デフォルトで起動（ポート 3000）
+.\scripts\dev-local.ps1
+
+# ポート 3001 で起動
+.\scripts\dev-local.ps1 -Port 3001
+
+# 環境変数セットアップをスキップして起動
+.\scripts\dev-local.ps1 -NoEnvSetup $true
+```
+
+#### 終了方法
+
+```powershell
+# Ctrl+C を押してサーバーを停止
+# またはターミナルを閉じる
+```
+
+---
+
+### 3. `create-user.ps1` - 新規ユーザー作成
 
 管理者のみが実行可能な、新規ユーザー作成スクリプトです。
 
@@ -59,7 +179,56 @@ cd c:\Users\user\Downloads\AICHAT\scripts
 
 ---
 
-### 2. `reset-password.ps1` - パスワードリセット
+### 3. `update-frontend-env.ps1` - フロントエンド環境変数の自動生成
+
+CDK デプロイ後の `outputs.json` から AppSync、Cognito 設定を読み込み、フロントエンドの `.env.local` ファイルを自動生成するスクリプトです。
+
+#### 使用方法
+
+```powershell
+cd c:\Users\user\Downloads\AICHAT
+
+# 自動生成（outputs.json から最新設定を取得）
+.\scripts\update-frontend-env.ps1
+```
+
+#### パラメータ
+
+なし（`outputs.json` から自動読込）
+
+#### 生成される環境変数
+
+以下の変数が `frontend/.env.local` に自動設定されます：
+
+```env
+NEXT_PUBLIC_APPSYNC_ENDPOINT=https://xxxxx.appsync-api.ap-northeast-1.amazonaws.com/graphql
+NEXT_PUBLIC_APPSYNC_REGION=ap-northeast-1
+NEXT_PUBLIC_COGNITO_REGION=ap-northeast-1
+NEXT_PUBLIC_COGNITO_CLIENT_ID=xxxxxxxxx
+NEXT_PUBLIC_COGNITO_USER_POOL_ID=ap-northeast-1_xxxxxxxxx
+NEXT_PUBLIC_COGNITO_DOMAIN=aichat-dev-xxxxxxxxx.auth.ap-northeast-1.amazoncognito.com
+NEXT_PUBLIC_COGNITO_REDIRECT_URI=http://localhost:3000/auth/callback
+```
+
+#### 実行例
+
+```powershell
+# CDK デプロイ後に環境変数を自動生成
+cdk deploy --all --outputs-file outputs.json
+.\scripts\update-frontend-env.ps1
+
+# または deploy-aws.ps1、dev-local.ps1 内で自動実行
+```
+
+#### 注意事項
+
+- `cdk/outputs.json` が必要です（CDK デプロイで自動生成）
+- `.env.local` があれば上書きされます
+- ローカル開発環境では `NEXT_PUBLIC_COGNITO_REDIRECT_URI` が自動で `http://localhost:3000/auth/callback` に設定されます
+
+---
+
+### 4. `reset-password.ps1` - パスワードリセット
 
 ユーザーのパスワードを管理者がリセットするスクリプトです。
 
@@ -106,6 +275,55 @@ cd c:\Users\user\Downloads\AICHAT\scripts
 | 仮パスワードとして設定     | 永続的パスワードとして設定         |
 | 初回ログイン時に変更を強制 | すぐにそのパスワードでログイン可能 |
 | セキュリティ重視           | 利便性重視                         |
+
+---
+
+## 🚀 デプロイと開発ワークフロー
+
+### AWS へのデプロイフロー
+
+```powershell
+# 1. AWS 認証
+aws sso login
+
+# 2. AWS へデプロイ（フロントエンド build + CDK deploy）
+.\scripts\deploy-aws.ps1 -Environment dev
+
+# 3. CloudFront URL でアクセス確認
+```
+
+### ローカル開発フロー
+
+```powershell
+# 1. ローカル開発サーバーを起動
+.\scripts\dev-local.ps1
+
+# 2. http://localhost:3000 でアクセス
+# 3. Ctrl+C で停止
+```
+
+### 初回セットアップ手順
+
+```powershell
+# 1. リポジトリをクローン
+git clone https://github.com/popo0407/AIHelper.git
+cd AIHelper
+
+# 2. AWS 認証
+aws sso login
+
+# 3. CDK デプロイ
+.\scripts\deploy-aws.ps1 -Environment dev
+
+# 4. ユーザー作成（オプション）
+.\scripts\create-user.ps1 `
+  -Email "developer@example.com" `
+  -UserName "開発者" `
+  -TempPassword "Welcome2024"
+
+# 5. ローカル開発環境で開発
+.\scripts\dev-local.ps1
+```
 
 ---
 
@@ -200,4 +418,4 @@ cdk deploy --all --context environment=dev
 
 ---
 
-最終更新: 2026年2月13日
+最終更新: 2026年2月15日

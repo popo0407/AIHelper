@@ -2,6 +2,95 @@
 
 ---
 
+## 📅 **2026年2月15日（追記5） — デプロイと開発用スクリプトの作成**
+
+### ✅ **完了した内容**
+
+#### **1. 要望**
+
+AWS用のデプロイスクリプトとローカル起動用スクリプトを作成し、開発・デプロイワークフローを簡素化
+
+#### **2. 作成したスクリプト**
+
+**1. [scripts/deploy-aws.ps1](../scripts/deploy-aws.ps1) — AWS デプロイスクリプト**
+
+フロントエンドのビルドと CDK デプロイを自動化
+
+**処理フロー：**
+- ✅ 前提条件チェック（Node.js、npm、AWS CLI、AWS 認証）
+- 🏗️ フロントエンドビルド（`npm install` → `npm run build`）
+- 🚀 CDK デプロイ（`cdk deploy --all --require-approval never`）
+- ⚙️ 環境変数自動生成（`update-frontend-env.ps1` で AppSync、Cognito 設定を反映）
+
+**パラメータ：**
+- `-Environment dev|prod`（デフォルト: dev）
+- `-SetEnv $true|$false`（デフォルト: $true）
+
+**使用例：**
+```powershell
+.\scripts\deploy-aws.ps1 -Environment dev
+```
+
+**2. [scripts/dev-local.ps1](../scripts/dev-local.ps1) — ローカル開発环境起動スクリプト**
+
+ローカルで npm run dev を実行して開発サーバーを起動
+
+**処理フロー：**
+- ✅ 前提条件チェック（Node.js、npm）
+- 🧹 既存プロセスクリーンアップ（同一ポート、`.next` キャッシュ削除）
+- ⚙️ 環境変数セットアップ（未生成の場合は自動生成）
+- 📦 npm 依存関係インストール（`npm install`）
+- 🚀 開発サーバー起動（`npm run dev`）
+
+**パラメータ：**
+- `-Port 3000`（デフォルト: 3000）
+- `-NoEnvSetup $false`（デフォルト: $false）
+
+**使用例：**
+```powershell
+# デフォルト（ポート 3000）
+.\scripts\dev-local.ps1
+
+# カスタムポート
+.\scripts\dev-local.ps1 -Port 3001
+```
+
+#### **3. ドキュメント更新**
+
+[scripts/README.md](../scripts/README.md) を更新
+
+- 新規スクリプト 2 種類の詳細説明を追加
+- デプロイ・開発ワークフローセクションを追加
+- 初回セットアップ手順を示すフロー例を追加
+
+#### **4. 改善効果**
+
+**Before：**
+- 手動で複数のコマンドを実行する必要があった
+- フロントエンド build → CDK deploy の流れが明確でない
+- ローカル開発時の環境セットアップが手動
+
+**After：**
+- ✅ **1行のコマンド** でデプロイ完了（自動で前提条件チェック、ビルド、デプロイ、環境変数セットアップ）
+- ✅ **1行のコマンド** でローカル開発環境起動（プロセスクリーンアップ、環境設定、サーバー起動が自動）
+- ✅ エラーが発生した場合は詳細なエラーメッセージで原因を明示
+- ✅ カラフルな出力で進捗状況が一目瞭然
+
+#### **5. スクリプト特性**
+
+**デプロイスクリプト（deploy-aws.ps1）の特性：**
+- AWS SSO ログイン未実施の場合は自動プロンプト
+- 各ステップで成功/失敗を判定し、失敗時に即座に終了
+- `outputs.json` を自動生成し、フロントエンド設定を機動的に反映
+
+**開発スクリプト（dev-local.ps1）の特性：**
+- ポート競合時に既存プロセスを自動停止
+- `.next` キャッシュを自動クリア（ビルド問題を事前防止）
+- 環境変数未設定時は CDK `outputs.json` から自動生成
+- `-Port` パラメータでカスタムポート指定可能
+
+---
+
 ## 📅 **2026年2月15日（追記4） — AI送信ボタンのUI改善とユーザー入力の表示**
 
 ### ✅ **完了した内容**
@@ -26,18 +115,20 @@
      - その後AIに質問を送信
    - `AIHelperButtons`コンポーネントを削除（メッセージ入力エリアに統合）
 
-3. [frontend/src/__tests__/MessageInput.test.tsx](../frontend/src/__tests__/MessageInput.test.tsx)
+3. [frontend/src/**tests**/MessageInput.test.tsx](../frontend/src/__tests__/MessageInput.test.tsx)
    - AI送信ボタンのテストケースを追加（5つのテスト）
    - 全15テストが正常にパス
 
 #### **3. 改善効果**
 
 **Before：**
+
 - AIHelperButtonsが別の場所に表示されていた
 - AI送信時にユーザー入力がチャット欄に表示されない
 - UIが分散していて直感的でない
 
 **After：**
+
 - ✅ 「送信」と「AI送信」が並んで表示され、意図が明確
 - ✅ AI送信時もユーザーの質問がチャット履歴に残る
 - ✅ UIがシンプルで統一感が向上
