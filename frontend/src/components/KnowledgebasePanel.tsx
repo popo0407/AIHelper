@@ -142,12 +142,17 @@ export function KnowledgebasePanel({
         }
 
         // 2. Upload file to S3 via presigned URL
-        const uploadResponse = await fetch(data.presignedUrl, {
-          method: 'PUT',
-          body: file,
-          headers: {
-            'Content-Type': file.type || 'application/octet-stream',
-          },
+        // Note: Lambda does not include ContentType in presigned URL to avoid CORS preflight
+        // Convert File to ArrayBuffer to prevent browser from adding Content-Type header
+        // which would trigger CORS preflight that S3 presigned URLs cannot handle
+        const arrayBuffer = await file.arrayBuffer();
+        const uploadResponse = await new Promise<{ ok: boolean; status: number }>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('PUT', data.presignedUrl, true);
+          // Do NOT set any headers - let it be a simple request
+          xhr.onload = () => resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status });
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.send(arrayBuffer);
         });
 
         if (!uploadResponse.ok) {

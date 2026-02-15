@@ -163,13 +163,13 @@ def handle_upload_knowledgebase(arguments: dict) -> dict:
     table.put_item(Item=item)
 
     # Generate presigned URL for upload
+    # Note: ContentType parameter removed to avoid CORS preflight
     s3_client = boto3.client("s3")
     presigned_url = s3_client.generate_presigned_url(
         "put_object",
         Params={
             "Bucket": config.knowledge_bucket,
             "Key": s3_key,
-            "ContentType": _get_mime_type(content_type),
         },
         ExpiresIn=PRESIGNED_URL_EXPIRY,
     )

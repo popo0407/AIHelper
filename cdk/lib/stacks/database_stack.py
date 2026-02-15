@@ -4,6 +4,7 @@ from aws_cdk import (
     RemovalPolicy,
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
+    aws_iam as iam,
 )
 from constructs import Construct
 
@@ -156,6 +157,9 @@ class DatabaseStack(Stack):
 
         # =========================================================
         # S3 Bucket for Knowledgebase files
+        # CORS Preflight Note: For presigned URLs to work with CORS,
+        # we need to allow anonymous OPTIONS requests. In dev, we use
+        # BLOCK_ACLS to allow bucket policy-based access.
         # =========================================================
         self.knowledge_bucket = s3.Bucket(
             self,
@@ -163,16 +167,29 @@ class DatabaseStack(Stack):
             bucket_name=f"{project_name}-{env_name}-knowledge-{self.account}",
             removal_policy=removal,
             auto_delete_objects=env_name == "dev",
-            block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
+            block_public_access=s3.BlockPublicAccess(
+                block_public_acls=True,
+                block_public_policy=False,
+                ignore_public_acls=True,
+                restrict_public_buckets=False,
+            ) if env_name == "dev" else s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
             cors=[
                 s3.CorsRule(
                     allowed_headers=["*"],
                     allowed_methods=[
-                        s3.HttpMethods.PUT,
                         s3.HttpMethods.GET,
+                        s3.HttpMethods.PUT,
+                        s3.HttpMethods.POST,
+                        s3.HttpMethods.HEAD,
                     ],
                     allowed_origins=["*"],
+                    exposed_headers=[
+                        "ETag",
+                        "x-amz-server-side-encryption",
+                        "x-amz-request-id",
+                        "x-amz-id-2",
+                    ],
                     max_age=3600,
                 )
             ],
