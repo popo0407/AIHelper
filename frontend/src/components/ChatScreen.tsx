@@ -346,15 +346,18 @@ export function ChatScreen({
       setInputText('');
 
       try {
+        const kbSearchInput = {
+          conversationId: conversation.conversationId,
+          query,
+          userId: user.loginId,
+          displayName: user.displayName,
+        };
+        console.log("KB Search input:", kbSearchInput);
+        
         const result = await graphqlClient.graphql({
           query: SEARCH_KNOWLEDGEBASE,
           variables: {
-            input: {
-              conversationId: conversation.conversationId,
-              query,
-              userId: user.loginId,
-              displayName: user.displayName,
-            },
+            input: kbSearchInput,
           },
         });
         const data = extractData<KnowledgeSearchResult>(
