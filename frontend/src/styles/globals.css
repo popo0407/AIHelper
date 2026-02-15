@@ -22,33 +22,6 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
       'Helvetica Neue', Arial, sans-serif;
   }
-
-  /* ISSUE 03: Prevent Next.js dev toast from blocking chat input - only show errors */
-  div[class*="nextjs-static-indicator-toast-wrapper"] {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    width: 0 !important;
-    height: 0 !important;
-    pointer-events: none !important;
-  }
-
-  /* Hide all nextjs toast by default */
-  div[class*="nextjs-toast"]:not([class*="errors-parent"]) {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-  }
-
-  /* Ensure error toasts are visible */
-  div[class*="nextjs-toast-errors-parent"] {
-    display: block !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    z-index: 9000 !important;
-    pointer-events: auto !important;
-  }
 }
 
 @layer components {
