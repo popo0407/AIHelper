@@ -2,6 +2,73 @@
 
 ---
 
+## 📅 **2026年2月16日（修正） — AI送信ボタン改善の修正（AIHelperButtons復活）**
+
+### ✅ **完了した内容**
+
+#### **1. 修正背景**
+
+前回のAI送信ボタン改善で、AIHelperButtonsコンポーネント全体を削除してしまいましたが、実際には：
+- ❌ 削除するべきだったのは「入力している内容についてのAI回答（answer）」ボタンだけ
+- ✅ 「選択メッセージをAI要約」「選択メッセージに対するAI意見」などのボタンは残すべきだった
+
+#### **2. 実施した修正**
+
+**修正箇所：**
+
+1. [frontend/src/components/ChatScreen.tsx](../frontend/src/components/ChatScreen.tsx)
+   - AIHelperButtonsを復活させて、MessageListの下に配置
+   - `excludeButtonIds=['answer']` でanswerボタンだけを非表示化
+
+2. [frontend/src/components/AIHelperButtons.tsx](../frontend/src/components/AIHelperButtons.tsx)
+   - `excludeButtonIds?:` プロップを追加
+   - `.filter((button) => !excludeButtonIds.includes(button.id))` でボタンを条件付きレンダリング
+   - JSXドキュメントコメントを更新
+
+3. [frontend/src/__tests__/AIHelperButtons.test.tsx](../frontend/src/__tests__/AIHelperButtons.test.tsx)
+   - excludeButtonIdsプロップのテストを追加（3つのテスト）
+   - テスト総数：22個（すべてパス）
+
+#### **3. 改善効果**
+
+**修正前の状態（誤り）：**
+- ❌ AIHelperButtonsが完全に削除されていた
+- ❌ 「選択メッセージをAI要約」「意見」ボタンが使用できない
+- ✅ AI送信機能はMessageInputに統合済み（これは正しい）
+
+**修正後の状態（正解）：**
+- ✅ AIHelperButtons復活（全ボタンが表示）
+- ✅ answer（入力テキストについてのAI回答）ボタンのみ非表示
+  - その機能はMessageInputの「AI送信」ボタンで実装済み
+- ✅ 選択メッセージベースのボタン（要約、意見、ネクストアクション）は機能中
+- ✅ UIが本来の設計に戻った
+
+#### **4. excludeButtonIds プロップの利点**
+
+新しい `excludeButtonIds` プロップにより：
+- 汎用性が向上（将来的に他のボタンも除外可能）
+- ChatScreen側で簡単に必要な機能をコントロール可能
+- コンポーネントの責務が明確化
+
+```tsx
+// ChatScreen.tsx での使用例
+<AIHelperButtons
+  ...
+  excludeButtonIds={['answer']} // 「入力テキストについてのAI回答」を非表示
+/>
+```
+
+#### **5. テスト結果**
+
+✅ AIHelperButtons.test.tsx: **22 tests passed**
+- 基本的なボタン表示テスト
+- excludeButtonIds デバッグに関するテスト（3個）
+- enable/disable条件テスト
+- ロック状態での動作テスト
+- クリック動作テスト
+
+---
+
 ## 📅 **2026年2月15日（追記5） — デプロイと開発用スクリプトの作成**
 
 ### ✅ **完了した内容**
@@ -17,16 +84,19 @@ AWS用のデプロイスクリプトとローカル起動用スクリプトを�
 フロントエンドのビルドと CDK デプロイを自動化
 
 **処理フロー：**
+
 - ✅ 前提条件チェック（Node.js、npm、AWS CLI、AWS 認証）
 - 🏗️ フロントエンドビルド（`npm install` → `npm run build`）
 - 🚀 CDK デプロイ（`cdk deploy --all --require-approval never`）
 - ⚙️ 環境変数自動生成（`update-frontend-env.ps1` で AppSync、Cognito 設定を反映）
 
 **パラメータ：**
+
 - `-Environment dev|prod`（デフォルト: dev）
 - `-SetEnv $true|$false`（デフォルト: $true）
 
 **使用例：**
+
 ```powershell
 .\scripts\deploy-aws.ps1 -Environment dev
 ```
@@ -36,6 +106,7 @@ AWS用のデプロイスクリプトとローカル起動用スクリプトを�
 ローカルで npm run dev を実行して開発サーバーを起動
 
 **処理フロー：**
+
 - ✅ 前提条件チェック（Node.js、npm）
 - 🧹 既存プロセスクリーンアップ（同一ポート、`.next` キャッシュ削除）
 - ⚙️ 環境変数セットアップ（未生成の場合は自動生成）
@@ -43,10 +114,12 @@ AWS用のデプロイスクリプトとローカル起動用スクリプトを�
 - 🚀 開発サーバー起動（`npm run dev`）
 
 **パラメータ：**
+
 - `-Port 3000`（デフォルト: 3000）
 - `-NoEnvSetup $false`（デフォルト: $false）
 
 **使用例：**
+
 ```powershell
 # デフォルト（ポート 3000）
 .\scripts\dev-local.ps1
@@ -66,11 +139,13 @@ AWS用のデプロイスクリプトとローカル起動用スクリプトを�
 #### **4. 改善効果**
 
 **Before：**
+
 - 手動で複数のコマンドを実行する必要があった
 - フロントエンド build → CDK deploy の流れが明確でない
 - ローカル開発時の環境セットアップが手動
 
 **After：**
+
 - ✅ **1行のコマンド** でデプロイ完了（自動で前提条件チェック、ビルド、デプロイ、環境変数セットアップ）
 - ✅ **1行のコマンド** でローカル開発環境起動（プロセスクリーンアップ、環境設定、サーバー起動が自動）
 - ✅ エラーが発生した場合は詳細なエラーメッセージで原因を明示
@@ -79,11 +154,13 @@ AWS用のデプロイスクリプトとローカル起動用スクリプトを�
 #### **5. スクリプト特性**
 
 **デプロイスクリプト（deploy-aws.ps1）の特性：**
+
 - AWS SSO ログイン未実施の場合は自動プロンプト
 - 各ステップで成功/失敗を判定し、失敗時に即座に終了
 - `outputs.json` を自動生成し、フロントエンド設定を機動的に反映
 
 **開発スクリプト（dev-local.ps1）の特性：**
+
 - ポート競合時に既存プロセスを自動停止
 - `.next` キャッシュを自動クリア（ビルド問題を事前防止）
 - 環境変数未設定時は CDK `outputs.json` から自動生成

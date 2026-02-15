@@ -91,6 +91,7 @@ AICHAT/
 │   │   │   ├── ChatBubble.tsx
 │   │   │   ├── MessageList.tsx
 │   │   │   ├── MessageInput.tsx        # 送信・AI送信ボタンを統合
+│   │   │   ├── AIHelperButtons.tsx     # AI相談ボタン（選択メッセージベース）
 │   │   │   ├── SummarySidebar.tsx
 │   │   │   ├── KnowledgebasePanel.tsx
 │   │   │   └── NotificationBanner.tsx

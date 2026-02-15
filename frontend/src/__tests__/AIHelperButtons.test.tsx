@@ -50,7 +50,7 @@ describe('AIHelperButtons', () => {
   }
 
   // ── 1. ボタンが表示されること ──
-  it('4つのAIボタンがすべて表示される', () => {
+  it('AIボタンがすべて表示される', () => {
     renderButtons();
 
     expect(screen.getByLabelText('選択したチャットをAI要約')).toBeInTheDocument();
@@ -126,7 +126,40 @@ describe('AIHelperButtons', () => {
     expect(processingTexts.length).toBe(4); // 4つのボタンすべてに表示
   });
 
-  // ── 6. ロック状態での動作 ──
+  // ── 6. excludeButtonIds プロップ ──
+  it('excludeButtonIds で指定したボタンが非表示になる', () => {
+    renderButtons({ excludeButtonIds: ['answer'] });
+
+    // 除外されたボタンは表示されない
+    expect(screen.queryByLabelText('入力している内容についてのAI回答')).not.toBeInTheDocument();
+
+    // 他のボタンは表示される
+    expect(screen.getByLabelText('選択したチャットをAI要約')).toBeInTheDocument();
+    expect(screen.getByLabelText('選択したチャットに対するAI意見')).toBeInTheDocument();
+    expect(screen.getByLabelText('要約を元にしたネクストアクション提案')).toBeInTheDocument();
+  });
+
+  it('複数のボタンを excludeButtonIds で除外できる', () => {
+    renderButtons({ excludeButtonIds: ['answer', 'next_action'] });
+
+    expect(screen.queryByLabelText('入力している内容についてのAI回答')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('要約を元にしたネクストアクション提案')).not.toBeInTheDocument();
+
+    // 除外されていないボタンは表示される
+    expect(screen.getByLabelText('選択したチャットをAI要約')).toBeInTheDocument();
+    expect(screen.getByLabelText('選択したチャットに対するAI意見')).toBeInTheDocument();
+  });8
+
+  it('excludeButtonIds が空配列でもすべてのボタンが表示される', () => {
+    renderButtons({ excludeButtonIds: [] });
+
+    expect(screen.getByLabelText('選択したチャットをAI要約')).toBeInTheDocument();
+    expect(screen.getByLabelText('選択したチャットに対するAI意見')).toBeInTheDocument();
+    expect(screen.getByLabelText('入力している内容についてのAI回答')).toBeInTheDocument();
+    expect(screen.getByLabelText('要約を元にしたネクストアクション提案')).toBeInTheDocument();
+  });
+
+  // ── 7. ロック状態での動作 ──
   it('編集ロック中でも要約ボタン以外は有効条件に従う', () => {
     renderButtons({
       lockState: editLockedState,
@@ -186,7 +219,7 @@ describe('AIHelperButtons', () => {
     expect(onAction).toHaveBeenCalledWith('next_action');
   });
 
-  // ── 8. disabled時にクリックしても onAction が呼ばれないこと ──
+  // ── 9. disabled時にクリックしても onAction が呼ばれないこと ──
   it('disabled 要約ボタンをクリックしても onAction が呼ばれない', async () => {
     const user = userEvent.setup();
     renderButtons({ selectedCount: 0 });
@@ -198,7 +231,7 @@ describe('AIHelperButtons', () => {
     expect(onAction).not.toHaveBeenCalled();
   });
 
-  // ── 9. title属性のテスト ──
+  // ── 10. title属性のテスト ──
   it('メッセージ未選択時に要約ボタンのtitleがヒントを表示', () => {
     renderButtons({ selectedCount: 0 });
 

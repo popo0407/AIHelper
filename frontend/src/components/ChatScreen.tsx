@@ -5,6 +5,7 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { SummarySidebar } from '@/components/SummarySidebar';
+import { AIHelperButtons } from '@/components/AIHelperButtons';
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { KnowledgebasePanel } from '@/components/KnowledgebasePanel';
 import { graphqlClient, extractData } from '@/lib/appsync';
@@ -716,6 +717,16 @@ export function ChatScreen({
             isLoading={isLoading}
           />
           <div ref={messagesEndRef} />
+
+          {/* AI Helper buttons */}
+          <AIHelperButtons
+            selectedCount={selectedMessageIds.size}
+            inputText={inputText}
+            onAction={handleAIAction}
+            isProcessing={isAIProcessing}
+            lockState={lockState}
+            excludeButtonIds={['answer']}
+          />
 
           {/* Message input */}
           <div className="border-t border-serendie-gray-200 bg-white p-4">
