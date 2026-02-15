@@ -9,6 +9,7 @@ Handles:
 import json
 import logging
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 import boto3
 
@@ -162,20 +163,54 @@ def handle_upload_knowledgebase(arguments: dict) -> dict:
     }
     table.put_item(Item=item)
 
-    # Generate presigned URL for upload
-    # Note: ContentType parameter removed to avoid CORS preflight
-    s3_client = boto3.client("s3")
+    # Generate presigned PUT URL for S3 upload
+    # CloudFront 経由でアップロードするため、S3 presigned URL のホスト部分を
+    # CloudFront ドメインに置換する。CloudFront が Host ヘッダーを S3 オリジンに
+    # 書き換えるため、presigned URL の署名検証は正常に通過する。
+    #
+    # 重要 1: SigV4 を使用すること。V2 署名は x-amz-* ヘッダーと Content-Type を
+    # 署名に含むが、CloudFront が付加する x-amz-cf-id ヘッダーは署名生成時に
+    # 存在しないため、V2 では SignatureDoesNotMatch エラーになる。
+    # V4 は SignedHeaders に明示したヘッダーのみ検証するため、CloudFront 経由で安全。
+    #
+    # 重要 2: endpoint_url にリージョナル S3 エンドポイントを指定し、
+    # addressing_style=virtual を併用すること。
+    # boto3 デフォルトは s3.amazonaws.com (グローバル) だが、CloudFront オリジンは
+    # s3.ap-northeast-1.amazonaws.com (リージョナル) を使用するため、Host ヘッダーが
+    # 不一致となり署名検証が失敗する。リージョナルエンドポイント + virtual-hosted で
+    # CloudFront オリジンと同一の Host を使用させる。
+    from botocore.config import Config as BotoConfig
+
+    s3_client = boto3.client(
+        "s3",
+        region_name="ap-northeast-1",
+        endpoint_url="https://s3.ap-northeast-1.amazonaws.com",
+        config=BotoConfig(
+            signature_version="s3v4",
+            s3={"addressing_style": "virtual"},
+        ),
+    )
     presigned_url = s3_client.generate_presigned_url(
         "put_object",
-        Params={
-            "Bucket": config.knowledge_bucket,
-            "Key": s3_key,
-        },
+        Params={"Bucket": config.knowledge_bucket, "Key": s3_key},
         ExpiresIn=PRESIGNED_URL_EXPIRY,
     )
 
+    # CloudFront ドメインで URL を置換
+    cloudfront_domain = config.cloudfront_domain
+    if cloudfront_domain:
+        parsed = urlparse(presigned_url)
+        presigned_url = urlunparse((
+            parsed.scheme,
+            cloudfront_domain,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        ))
+
     logger.info(
-        "Upload presigned URL generated: conversation=%s, file=%s",
+        "Upload presigned URL generated (CloudFront): conversation=%s, file=%s",
         conversation_id,
         file_name,
     )

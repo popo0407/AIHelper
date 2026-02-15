@@ -79,6 +79,71 @@
 
 ---
 
+## 📅 **CloudFront + S3 アーキテクチャ導入（CORS 問題の根本解決）**
+
+### ✅ **完了した内容**
+
+#### **新アーキテクチャ**
+
+ブラウザ → CloudFront → S3 のプロキシ構成により、S3 presigned URL アップロード時の CORS 問題を根本解決。
+
+```
+Browser (localhost:3000)
+  → GraphQL (AppSync) → Lambda (presigned URL 生成、host を CloudFront に置換)
+  → PUT to CloudFront → CloudFront Function (OPTIONS preflight をエッジで 204 応答)
+  → CloudFront が S3 にフォワード (Host ヘッダーを S3 オリジンに書き換え)
+  → S3 が presigned URL 署名検証 → ファイル保存
+  → CloudFront が CORS ヘッダー付与 → ブラウザにレスポンス
+```
+
+#### **CDK Infrastructure 変更**
+
+- **新規** `cloudfront_stack.py`: CloudFront Distribution + Function + ResponseHeadersPolicy + OriginRequestPolicy
+- **変更** `database_stack.py`: S3 CORS 設定削除、`BlockPublicAccess.BLOCK_ALL` に統一
+- **変更** `lambda_stack.py`: `cloudfront_domain_name` パラメータ追加、KnowledgebaseFunction に環境変数設定
+- **変更** `app.py`: CloudFrontStack インスタンス化 + 依存チェーン設定
+
+#### **Backend 変更**
+
+- `knowledgebase/index.py`: `generate_presigned_url('put_object')` + SigV4 + リージョナルエンドポイント + CloudFront ドメイン置換
+- `layers/common/python/common/config.py`: `cloudfront_domain` フィールド追加
+
+#### **Frontend 変更**
+
+- `KnowledgebasePanel.tsx`: XHR+ArrayBuffer → シンプルな fetch PUT に変更
+- `graphql/operations.ts`: `presignedFields` 削除
+- `types/index.ts`: `presignedFields` 削除
+
+### **発見した問題と解決**
+
+| 問題 | 原因 | 解決策 |
+|------|------|--------|
+| Lambda 403 エラー | Layer の `config.py` に `cloudfront_domain` 未追加。`backend/common/config.py` のみ更新し、`backend/layers/common/python/common/config.py` を更新忘れ | 両ファイルを同期。**プロジェクトには2つの config.py が存在し、Layer 版が実際にデプロイされる** |
+| S3 SignatureDoesNotMatch (V2) | CloudFront が付加する `x-amz-cf-id` ヘッダーが V2 署名に含まれない。V2 は全 x-amz-* ヘッダーを署名に含むため不一致 | SigV4 に切り替え。V4 は `SignedHeaders` に明示したヘッダーのみ検証 |
+| S3 SignatureDoesNotMatch (V4) | boto3 デフォルトのグローバルエンドポイント (`s3.amazonaws.com`) と CloudFront オリジン (`s3.ap-northeast-1.amazonaws.com`) で Host ヘッダー不一致 | `endpoint_url="https://s3.ap-northeast-1.amazonaws.com"` + `addressing_style="virtual"` で Host を一致させる |
+
+### **CloudFront 構成詳細**
+
+| 項目 | 値 |
+|------|-----|
+| Distribution Domain | `d392h1opjkvv3a.cloudfront.net` |
+| Distribution ID | `E29MLDC5MPJ9RB` |
+| CloudFront Function | `aichat-dev-cors-handler` (JS 2.0, viewer-request) |
+| Response Headers Policy | CORS with `origin_override=True` |
+| Origin Request Policy | All query strings, no headers, no cookies |
+| Origin | HttpOrigin (NOT S3Origin) — OAI/OAC 不使用 |
+| Cache Policy | DEV: CACHING_DISABLED / PROD: CACHING_OPTIMIZED |
+| Price Class | DEV: PRICE_CLASS_200 / PROD: PRICE_CLASS_ALL |
+
+### **再発防止策**
+
+- `backend/common/config.py` と `backend/layers/common/python/common/config.py` は必ず同時に更新する
+- CloudFront 経由の S3 presigned URL では必ず SigV4 を使用する
+- boto3 の S3 クライアントは `endpoint_url` + `addressing_style=virtual` でリージョナルエンドポイントを明示する
+- CloudFront Origin の Host ヘッダーと presigned URL の署名ホストが一致することを検証する
+
+---
+
 ## 📅 **2026年2月14日 — ISSUE一括対応（5件）**
 
 ### ✅ **完了した内容**

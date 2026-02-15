@@ -23,12 +23,14 @@ class LambdaStack(Stack):
         env_name: str,
         project_name: str,
         database_stack: DatabaseStack,
+        cloudfront_domain_name: str,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
 
         self.env_name = env_name
         self.project_name = project_name
+        self._cloudfront_domain_name = cloudfront_domain_name
 
         backend_path = os.path.join(os.path.dirname(__file__), "../../../backend")
 
@@ -256,4 +258,9 @@ class LambdaStack(Stack):
             environment=common_env,
             role=lambda_role,
             log_retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        # CloudFront ドメインを Knowledgebase Lambda のみに追加
+        self.knowledgebase_fn.add_environment(
+            "CLOUDFRONT_DOMAIN_NAME", self._cloudfront_domain_name
         )

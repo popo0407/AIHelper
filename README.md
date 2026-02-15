@@ -24,6 +24,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **ストレージ:** Amazon DynamoDB
 - **AI エンジン:** Amazon Bedrock（Claude Haiku 4.5 推論プロファイルモデル）
 - **ナレッジベース:** Amazon S3 + Bedrock RAG（ドキュメント検索）
+- **CDN / CORS プロキシ:** Amazon CloudFront（S3 presigned URL のプロキシ）
 - **リージョン:** Tokyo（東京）（Bedrock のみオレゴン）
 - **Infrastructure:** AWS CDK
 
@@ -45,8 +46,9 @@ AICHAT/
 │   │   └── schema.graphql          # AppSync GraphQL スキーマ
 │   └── lib/
 │       ├── stacks/
-│       │   ├── database_stack.py   # DynamoDB テーブル定義
+│       │   ├── database_stack.py   # DynamoDB + S3 定義
 │       │   ├── cognito_stack.py    # Cognito User Pool 定義
+│       │   ├── cloudfront_stack.py # CloudFront Distribution (S3プロキシ)
 │       │   ├── lambda_stack.py     # Lambda 関数定義
 │       │   └── appsync_stack.py    # AppSync API 定義
 │       └── constructs/
@@ -310,6 +312,7 @@ Closes #123"
 
 - [x] **Cognito 認証への移行**（✅ 完了 - 既にUSER_POOL認証を使用中）
 - [x] GraphQL Subscription の再実装（AWS AppSync ベストプラクティスに準拠）
+- [x] **CloudFront + S3 アーキテクチャ**（✅ 完了 - CORS 問題の根本解決、SigV4 presigned URL via CloudFront）
 - [ ] Subscription リアルタイム更新の手動動作確認
 - [ ] WAF レート制限の追加
 - [ ] 統合テスト
@@ -333,7 +336,8 @@ Closes #123"
 ### **次の優先事項**
 
 - ⚠️ **WAF レート制限**: API 呼び出し制限の追加（DDoS 対策）
-- ⚠️ **本番環境設定**: HTTPS、カスタムドメイン、CloudFront CDN
+- ✅ **CloudFront Distribution**: S3 presigned URL のプロキシ（CORS 問題解決）
+- ⚠️ **本番環境設定**: HTTPS、カスタムドメイン
 
 詳細は [.github/skills/security/SKILL.md](.github/skills/security/SKILL.md) を参照。
 
@@ -349,7 +353,7 @@ Closes #123"
 
 | #                                       | タイトル                               | ステータス  | 優先度 |
 | --------------------------------------- | -------------------------------------- | ----------- | ------ |
-| [ISSUE-01](docs/ISSUE-knowledgebase.md) | **Knowledgebase 登録・検索機能の追加** | 🔄 設計完了 | 🔴 高  |
+| [ISSUE-01](docs/ISSUE-knowledgebase.md) | **Knowledgebase 登録・検索機能の追加** | 🔄 実装中（CloudFront+S3アップロード完了） | 🔴 高  |
 
 ### **Knowledgebase 機能追加**
 
@@ -390,4 +394,4 @@ MIT License
 
 **プロジェクトステータス:** 🟢 開発中（フェーズ 2・3 完了、フェーズ 4 準備中）
 
-最終更新：2026年2月14日
+最終更新：2025年7月20日

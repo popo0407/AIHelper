@@ -3,6 +3,7 @@
 import aws_cdk as cdk
 from lib.stacks.database_stack import DatabaseStack
 from lib.stacks.cognito_stack import CognitoStack
+from lib.stacks.cloudfront_stack import CloudFrontStack
 from lib.stacks.appsync_stack import AppSyncStack
 from lib.stacks.lambda_stack import LambdaStack
 
@@ -31,15 +32,27 @@ cognito_stack = CognitoStack(
     env=aws_env,
 )
 
+# CloudFront Distribution (Knowledge S3 Bucket)
+cloudfront_stack = CloudFrontStack(
+    app, f"{project_name}-{env_name}-cloudfront",
+    env_name=env_name,
+    project_name=project_name,
+    knowledge_bucket=database_stack.knowledge_bucket,
+    env=aws_env,
+)
+cloudfront_stack.add_dependency(database_stack)
+
 # Lambda Functions
 lambda_stack = LambdaStack(
     app, f"{project_name}-{env_name}-lambda",
     env_name=env_name,
     project_name=project_name,
     database_stack=database_stack,
+    cloudfront_domain_name=cloudfront_stack.distribution.distribution_domain_name,
     env=aws_env,
 )
 lambda_stack.add_dependency(database_stack)
+lambda_stack.add_dependency(cloudfront_stack)
 
 # AppSync (GraphQL API)
 appsync_stack = AppSyncStack(

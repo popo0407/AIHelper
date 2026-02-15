@@ -16,6 +16,7 @@ class AppConfig:
     conversations_table: str
     knowledge_sources_table: str
     knowledge_bucket: str
+    cloudfront_domain: str
     use_mock_ai: bool
     bedrock_region: str
     bedrock_model_id: str
@@ -40,6 +41,9 @@ def get_config() -> AppConfig:
         ),
         knowledge_bucket=os.environ.get(
             "KNOWLEDGE_BUCKET", "aichat-dev-knowledge"
+        ),
+        cloudfront_domain=os.environ.get(
+            "CLOUDFRONT_DOMAIN_NAME", ""
         ),
         use_mock_ai=os.environ.get("USE_MOCK_AI", "true").lower() == "true",
         bedrock_region=os.environ.get("BEDROCK_REGION", "us-west-2"),
