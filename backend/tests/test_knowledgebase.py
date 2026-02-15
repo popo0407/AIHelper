@@ -229,7 +229,7 @@ class TestSearchKnowledgebase:
         assert result["sources"] == []
 
     def test_モックAIで検索結果を返す(self, dynamodb_tables, knowledge_sources_table, s3_knowledge_bucket):
-        """USE_MOCK_AI=true の場合、モック応答が返る。"""
+        """USE_MOCK_AI=true の場合、デバッグ情報付きモック応答が返る。"""
         _seed_knowledge_source(knowledge_sources_table, conv_id="conv-search")
         _upload_test_file(s3_knowledge_bucket, conv_id="conv-search")
 
@@ -243,7 +243,20 @@ class TestSearchKnowledgebase:
 
         assert result["conversationId"] == "conv-search"
         assert result["query"] == "ドキュメントの内容を教えて"
-        assert "モック回答" in result["answer"]
+        
+        # モック応答にはデバッグ情報が含まれている
+        answer = result["answer"]
+        assert "【モック回答 - RAG デバッグ情報】" in answer
+        assert "ユーザーの質問" in answer
+        assert "知識ベース確認" in answer
+        assert "キーワード抽出（疑似実行）" in answer
+        assert "コンテンツ検索" in answer
+        assert "RAG 応答生成" in answer
+        
+        # ドキュメント情報が表示されている
+        assert "test-document.txt" in answer
+        
+        # ソースが正しく返されている
         assert "test-document.txt" in result["sources"]
 
 

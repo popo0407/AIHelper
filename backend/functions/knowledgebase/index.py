@@ -541,17 +541,54 @@ def _split_into_chunks(text: str, chunk_size: int = 500) -> list[str]:
 def _mock_search_result(
     conversation_id: str, user_query: str, sources: list[dict]
 ) -> dict:
-    """Return a mock search result for development."""
+    """Return a mock search result for development with debug info.
+    
+    Shows the RAG pipeline steps for easier debugging of Lambda data flow.
+    """
     source_names = [s["fileName"] for s in sources]
+    sources_info = "\n".join(
+        [f"  - {s['fileName']} ({s['fileSize']} bytes)" for s in sources]
+    )
+    
+    # Simulate keyword extraction (what Bedrock would do)
+    simulated_keywords = [
+        term.strip() for term in user_query.split() 
+        if len(term.strip()) > 2
+    ][:5]
+    
     return {
         "conversationId": conversation_id,
         "query": user_query,
-        "answer": (
-            f"【モック回答】「{user_query}」について検索しました。\n\n"
-            f"登録されたドキュメント（{len(sources)}件）から検索した結果、"
-            "関連する情報が見つかりました。\n\n"
-            f"【出典: {', '.join(source_names)}】"
-        ),
+        "answer": f"""【モック回答 - RAG デバッグ情報】
+
+## ユーザーの質問
+{user_query}
+
+## ステップ 1: 知識ベース確認
+登録済みドキュメント（{len(sources)}件）:
+{sources_info}
+
+## ステップ 2: キーワード抽出（疑似実行）
+Lambda が Bedrock に「キーワード抽出」を依頼した場合:
+  {', '.join(simulated_keywords)}
+
+## ステップ 3: コンテンツ検索
+→ 各ドキュメントから検索対象チャンクを抽出します
+→ キーワード/質問用語とのマッチングスコアで順位付けします
+
+## ステップ 4: RAG 応答生成
+Lambda が Bedrock RAG に渡すプロンプト構成:
+  【質問】: {user_query}
+  【参照ドキュメント】: {len(source_names)}件から抽出したチャンク
+  【出典】: {', '.join(source_names)}
+
+---
+
+本番時（USE_MOCK_AI=false）:
+- キーワード抽出: Claude Haiku 4.5 が実行
+- コンテンツ検索: S3 から実際のテキストを取得・スコアリング
+- RAG 応答: Claude Haiku 4.5 がドキュメント内容を参考に生成
+""",
         "sources": source_names,
     }
 

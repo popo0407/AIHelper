@@ -2,6 +2,66 @@
 
 ---
 
+## 📅 **2026年2月15日 — Knowledgebaseモック回答のデバッグ情報充実化**
+
+### ✅ **完了した内容**
+
+#### **Backend 改善**
+
+- `backend/functions/knowledgebase/index.py`: `_mock_search_result()` 関数を拡張
+  - **改善前**: 簡潔なモック回答のみ
+  - **改善後**: AI Support 同様のデバッグ情報を追加
+    - ユーザーの質問を表示
+    - 登録済みドキュメント情報（ファイル名・サイズ）を表示
+    - キーワード抽出（疑似実行）結果を表示
+    - RAG パイプラインの各ステップを説明
+    - 本番環境での処理フローを明確に記載
+
+#### **テスト更新**
+
+- `backend/tests/test_knowledgebase.py`:
+  - `test_モックAIで検索結果を返す()`: デバッグ情報の検証を追加
+    - 「【モック回答 - RAG デバッグ情報】」の表示確認
+    - 5つのセクション（質問、知識ベース確認、キーワード抽出、コンテンツ検索、RAG応答生成）を検証
+    - ドキュメント情報の表示確認
+
+#### **Playwright E2E テスト**
+
+- `frontend/e2e/knowledgebase.spec.ts`: 変更不要
+  - 既存テストはUI操作と結果の有無をチェック（内容は検証していない）
+  - モック形式の変更は E2E テストの成功/失敗に影響しない
+
+### 📊 **テスト結果**
+
+```
+pytest backend/tests/test_knowledgebase.py
+✅ 11/11 PASSED (6.83s)
+```
+
+### 🎯 **改善のメリット**
+
+1. **デバッグ効率向上**
+   - RAG パイプラインの各段階が明確に表示される
+   - キーワード抽出やドキュメント検索の動作が確認可能
+
+2. **一貫性の向上**
+   - AI Support 同様のデバッグ情報フォーマット
+   - Lambda データフロー検証が容易
+
+3. **本番環境への遷移が明確**
+   - モック時と本番時の処理の違いを明示
+   - Claude Haiku 4.5 のどの部分が実行されるか理解しやすい
+
+### 💡 **開発者エクスペリエンス**
+
+- 開発時のデバッグメッセージから本番動作への理解が容易
+- GraphQL レスポンスを見ずに Lambda の内部状態を把握可能
+- テストケースでデバッグ情報の正確性を検証
+
+---
+
+
+
 ## 📅 **ISSUE #2 — ナレッジベース登録・検索機能の追加**
 
 ### ✅ **完了した内容**
@@ -116,24 +176,24 @@ Browser (localhost:3000)
 
 ### **発見した問題と解決**
 
-| 問題 | 原因 | 解決策 |
-|------|------|--------|
-| Lambda 403 エラー | Layer の `config.py` に `cloudfront_domain` 未追加。`backend/common/config.py` のみ更新し、`backend/layers/common/python/common/config.py` を更新忘れ | 両ファイルを同期。**プロジェクトには2つの config.py が存在し、Layer 版が実際にデプロイされる** |
-| S3 SignatureDoesNotMatch (V2) | CloudFront が付加する `x-amz-cf-id` ヘッダーが V2 署名に含まれない。V2 は全 x-amz-* ヘッダーを署名に含むため不一致 | SigV4 に切り替え。V4 は `SignedHeaders` に明示したヘッダーのみ検証 |
-| S3 SignatureDoesNotMatch (V4) | boto3 デフォルトのグローバルエンドポイント (`s3.amazonaws.com`) と CloudFront オリジン (`s3.ap-northeast-1.amazonaws.com`) で Host ヘッダー不一致 | `endpoint_url="https://s3.ap-northeast-1.amazonaws.com"` + `addressing_style="virtual"` で Host を一致させる |
+| 問題                          | 原因                                                                                                                                                  | 解決策                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Lambda 403 エラー             | Layer の `config.py` に `cloudfront_domain` 未追加。`backend/common/config.py` のみ更新し、`backend/layers/common/python/common/config.py` を更新忘れ | 両ファイルを同期。**プロジェクトには2つの config.py が存在し、Layer 版が実際にデプロイされる**               |
+| S3 SignatureDoesNotMatch (V2) | CloudFront が付加する `x-amz-cf-id` ヘッダーが V2 署名に含まれない。V2 は全 x-amz-\* ヘッダーを署名に含むため不一致                                   | SigV4 に切り替え。V4 は `SignedHeaders` に明示したヘッダーのみ検証                                           |
+| S3 SignatureDoesNotMatch (V4) | boto3 デフォルトのグローバルエンドポイント (`s3.amazonaws.com`) と CloudFront オリジン (`s3.ap-northeast-1.amazonaws.com`) で Host ヘッダー不一致     | `endpoint_url="https://s3.ap-northeast-1.amazonaws.com"` + `addressing_style="virtual"` で Host を一致させる |
 
 ### **CloudFront 構成詳細**
 
-| 項目 | 値 |
-|------|-----|
-| Distribution Domain | `d392h1opjkvv3a.cloudfront.net` |
-| Distribution ID | `E29MLDC5MPJ9RB` |
-| CloudFront Function | `aichat-dev-cors-handler` (JS 2.0, viewer-request) |
-| Response Headers Policy | CORS with `origin_override=True` |
-| Origin Request Policy | All query strings, no headers, no cookies |
-| Origin | HttpOrigin (NOT S3Origin) — OAI/OAC 不使用 |
-| Cache Policy | DEV: CACHING_DISABLED / PROD: CACHING_OPTIMIZED |
-| Price Class | DEV: PRICE_CLASS_200 / PROD: PRICE_CLASS_ALL |
+| 項目                    | 値                                                 |
+| ----------------------- | -------------------------------------------------- |
+| Distribution Domain     | `d392h1opjkvv3a.cloudfront.net`                    |
+| Distribution ID         | `E29MLDC5MPJ9RB`                                   |
+| CloudFront Function     | `aichat-dev-cors-handler` (JS 2.0, viewer-request) |
+| Response Headers Policy | CORS with `origin_override=True`                   |
+| Origin Request Policy   | All query strings, no headers, no cookies          |
+| Origin                  | HttpOrigin (NOT S3Origin) — OAI/OAC 不使用         |
+| Cache Policy            | DEV: CACHING_DISABLED / PROD: CACHING_OPTIMIZED    |
+| Price Class             | DEV: PRICE_CLASS_200 / PROD: PRICE_CLASS_ALL       |
 
 ### **再発防止策**
 
