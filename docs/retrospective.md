@@ -491,7 +491,7 @@ Browser (localhost:3000)
 ### **問題と対応**
 
 | 問題                                          | 原因                                             | 対応                                            |
-| --------------------------------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| --------------------------------------------- | -------------------------------------------------- | ----------------------------------------------- |
 | GraphQL Subscription デプロイエラー           | Subscription 型の output type 定義不備           | Subscription セクションを一時削除               |
 | graphql パッケージ破損（60+モジュール不存在） | npm cache 問題または不完全インストール           | `npm cache clean --force` + 完全再インストール  |
 | Next.js 起動時の "require-hook" エラー        | node_modules/.bin/next.cmd の破損                | `npm install --force` で修復                    |
@@ -953,7 +953,7 @@ Branch Structure:
   - 技術スタックに「認証: Amazon Cognito User Pools」追加
   - 機能リストに「ユーザー認証」追加
   - セットアップ手順を更新（Cognito 情報取得、テストユーザー作成）
-  - ディレクトリ構成に `cognito_stack.py` と `scripts/` 追加
+  - ドキュメント構成に `cognito_stack.py` と `scripts/` 追加
 
 - `docs/retrospective.md`:
   - 今回の実装内容を追加
@@ -1017,113 +1017,7 @@ Branch Structure:
 
 ---
 
-## �🚀 **次フェーズの計画**
-
-### **フェーズ 2：バックエンド実装**
-
-#### **優先度 1（必須）**
-
-1. [ ] AWS CDK スタック作成
-   - DynamoDB テーブル（Messages, Summary, Locks, Users）
-   - IAM ロール / ポリシー
-2. [ ] Lambda 関数実装
-   - User Registration Lambda（ユーザー重複チェック）
-   - Summarizer Lambda（Bedrock 連携）
-   - AI Support Lambda（AIHelper 相談機能）
-3. [ ] AppSync スキーマ＆リゾルバー
-   - クエリ（listUsers, getSummary）
-   - ミューテーション（registerUser, updateSummary, postMessage）
-   - サブスクリプション（メッセージ更新、ロック状態）
-
-#### **優先度 2（推奨）**
-
-4. [ ] ユニットテスト（Lambda）
-5. [ ] 統合テスト（AppSync + Lambda）
-6. [ ] CloudWatch ログ / モニタリング設定
-
-#### **優先度 3（オプション）**
-
-7. [ ] API Gateway（非同期処理用）
-8. [ ] Lambda Layer（共通ライブラリ）
-9. [ ] Secrets Manager（API キー管理）
-
----
-
-## 📈 **メトリクス**
-
-| メトリクス       | 値      | 備考                   |
-| ---------------- | ------- | ---------------------- |
-| ドキュメント工数 | ~4 時間 | 要件 + AWS 構成        |
-| 決定項目数       | 25+     | 詳細な要件確定         |
-| コミット数       | 1       | 初期セットアップ       |
-| Git ブランチ数   | 3       | main, develop, feature |
-
----
-
-## 💡 **学んだこと・改善案**
-
-### **学んだこと**
-
-1. **要件の曖昧さ解決の重要性**
-   - 初期段階での詳細質問が後続実装を加速
-   - Bedrock オレゴン、Claude Haiku 4.5、等の決定が早期に必要
-
-2. **DynamoDB スキーマの選択**
-   - シンプル設計（パターンB）の優位性
-   - 将来の複雑化に備えつつ、MVP では軽量化
-
-3. **Git ワークフローの重要性**
-   - 初期段階での Git Flow 確立で、後続開発の効率化
-
-### **改善案**
-
-1. **Bedrock プロンプト設計**
-   - 現フェーズで大まかなプロンプトテンプレート作成推奨
-   - 次フェーズで詳細化・テスト
-
-2. **リスク管理**
-   - Bedrock API のレート制限（次フェーズで詳細化）
-   - オレゴンリージョンのレイテンシ影響（監視推奨）
-
-3. **テスト戦略**
-   - 単体テスト（Lambda 関数ごと）
-   - 統合テスト（AppSync + Lambda + DynamoDB）
-   - E2E テスト（フロント含める）
-
----
-
-## 🎓 **参考リソース**
-
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [AppSync GraphQL API](https://docs.aws.amazon.com/appsync/)
-- [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/)
-- [Conventional Commits](https://www.conventionalcommits.org/)
-- [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
-
----
-
-## 📝 **チェックリスト：タスク完了確認**
-
-- [x] 要件定義ドキュメント作成
-- [x] AWS システム構成ドキュメント作成
-- [x] 不確定要素の全て確定
-- [x] Git ワークフロー確立
-- [x] README.md 作成
-- [x] docs/retrospective.md 作成
-- [x] GitHub へのコミット実行
-
----
-
-**ステータス:** ✅ **フェーズ 1 完了 / フェーズ 2・3 基盤完了**
-
-**次のチェックイン:** AppSync クライアント接続 → テスト → 本番デプロイ
-
-**作成者:** AI Development Agent  
-**最終更新:** 2026年2月14日
-
----
-
-## 📅 **2026年2月14日 — GraphQL Subscription 再実装（AWS AppSync ベストプラクティス準拠）**
+## 📅 **2026年2月14日（続） — GraphQL Subscription 再実装（AWS AppSync ベストプラクティス準拠）**
 
 ### ✅ **完了した内容**
 
@@ -1237,112 +1131,6 @@ Branch Structure:
 ### **次のタスク**
 
 1. **Subscription の動作確認**（優先度: 高、見積: 30分）
-   - ブラウザで実際にリアルタイム更新が動作することを確認
-   - 複数ユーザーで同時アクセスして、メッセージ・要約・ロックの Subscription が機能することを確認
-   - `onNewMessage`, `onSummaryUpdate`, `onLockChange` がトリガーされることを確認
-
-2. **CreateConversationResponse と JoinConversationResponse のリファクタリング**（優先度: 中、見積: 1時間）
-   - これらも単純なエンティティに分離可能か検討
-   - 複数エンティティを返す場合のベストプラクティスを調査（複数 Mutation に分割？）
-
-3. **Cognito 認証への移行**（優先度: 高、見積: 2-3時間）
-   - Issue: `.github/ISSUES/cognito-authentication.md`
-   - API Key 認証からの移行
-
-**ステータス:** ✅ **GraphQL Subscription 再実装完了（AWS AppSync ベストプラクティス準拠）**
-
-**最終更新:** 2026年2月14日
-
----
-
-## 📅 **2026年2月14日（続） — Subscription E2Eテスト作成 & Cognito認証の確認**
-
-### ✅ **完了した内容**
-
-#### **1. Cognito認証の状況確認**
-
-- **確認結果**: Cognito User Pools 認証は既に完全実装済み！
-  - AppSync Stack: `USER_POOL` 認証を使用（API Key 認証ではない）
-  - フロントエンド: Amplify Auth で `signIn` / `fetchAuthSession` 実装済み
-  - 環境変数: `NEXT_PUBLIC_USER_POOL_ID` / `NEXT_PUBLIC_USER_POOL_CLIENT_ID` 設定済み
-- **結論**: セキュリティ要件は既に満たしている（JWT トークンによるユーザー認証・認可）
-
-#### **2. GraphQL Subscription リアルタイム更新テストの作成**
-
-- **テストファイル作成**:
-  - `e2e/subscription-realtime.spec.ts`: 包括的なリアルタイム更新テスト
-    - 複数ユーザー間でのメッセージ配信（onNewMessage）
-    - 複数ユーザー間での要約更新（onSummaryUpdate）
-    - 複数ユーザー間でのロック状態通知（onLockChange）
-    - ネットワーク切断後の再接続テスト
-  - `e2e/subscription-simple.spec.ts`: 簡易版メッセージ同期テスト
-
-- **テストユーザー作成**:
-  - ユーザーA: `test@example.com`（既存）
-  - ユーザーB: `test2@example.com`（新規作成）
-  - 両ユーザーとも永続パスワード設定済み
-
-#### **3. E2Eテスト実行時の問題点**
-
-- **問題**: テストが UI 要素を正しく認識できない
-  - 会話一覧画面で「新しい会話」ボタンが見つからない
-  - Playwrightセレクターがアプリケーションの実際のDOM構造と一致しない
-- **原因推測**:
-  - ログイン後のページロード完了タイミングの問題
-  - 実際のボタンのテキストまたはセレクターが期待と異なる
-  - 初回ロード時に「ログイン中...」状態が表示され、その後UIが更新される
-
-### **問題と対応**
-
-| 問題                                   | 原因                                         | 対応                                               |
-| -------------------------------------- | -------------------------------------------- | -------------------------------------------------- |
-| E2Eテストでボタンが見つからない        | UI要素のセレクターが実際のDOM構造と不一致    | スクリーンショットを取得し、手動で確認する必要あり |
-| ログイン後のページ遷移タイミング       | `waitForLoadState('networkidle')` 不足       | 適切な待機戦略を追加（networkidle + timeout）      |
-| Playwrightセレクター構文エラー         | `text=/会話/` のような正規表現セレクター誤用 | `.locator().or()` を使用した柔軟なセレクターに修正 |
-| テスト間の依存関係                     | 各テストが前のテストの状態に依存             | `test.describe.serial()` でシリアル実行に変更      |
-| 文字エンコーディング問題（PowerShell） | Unicode文字の出力時に文字化け                | 致命的ではないが、ログの可読性に影響               |
-
-### **学んだこと**
-
-1. **Cognito認証の既存実装**:
-   - プロジェクト開始時からCognito User Pools認証を使用していた
-   - API Key認証への「移行」ではなく、最初から正しいセキュリティ実装
-   - README.mdの「優先対応事項」セクションは誤解を招く内容だったため修正
-
-2. **E2Eテストの課題**:
-   - Playwrightセレクターは実際のレンダリング結果に基づいて作成する必要がある
-   - スクリーンショットやHTML構造の確認が不可欠
-   - ローカル開発サーバー起動後の初回ロードは特に時間がかかる（HMR、依存関係解決 etc...）
-
-3. **テスト戦略の選択**:
-   - 複雑なE2Eテストは手動検証の方が効率的な場合がある
-   - 自動テストは安定したセレクターが特定できてから作成すべき
-   - **次のステップ**: ブラウザで実際に2つのウィンドウを開き、手動でSubscriptionをテスト
-
-4. **Playwright テストのベストプラクティス**:
-   - `waitForLoadState('networkidle')` を積極的に使用
-   - ログイン後は固定待機時間（3-5秒）を追加して安定性向上
-   - 複数の条件を `.or()` で組み合わせて柔軟性を確保
-   - `test.describe.serial()` で順序依存テストを明示的にマーク
-
-### **再発防止策**
-
-- **E2Eテスト作成時**:
-  1. まず手動で操作し、実際のUI要素を確認する
-  2. ブラウザ開発者ツールでセレクターを検証する
-  3. スクリーンショット撮影機能でテスト失敗時の状態を保存する
-  4. `data-testid` 属性をコンポーネントに追加して、安定したセレクターを提供する
-- **ドキュメント整合性**:
-  - README.mdとコード実装の乖離を定期的にレビューする
-  - 「計画中」「実装済み」のステータスを正確に反映する
-- **Subscription動作確認**:
-  - 次のステップとして、ブラウザで手動テストを実施
-  - Chrome DevTools の Network タブで WebSocket 接続を確認
-  - 2つのブラウザウィンドウで同時操作して、リアルタイム同期を確認
-
-### **次のタスク**
-
-1. **Subscription の手動動作確認**（優先度: 高、見積: 30分）
    - ブラウザで2つのウィンドウを開く
    - 同じ会話に異なるユーザーでログイン
    - メッセージ送信・要約生成・ロック取得の各Subscriptionを確認
@@ -1363,17 +1151,17 @@ Branch Structure:
    - HTTPS証明書（ACM）
    - CloudFront CDN 配信
 
-**ステータス:** ✅ **Subscription E2Eテスト作成完了 / Cognito認証の既存実装を確認**
+**ステータス:** ✅ **GraphQL Subscription 再実装完了（AWS AppSync ベストプラクティス準拠）**
 
 **最終更新:** 2026年2月14日
 
 ---
 
-## 📅 **2026年2月14日（続） — PlayWright MCP（E2Eテスト環境）セットアップ**
+## 📅 **2026年2月14日（続） — Playwright MCP（E2Eテスト環境）セットアップ**
 
 ### ✅ **完了した内容**
 
-#### **1. PlayWright インストールセットアップ**
+#### **1. Playwright インストールセットアップ**
 
 - @playwright/test をインストール
 - Chromium、Firefox、WebKit をローカルにインストール
