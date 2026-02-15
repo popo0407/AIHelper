@@ -50,7 +50,8 @@ AICHAT/
 │       │   ├── cognito_stack.py    # Cognito User Pool 定義
 │       │   ├── cloudfront_stack.py # CloudFront Distribution (S3プロキシ)
 │       │   ├── lambda_stack.py     # Lambda 関数定義
-│       │   └── appsync_stack.py    # AppSync API 定義
+│       │   ├── appsync_stack.py    # AppSync API 定義
+│       │   └── frontend_stack.py   # フロントエンド配信（S3 + CloudFront + 自動デプロイ）
 │       └── constructs/
 ├── backend/                        # Lambda 関数 & 共通モジュール
 │   ├── common/
@@ -152,30 +153,47 @@ pip install -r cdk/requirements-cdk.txt
 
 # 4. CDK スタックをデプロイ（詳細は docs/deploy-guide.md 参照）
 cd cdk
-cdk deploy --all --context environment=dev --require-approval never
 
-# 5. Cognito UserPool情報を取得して環境変数を設定
-aws cloudformation describe-stacks --stack-name aichat-dev-cognito --query "Stacks[0].Outputs"
-# 上記の出力からUserPoolIdとUserPoolClientIdを取得
+# cdk.json を作成（初回のみ）
+cp cdk.json.example cdk.json
 
-# frontend/.env.local を作成して設定
-cat > ../frontend/.env.local << EOF
-NEXT_PUBLIC_AWS_REGION=ap-northeast-1
-NEXT_PUBLIC_APPSYNC_ENDPOINT=<AppSync GraphQL endpoint from deployment>
-NEXT_PUBLIC_USER_POOL_ID=<UserPoolId from Cognito stack>
-NEXT_PUBLIC_USER_POOL_CLIENT_ID=<UserPoolClientId from Cognito stack>
-EOF
+# フロントエンドをビルド（初回のみ、またはフロントエンド変更時）
+cd ../frontend
+npm run build
+cd ../cdk
 
-# 6. テストユーザーを作成
-cd ../scripts
+# デプロイオプション
+# 【開発環境 + モックAI】（デフォルト）
+cdk deploy --all --outputs-file outputs.json --require-approval never
+
+# 【開発環境 + 本番AI】（Bedrockテスト用）
+cdk deploy --all --outputs-file outputs.json --context useMockAI=false --require-approval never
+
+# 【本番環境 + 本番AI】
+# cdk.json で "environment": "prod", "useMockAI": false に変更してから
+cdk deploy --all --outputs-file outputs.json --require-approval never
+
+# 5. フロントエンド設定を自動生成
+cd ..
+pwsh scripts/update-frontend-env.ps1
+# または Linux/Mac の場合
+# pwsh scripts/update-frontend-env.ps1
+
+# 6. CloudFront URLでアクセス（本番配信）
+# outputs.json の "FrontendURL" に記載されたCloudFront URLでアクセス可能
+# 例: https://xxxxxx.cloudfront.net
+
+# 7. テストユーザーを作成
+cd scripts
 # PowerShell (Windows)
 .\create-user.ps1 -Email "user@example.com" -UserName "ユーザー名" -TempPassword "TempPass123!"
 # 直接AWS CLI (Linux/Mac)
 aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username "user@example.com" ...
 
-# 7. フロントエンド開発サーバー起動
+# 8. (オプション) ローカル開発サーバー起動
 cd ../frontend
 npm run dev
+# localhost:3000 でアクセス可能
 ```
 
 ### **テスト実行**
@@ -262,6 +280,76 @@ Closes #123"
 
 ---
 
+## 🔧 **環境管理・切り替え**
+
+### **環境構成**
+
+このプロジェクトは **dev**（開発）と **prod**（本番）の完全分離環境をサポートしています。
+
+| 環境 | スタック名接頭辞 | DynamoDB保持 | AI処理                     |
+| ---- | ---------------- | ------------ | -------------------------- |
+| dev  | `aichat-dev-*`   | 削除         | モック or 本番AI（選択可） |
+| prod | `aichat-prod-*`  | 保持         | 本番AI                     |
+
+### **AI/モック切り替え方法**
+
+Lambda環境変数 `USE_MOCK_AI` は **環境（dev/prod）とは独立して制御可能**です。
+
+#### **方法1: cdk.json で設定（推奨）**
+
+```json
+{
+  "context": {
+    "environment": "dev",
+    "useMockAI": true
+  }
+}
+```
+
+#### **方法2: コマンドライン引数で上書き**
+
+```bash
+# dev環境 + モックAI（デフォルト）
+cdk deploy --all --outputs-file outputs.json
+
+# dev環境 + 本番AI（Bedrockテスト用）
+cdk deploy --all --outputs-file outputs.json --context useMockAI=false
+
+# prod環境 + 本番AI
+cdk deploy --all --outputs-file outputs.json --context environment=prod --context useMockAI=false
+```
+
+### **フロントエンド設定の自動更新**
+
+CDKデプロイ後、以下のスクリプトを実行すると `frontend/.env.local` が自動生成されます：
+
+```powershell
+pwsh scripts/update-frontend-env.ps1
+```
+
+**生成される内容:**
+
+- `NEXT_PUBLIC_APPSYNC_ENDPOINT`
+- `NEXT_PUBLIC_USER_POOL_ID`
+- `NEXT_PUBLIC_USER_POOL_CLIENT_ID`
+
+### **.gitignore による環境ファイル管理**
+
+以下のファイルはGit管理対象外です（環境依存のため）：
+
+- `cdk/cdk.json` - 環境設定（`cdk.json.example` をコピーして使用）
+- `cdk/outputs.json` - CDKデプロイ出力
+- `frontend/.env.local` - フロントエンド環境変数
+
+**初回セットアップ時:**
+
+```bash
+cp cdk/cdk.json.example cdk/cdk.json
+# cdk.json を編集して環境に応じた設定を記述
+```
+
+---
+
 ## ✅ **開発チェックリスト**
 
 ### **フェーズ 1：要件・設計（✅ 完了）**
@@ -313,6 +401,9 @@ Closes #123"
 - [x] **Cognito 認証への移行**（✅ 完了 - 既にUSER_POOL認証を使用中）
 - [x] GraphQL Subscription の再実装（AWS AppSync ベストプラクティスに準拠）
 - [x] **CloudFront + S3 アーキテクチャ**（✅ 完了 - CORS 問題の根本解決、SigV4 presigned URL via CloudFront）
+- [x] **フロントエンド配信用CloudFront**（✅ 完了 - S3 + CloudFront自動デプロイ、2つのCloudFrontディストリビューション運用）
+  - CloudFront #1: Knowledgebase用S3バケット配信（presigned URL プロキシ）
+  - CloudFront #2: フロントエンド（Next.js静的サイト）配信
 - [ ] Subscription リアルタイム更新の手動動作確認
 - [ ] WAF レート制限の追加
 - [ ] 統合テスト

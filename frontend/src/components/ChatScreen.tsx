@@ -110,11 +110,11 @@ export function ChatScreen({
 
     try {
       // Subscribe to new messages
-      const msgSub = graphqlClient
+      const msgSub = (graphqlClient
         .graphql({
           query: ON_NEW_MESSAGE,
           variables: { conversationId: conversation.conversationId },
-        })
+        }) as any)
         .subscribe({
           next: ({ data }: { data: Record<string, Message> }) => {
             const newMsg = data.onNewMessage;
@@ -136,11 +136,11 @@ export function ChatScreen({
       subscriptions.push(msgSub);
 
       // Subscribe to summary updates
-      const sumSub = graphqlClient
+      const sumSub = (graphqlClient
         .graphql({
           query: ON_SUMMARY_UPDATE,
           variables: { conversationId: conversation.conversationId },
-        })
+        }) as any)
         .subscribe({
           next: ({ data }: { data: Record<string, Summary> }) => {
             const updated = data.onSummaryUpdate;
@@ -152,11 +152,11 @@ export function ChatScreen({
       subscriptions.push(sumSub);
 
       // Subscribe to lock changes
-      const lockSub = graphqlClient
+      const lockSub = (graphqlClient
         .graphql({
           query: ON_LOCK_CHANGE,
           variables: { conversationId: conversation.conversationId },
-        })
+        }) as any)
         .subscribe({
           next: ({ data }: { data: Record<string, Lock> }) => {
             const lockEvent = data.onLockChange;
@@ -209,7 +209,7 @@ export function ChatScreen({
         query: LIST_MESSAGES,
         variables: { conversationId: conversation.conversationId, limit: 100 },
       });
-      const msgData = extractData<{ items: Message[]; nextToken?: string }>(msgResult, 'listMessages');
+      const msgData = extractData<{ items: Message[]; nextToken?: string }>(msgResult as any, 'listMessages');
       setMessages(msgData?.items ?? []);
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -231,7 +231,7 @@ export function ChatScreen({
         query: GET_SUMMARY,
         variables: { conversationId: conversation.conversationId },
       });
-      const sumData = extractData<Summary | null>(sumResult, 'getSummary');
+      const sumData = extractData<Summary | null>(sumResult as any, 'getSummary');
       setSummary(sumData ?? null);
     } catch (err) {
       console.error('Failed to load summary:', err);
@@ -244,7 +244,7 @@ export function ChatScreen({
         query: GET_LOCKS,
         variables: { conversationId: conversation.conversationId },
       });
-      const lockData = extractData<Lock[]>(lockResult, 'getLocks');
+      const lockData = extractData<Lock[]>(lockResult as any, 'getLocks');
       setLocks(lockData ?? []);
     } catch (err) {
       console.error('Failed to load locks:', err);
@@ -257,7 +257,7 @@ export function ChatScreen({
         query: LIST_KNOWLEDGE_SOURCES,
         variables: { conversationId: conversation.conversationId },
       });
-      const kbData = extractData<KnowledgeSource[]>(kbResult, 'listKnowledgeSources');
+      const kbData = extractData<KnowledgeSource[]>(kbResult as any, 'listKnowledgeSources');
       const sources = kbData ?? [];
       setKbSourceCount(sources.length);
     } catch (err) {
@@ -317,7 +317,7 @@ export function ChatScreen({
           },
         },
       });
-      const message = extractData<Message>(result, 'sendMessage');
+      const message = extractData<Message>(result as any, 'sendMessage');
       if (message) {
         // Replace temp message with server response
         setMessages((prev) =>
@@ -361,7 +361,7 @@ export function ChatScreen({
           },
         });
         const data = extractData<KnowledgeSearchResult>(
-          result,
+          result as any,
           'searchKnowledgebase'
         );
 
@@ -434,7 +434,7 @@ export function ChatScreen({
           },
         },
       });
-      const newSummary = extractData<Summary>(result, 'updateSummary');
+      const newSummary = extractData<Summary>(result as any, 'updateSummary');
       if (newSummary) {
         setSummary(newSummary);
       }
@@ -464,7 +464,7 @@ export function ChatScreen({
         query: UNDO_SUMMARY,
         variables: { conversationId: conversation.conversationId },
       });
-      const newSummary = extractData<Summary>(result, 'undoSummary');
+      const newSummary = extractData<Summary>(result as any, 'undoSummary');
       if (newSummary) {
         setSummary(newSummary);
       }
@@ -518,7 +518,7 @@ export function ChatScreen({
           },
         }),
       ]);
-      const newSummary = extractData<Summary>(saveResult, 'saveSummaryEdit');
+      const newSummary = extractData<Summary>(saveResult as any, 'saveSummaryEdit');
       if (newSummary) {
         setSummary(newSummary);
       }
@@ -572,7 +572,7 @@ export function ChatScreen({
             },
           },
         });
-        const message = extractData<Message>(result, 'askAIHelper');
+        const message = extractData<Message>(result as any, 'askAIHelper');
         if (message) {
           setMessages((prev) => [...prev, message]);
         }
@@ -662,7 +662,7 @@ export function ChatScreen({
               variables: { input: { createdBy: user.loginId } },
             });
             const data = extractData<{ success: boolean; conversation: Conversation; error?: string }>(
-              result,
+              result as any,
               'createConversation'
             );
             if (data?.success && data.conversation) {

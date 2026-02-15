@@ -12,6 +12,8 @@ frontend/dist/
 cdk/cdk.out/
 cdk/.cdk.staging/
 cdk/venv/
+cdk/cdk.json
+cdk/outputs.json
 
 # Python
 __pycache__/
@@ -31,6 +33,7 @@ lambda_package/
 .env.local
 .env.production
 .env.*.local
+frontend/.env.local
 
 # IDE
 .idea/

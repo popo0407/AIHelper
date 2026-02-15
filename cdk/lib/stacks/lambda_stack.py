@@ -24,6 +24,7 @@ class LambdaStack(Stack):
         project_name: str,
         database_stack: DatabaseStack,
         cloudfront_domain_name: str,
+        use_mock_ai: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
@@ -121,7 +122,7 @@ class LambdaStack(Stack):
             "CONVERSATIONS_TABLE": database_stack.conversations_table.table_name,
             "KNOWLEDGE_SOURCES_TABLE": database_stack.knowledge_sources_table.table_name,
             "KNOWLEDGE_BUCKET": database_stack.knowledge_bucket.bucket_name,
-            "USE_MOCK_AI": "true" if env_name == "dev" else "false",
+            "USE_MOCK_AI": "true" if use_mock_ai else "false",
             "BEDROCK_REGION": "us-west-2",
             "BEDROCK_MODEL_ID": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
         }

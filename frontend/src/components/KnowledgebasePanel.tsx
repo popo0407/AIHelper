@@ -62,7 +62,7 @@ export function KnowledgebasePanel({
         variables: { conversationId },
       });
       console.log('listKnowledgeSources result:', JSON.stringify(result, null, 2));
-      const data = extractData<KnowledgeSource[]>(result, 'listKnowledgeSources');
+      const data = extractData<KnowledgeSource[]>(result as any, 'listKnowledgeSources');
       console.log('extracted knowledge sources:', data);
       const items = data ?? [];
       setSources(items);
@@ -132,7 +132,7 @@ export function KnowledgebasePanel({
           },
         });
         const data = extractData<UploadKnowledgebaseResponse>(
-          result,
+          result as any,
           'uploadKnowledgebase'
         );
 
@@ -195,7 +195,7 @@ export function KnowledgebasePanel({
           },
         });
         const data = extractData<DeleteKnowledgebaseResponse>(
-          result,
+          result as any,
           'deleteKnowledgebase'
         );
 

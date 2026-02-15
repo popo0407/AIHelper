@@ -1,0 +1,16 @@
+{
+  "info": {
+    "fieldName": "searchKnowledgebase"
+  },
+  "arguments": {
+    "input": {
+      "conversationId": "test-conv-id",
+      "query": "test query",
+      "userId": "testuser@example.com",
+      "displayName": "Test User"
+    }
+  },
+  "requestContext": {
+    "identity": {}
+  }
+}

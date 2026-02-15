@@ -61,6 +61,60 @@ myapp-prod-network
 
 ---
 
+## 3.1 Lambda AI/モック切り替えの柔軟性（重要）
+
+### 原則
+
+- Lambda環境変数（USE_MOCK_AI, USE_MOCK_RAG）は**環境（dev/prod）とは独立して切り替え可能**とする。
+- 開発環境でも本番AIのテストが必要な場合があるため、cdk contextで柔軟に制御する。
+
+### 実装方法
+
+**cdk.json**:
+
+```json
+{
+  "app": "python app.py",
+  "context": {
+    "environment": "dev",
+    "useMockAI": true
+  }
+}
+```
+
+**デプロイコマンド例**:
+
+```bash
+# dev環境でモックAI（デフォルト）
+cdk deploy --all --context environment=dev
+
+# dev環境で本番AI（テスト用）
+cdk deploy --all --context environment=dev --context useMockAI=false
+
+# prod環境で本番AI
+cdk deploy --all --context environment=prod --context useMockAI=false
+```
+
+**app.py での取得**:
+
+```python
+env_name = app.node.try_get_context("environment") or "dev"
+use_mock_ai = app.node.try_get_context("useMockAI")
+if use_mock_ai is None:
+    use_mock_ai = (env_name == "dev")  # デフォルト: devならtrue
+```
+
+**lambda_stack.py での環境変数設定**:
+
+```python
+common_env = {
+    "USE_MOCK_AI": "true" if use_mock_ai else "false",
+    # ...
+}
+```
+
+---
+
 ## 4. コスト絶対遵守ルール
 
 ### 4.1 Bedrock Knowledge Base
@@ -593,6 +647,172 @@ class LambdaStack(Stack):
     "environment": "dev"
   }
 }
+```
+
+---
+
+## 10.4 フロントエンド自動デプロイスタック（frontend_stack.py）
+
+### 目的
+
+- フロントエンド（Next.js）のビルド成果物を自動的にS3へデプロイ
+- CloudFrontのキャッシュ自動無効化
+- outputs.jsonからフロントエンド設定ファイルへの自動反映
+
+### 実装例
+
+```python
+# cdk/lib/stacks/frontend_stack.py
+from aws_cdk import (
+    Stack,
+    aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    RemovalPolicy,
+    CfnOutput,
+)
+from constructs import Construct
+import os
+
+class FrontendStack(Stack):
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        env_name: str,
+        project_name: str,
+        appsync_endpoint: str,
+        user_pool_id: str,
+        user_pool_client_id: str,
+        **kwargs
+    ):
+        super().__init__(scope, id, **kwargs)
+
+        # S3 Bucket for frontend
+        frontend_bucket = s3.Bucket(
+            self, "FrontendBucket",
+            bucket_name=f"{project_name}-{env_name}-frontend",
+            removal_policy=RemovalPolicy.DESTROY if env_name == "dev" else RemovalPolicy.RETAIN,
+            auto_delete_objects=env_name == "dev",
+            website_index_document="index.html",
+            website_error_document="index.html",
+        )
+
+        # CloudFront Distribution
+        distribution = cloudfront.Distribution(
+            self, "FrontendDistribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3Origin(frontend_bucket),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            ),
+            default_root_object="index.html",
+        )
+
+        # Auto deployment (if frontend/out exists)
+        frontend_out_path = os.path.join(os.path.dirname(__file__), "../../../frontend/out")
+        if os.path.exists(frontend_out_path):
+            s3deploy.BucketDeployment(
+                self, "DeployFrontend",
+                sources=[s3deploy.Source.asset(frontend_out_path)],
+                destination_bucket=frontend_bucket,
+                distribution=distribution,
+                distribution_paths=["/*"],
+            )
+
+        # Outputs
+        CfnOutput(
+            self, "FrontendURL",
+            value=f"https://{distribution.distribution_domain_name}",
+            description="Frontend CloudFront URL"
+        )
+        CfnOutput(
+            self, "FrontendBucketName",
+            value=frontend_bucket.bucket_name,
+            description="Frontend S3 Bucket Name"
+        )
+```
+
+### outputs.json 自動反映スクリプト
+
+**scripts/update-frontend-env.ps1**:
+
+```powershell
+# CDK outputs.json から .env.local を自動生成
+$outputsPath = "cdk/outputs.json"
+$envPath = "frontend/.env.local"
+
+if (!(Test-Path $outputsPath)) {
+    Write-Error "outputs.json not found. Run 'cdk deploy' first."
+    exit 1
+}
+
+$outputs = Get-Content $outputsPath | ConvertFrom-Json
+$stackName = ($outputs.PSObject.Properties.Name | Where-Object { $_ -like "*appsync*" })[0]
+
+if (!$stackName) {
+    Write-Error "AppSync stack not found in outputs.json"
+    exit 1
+}
+
+$appsyncEndpoint = $outputs.$stackName.AppSyncEndpoint
+$userPoolId = $outputs.$stackName.UserPoolId
+$userPoolClientId = $outputs.$stackName.UserPoolClientId
+
+$envContent = @"
+NEXT_PUBLIC_APPSYNC_ENDPOINT=$appsyncEndpoint
+NEXT_PUBLIC_USER_POOL_ID=$userPoolId
+NEXT_PUBLIC_USER_POOL_CLIENT_ID=$userPoolClientId
+NEXT_PUBLIC_AWS_REGION=ap-northeast-1
+"@
+
+Set-Content -Path $envPath -Value $envContent
+Write-Host "✅ $envPath updated successfully"
+```
+
+### CI/CD統合例（GitHub Actions）
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main, develop]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      # CDK Deploy
+      - name: CDK Deploy
+        run: |
+          cd cdk
+          pip install -r requirements-cdk.txt
+          cdk deploy --all --outputs-file outputs.json --require-approval never
+
+      # Frontend Build & Deploy
+      - name: Update Frontend Config
+        run: |
+          pwsh scripts/update-frontend-env.ps1
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      - name: Deploy Frontend to S3
+        run: |
+          aws s3 sync frontend/out s3://$(jq -r '."aichat-dev-frontend".FrontendBucketName' cdk/outputs.json)
 ```
 
 ---
