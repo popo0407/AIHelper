@@ -583,7 +583,7 @@ export function ChatScreen({
         setNotification(null);
       }
     },
-    [user, conversation.conversationId]
+    [user, conversation.conversationId, inputText, selectedMessageIds]
   );
 
   // ── Copy share link ──

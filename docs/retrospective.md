@@ -2,6 +2,91 @@
 
 ---
 
+## 📅 **2026年2月15日（追記3） — AIHelper機能のメッセージ選択・入力データ送信バグ修正**
+
+### ✅ **完了した内容**
+
+#### **1. 問題の発見**
+
+**問題：** AIHelperの以下の機能で、選択したチャットの内容や入力したチャットの内容が送信されていなかった
+- 選択したチャットをAI要約
+- 選択したチャットに対するAI意見
+- 入力している内容についてのAI回答
+
+**症状：** AIからの応答が「申し訳ございませんが、現在選択されたメッセージがない状態です。」となる
+
+#### **2. 原因の特定**
+
+**根本原因：** `frontend/src/components/ChatScreen.tsx`の`handleAIAction`のuseCallback依存配列に`inputText`と`selectedMessageIds`が含まれていなかった
+
+**詳細：**
+- `handleAIAction`は`[user, conversation.conversationId]`のみに依存
+- `inputText`と`selectedMessageIds`が依存配列に含まれていないため、コールバックが作成時の古い値（初期値の空の状態）をキャプチャ
+- ボタンクリック時に常に空のデータが送信されていた
+
+#### **3. 実施した修正**
+
+**修正箇所：** [frontend/src/components/ChatScreen.tsx](../frontend/src/components/ChatScreen.tsx#L586)
+
+```diff
+     },
+-    [user, conversation.conversationId]
++    [user, conversation.conversationId, inputText, selectedMessageIds]
+   );
+```
+
+**効果：**
+- ✅ `inputText`や`selectedMessageIds`が変更されるたびに`handleAIAction`が再作成される
+- ✅ 常に最新のメッセージ選択状態とユーザー入力がAIに送信される
+- ✅ AIHelperが正しく選択メッセージと入力内容を受け取れる
+
+#### **4. テストと検証**
+
+**ユニットテスト：**
+- ✅ フロントエンド: `AIHelperButtons.test.tsx` — 19テスト全て通過
+- ✅ バックエンド: `test_ai_support.py` — 11テスト全て通過
+
+**デプロイ：**
+- ✅ `npm run build` — フロントエンドビルド成功
+- ✅ `cdk deploy aichat-dev-frontend` — AWS環境デプロイ成功
+
+### 🔍 **原因分析**
+
+**技術的な問題：**
+- React HooksのuseCallbackの依存配列管理不足
+- クロージャによる古い値のキャプチャ
+
+**検出の遅れた理由：**
+- ユニットテストではモック関数を使用していたため、実際のデータフローの問題を検出できなかった
+- 統合テストやE2Eテストが不足していた
+
+### 💡 **改善策**
+
+**即座の対応：**
+- ✅ useCallbackの依存配列に必要な状態変数を追加
+- ✅ フロントエンドとバックエンドのユニットテスト実行で既存機能に影響がないことを確認
+
+**今後の予防策：**
+1. **useCallback/useMemoの依存配列チェック**
+   - ESLint rule `react-hooks/exhaustive-deps`を有効化して警告を確認
+   - コードレビュー時に依存配列を重点的にチェック
+
+2. **E2Eテストの追加**
+   - PlayWrightを使用したAIHelper機能の統合テスト追加
+   - 実際のユーザー操作フローをテスト
+
+3. **デバッグビルドの活用**
+   - モックAI応答にデバッグ情報を含める（実装済み）
+   - ログ出力を強化して、Lambda関数が受け取ったデータを確認可能に
+
+### 📝 **再発防止策**
+
+- **コーディング時：** useCallback/useEffectの依存配列を記述する際、使用している全ての外部変数を含めることを確認
+- **レビュー時：** Hooks依存配列を重点的にチェック
+- **テスト時：** E2Eテストで実際のデータフローを検証
+
+---
+
 ## 📅 **2026年2月15日（追記2） — フロントエンド配信用CloudFront導入＆TypeScript型エラー修正**
 
 ### ✅ **完了した内容**
