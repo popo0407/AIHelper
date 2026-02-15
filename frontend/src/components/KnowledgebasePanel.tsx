@@ -41,6 +41,11 @@ export function KnowledgebasePanel({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Notify parent when sources change
+  useEffect(() => {
+    onSourceCountChange?.(sources.length);
+  }, [sources.length, onSourceCountChange]);
+
   // Fetch knowledge sources when panel opens
   useEffect(() => {
     if (isOpen) {
@@ -61,7 +66,6 @@ export function KnowledgebasePanel({
       console.log('extracted knowledge sources:', data);
       const items = data ?? [];
       setSources(items);
-      onSourceCountChange?.(items.length);
     } catch (err) {
       console.error('Failed to load knowledge sources:', err);
       const errorMessage = err instanceof Error ? err.message : 'ナレッジソースの読み込みに失敗しました';
@@ -69,7 +73,7 @@ export function KnowledgebasePanel({
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, onSourceCountChange]);
+  }, [conversationId]);
 
   // ── Upload handler ──
   const handleFileSelect = useCallback(
@@ -202,11 +206,9 @@ export function KnowledgebasePanel({
 
         // Remove from list
         setSources((prev) => {
-          const next = prev.filter(
+          return prev.filter(
             (s) => s.knowledgeSourceId !== knowledgeSourceId
           );
-          onSourceCountChange?.(next.length);
-          return next;
         });
       } catch (err) {
         console.error('Delete failed:', err);
@@ -215,7 +217,7 @@ export function KnowledgebasePanel({
         setDeletingId(null);
       }
     },
-    [conversationId, onSourceCountChange]
+    [conversationId]
   );
 
   if (!isOpen) return null;
