@@ -363,6 +363,16 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
     user_query = inp["query"]
     user_id = inp.get("userId", "UNKNOWN")
     display_name = inp.get("displayName", user_id)
+    
+    # Debug logging
+    logger.info(
+        "searchKnowledgebase input: conversationId=%s, query=%s, userId=%s, displayName=%s",
+        conversation_id,
+        user_query,
+        user_id,
+        display_name,
+    )
+    logger.info("Full input dict: %s", json.dumps(inp, default=str))
 
     # 1. Get knowledge sources for this conversation
     table = get_dynamodb_table(config.knowledge_sources_table)

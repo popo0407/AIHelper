@@ -284,6 +284,8 @@ export const SEARCH_KNOWLEDGEBASE = /* GraphQL */ `
       query
       answer
       sources
+      userMessageId
+      aiMessageId
     }
   }
 `;
