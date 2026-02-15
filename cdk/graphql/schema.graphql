@@ -81,6 +81,8 @@ type KnowledgeSearchResult {
   query: String!
   answer: String!
   sources: [String!]!
+  userMessageId: ID
+  aiMessageId: ID
 }
 
 type UploadKnowledgebaseResponse {

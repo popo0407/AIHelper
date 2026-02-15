@@ -2,6 +2,31 @@
 
 ---
 
+## 📅 **2026年2月15日（追記） — 会話セッション初期化時のナレッジロード改善**
+
+### ✅ **完了した内容**
+
+#### **Bug Fix: ナレッジベースの遅延ロード**
+
+会話セッションを再度開くと、ナレッジが「ナレッジベース」ボタンを押すまで表示されなかった問題を修正。
+
+**修正ファイル**: `frontend/src/components/ChatScreen.tsx`
+
+**修正内容**:
+1. `LIST_KNOWLEDGE_SOURCES` operator を imports に追加
+2. `KnowledgeSource` type を imports に追加
+3. `loadData()` 関数内にナレッジソース読み込み処理を追加
+   - `GET_LOCKS` 読み込み後、`LIST_KNOWLEDGE_SOURCES` を実行
+   - 読み込んだナレッジソース数を `kbSourceCount` にセット
+   - エラーハンドリングで `kbSourceCount` を 0 にリセット
+
+**効果**:
+- ✅ 会話セッション開時に自動的にナレッジが読み込まれる
+- ✅ ナレッジベースボタンが正確なナレッジ数を表示
+- ✅ UX改善：ボタン押下待ちなしでナレッジの登録状態が確認可能
+
+---
+
 ## 📅 **2026年2月15日 — Knowledgebaseモック回答のデバッグ情報充実化**
 
 ### ✅ **完了した内容**
@@ -59,8 +84,6 @@ pytest backend/tests/test_knowledgebase.py
 - テストケースでデバッグ情報の正確性を検証
 
 ---
-
-
 
 ## 📅 **ISSUE #2 — ナレッジベース登録・検索機能の追加**
 

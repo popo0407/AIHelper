@@ -31,6 +31,9 @@ config = get_config()
 AIHELPER_USER_ID = "AIHELPER"
 AIHELPER_DISPLAY_NAME = "AIHelper"
 
+# Current user context (set by lambda_handler)
+_current_user: dict = {}
+
 # Presigned URL expiry (seconds)
 PRESIGNED_URL_EXPIRY = 900  # 15 minutes
 
@@ -73,6 +76,11 @@ def lambda_handler(event: dict, context: Any) -> Any:
     info = event.get("info", {})
     field_name = info.get("fieldName", "")
     arguments = event.get("arguments", {})
+    
+    # Extract user identity from AppSync context
+    request_ctx = event.get("requestContext", {})
+    identity = request_ctx.get("identity", {})
+    _set_current_user(identity)
 
     logger.info("Knowledgebase handler: field=%s", field_name)
 
@@ -91,8 +99,80 @@ def lambda_handler(event: dict, context: Any) -> Any:
 
 
 # =========================================================
-# Query: listKnowledgeSources
+# User context helper
 # =========================================================
+
+
+def _set_current_user(identity: dict) -> None:
+    """Set current user from AppSync identity."""
+    global _current_user
+    _current_user = identity
+
+
+def _get_current_user() -> dict:
+    """Get current user identity."""
+    return _current_user
+
+
+def _save_kb_search_messages(
+    conversation_id: str,
+    user_query: str,
+    answer: str,
+    sources: list[str],
+) -> tuple[str, str]:
+    """Save KB search user question and AI answer to Messages table.
+    
+    Returns: (user_message_id, ai_message_id)
+    """
+    messages_table = get_dynamodb_table(config.messages_table)
+    now = utc_now_iso()
+    
+    # Get user info from AppSync context
+    current_user = _get_current_user()
+    user_id = current_user.get("claims", {}).get("sub", "UNKNOWN")
+    # Extract username from Cognito sub claim
+    if ":" in user_id:
+        user_id = user_id.split(":")[-1]
+    
+    display_name = current_user.get("claims", {}).get("cognito:username", user_id)
+    
+    # User question message
+    user_msg_id = generate_uuid()
+    user_message = {
+        "conversationId": conversation_id,
+        "messageId": user_msg_id,
+        "userId": user_id,
+        "displayName": display_name,
+        "content": f"📚 KB検索: {user_query}",
+        "timestamp": now,
+        "isUsedInSummary": False,
+    }
+    messages_table.put_item(Item=user_message)
+    logger.info("Saved user KB question: %s (user=%s)", user_msg_id, user_id)
+    
+    # AI answer message with source attribution
+    sources_attribution = (
+        f"\n\n【参照元: {', '.join(sources)}】"
+        if sources
+        else ""
+    )
+    ai_msg_id = generate_uuid()
+    ai_message = {
+        "conversationId": conversation_id,
+        "messageId": ai_msg_id,
+        "userId": AIHELPER_USER_ID,
+        "displayName": "AIHelper (KB)",
+        "content": answer + sources_attribution,
+        "timestamp": now,
+        "isUsedInSummary": False,
+    }
+    messages_table.put_item(Item=ai_message)
+    logger.info("Saved KB answer: %s", ai_msg_id)
+    
+    return user_msg_id, ai_msg_id
+
+
+
 
 
 def handle_list_knowledge_sources(arguments: dict) -> list[dict]:
@@ -302,17 +382,34 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
     ]
 
     if not sources:
+        answer = (
+            "この会話にはナレッジベースが登録されていません。"
+            "ヘッダーの📚ボタンからファイルをアップロードしてください。"
+        )
+        user_msg_id, ai_msg_id = _save_kb_search_messages(
+            conversation_id, user_query, answer, []
+        )
         return {
             "conversationId": conversation_id,
             "query": user_query,
-            "answer": "この会話にはナレッジベースが登録されていません。"
-            "ヘッダーの📚ボタンからファイルをアップロードしてください。",
+            "answer": answer,
             "sources": [],
+            "userMessageId": user_msg_id,
+            "aiMessageId": ai_msg_id,
         }
 
     # 2. Mock mode or real Bedrock
     if config.use_mock_ai:
-        return _mock_search_result(conversation_id, user_query, sources)
+        result = _mock_search_result(conversation_id, user_query, sources)
+        user_msg_id, ai_msg_id = _save_kb_search_messages(
+            conversation_id,
+            user_query,
+            result["answer"],
+            result["sources"],
+        )
+        result["userMessageId"] = user_msg_id
+        result["aiMessageId"] = ai_msg_id
+        return result
 
     # 3. Extract keywords using Bedrock
     bedrock_client = get_bedrock_client(config.bedrock_region)
@@ -338,11 +435,18 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
     )
 
     if not retrieved_chunks:
+        answer = "登録されたドキュメントから該当する情報は見つかりませんでした。"
+        source_names = [s["fileName"] for s in sources]
+        user_msg_id, ai_msg_id = _save_kb_search_messages(
+            conversation_id, user_query, answer, source_names
+        )
         return {
             "conversationId": conversation_id,
             "query": user_query,
-            "answer": "登録されたドキュメントから該当する情報は見つかりませんでした。",
-            "sources": [s["fileName"] for s in sources],
+            "answer": answer,
+            "sources": source_names,
+            "userMessageId": user_msg_id,
+            "aiMessageId": ai_msg_id,
         }
 
     # 5. Generate answer using Bedrock RAG
@@ -366,11 +470,18 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
 
     source_names = list(set(c["fileName"] for c in retrieved_chunks))
 
+    # Save user question and AI answer to Messages table
+    user_msg_id, ai_msg_id = _save_kb_search_messages(
+        conversation_id, user_query, answer, source_names
+    )
+
     return {
         "conversationId": conversation_id,
         "query": user_query,
         "answer": answer,
         "sources": source_names,
+        "userMessageId": user_msg_id,
+        "aiMessageId": ai_msg_id,
     }
 
 
