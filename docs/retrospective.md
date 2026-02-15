@@ -11,6 +11,7 @@
 **問題：** `npm run build`実行時に複数のTypeScript型エラーが発生
 
 **修正箇所：**
+
 - `frontend/src/components/ChatScreen.tsx`
   - Amplify v6の`graphqlClient.graphql().subscribe()`呼び出しに型アサーション`as any`を追加（3箇所）
   - `extractData()`呼び出しすべてに型アサーション`as any`を追加（12箇所）
@@ -22,6 +23,7 @@
   - `Amplify.configure()`呼び出しに型アサーション`as any`を追加
 
 **効果：**
+
 - ✅ `npm run build`が正常に完了し、`frontend/out`ディレクトリに静的ファイル生成成功
 - ✅ Amplify v6の型定義との互換性問題を回避
 - ✅ Next.js静的エクスポートが正常動作
@@ -31,6 +33,7 @@
 **新規作成ファイル：** `cdk/lib/stacks/frontend_stack.py`
 
 **実装内容：**
+
 - S3バケット作成（フロントエンド静的ファイル用）
   - バケット名: `aichat-{env}-frontend-{account_id}`
   - スタック削除時に自動削除（`auto_delete_objects=True`）
@@ -44,11 +47,13 @@
   - CDKデプロイ時に自動実行
 
 **app.py更新：**
+
 - `FrontendStack`をインポート
 - インスタンス生成を追加（CloudFrontStack後、AppSyncStack前）
 - `frontend_url`をAppSyncStackに渡して依存関係を明示
 
 **効果：**
+
 - ✅ フロントエンド配信用CloudFrontディストリビューションが自動作成
 - ✅ `frontend/out`が自動的にS3へデプロイ
 - ✅ CloudFront URLでNext.jsアプリが配信可能
@@ -59,12 +64,14 @@
 #### **3. CDK全スタックデプロイ成功**
 
 **デプロイ結果：**
+
 - `aichat-dev-frontend`スタック新規作成（約5分）
 - **Frontend URL**: `https://dg88b3kzz7k6f.cloudfront.net`
 - **S3バケット**: `aichat-dev-frontend-590184009554`
 - **Distribution ID**: `E1QYBAICGTZBG`
 
 **outputs.json更新：**
+
 ```json
 "aichat-dev-frontend": {
   "FrontendBucketName": "aichat-dev-frontend-590184009554",
@@ -76,6 +83,7 @@
 #### **4. README.md更新**
 
 **追加内容：**
+
 - ディレクトリ構成に`frontend_stack.py`を追加
 - セットアップ手順にフロントエンドビルド手順を追加
 - CloudFront URLアクセス手順を追加
@@ -88,36 +96,43 @@
 #### **1. Amplify v6の型定義問題**
 
 **問題：**
+
 - `generateClient()`から生成される`graphqlClient`の型が、subscribe()やGraphQLResultの型を正しく推論しない
 - TypeScriptのビルド時に型エラーが大量発生
 
 **解決策：**
+
 - `as any`型アサーションで一時的に回避
 - 本質的には、Amplify v6の型定義ファイル（`@aws-amplify/api-graphql`）を適切にimportする必要がある
 
 **今後の改善案：**
+
 - Amplify v6のドキュメントを精査し、正しい型importを採用
 - `graphqlClient`の型を明示的に指定する
 
 #### **2. Next.js静的エクスポートのCloudFront配信**
 
 **ポイント：**
+
 - `output: 'export'`でビルドされた`frontend/out`ディレクトリをS3にデプロイ
 - CloudFrontのカスタムエラーレスポンスで404を`/index.html`にリダイレクト（SPAルーティング対応）
 - OAI（Origin Access Identity）でS3バケットへのCloudFront専用アクセスを制御
 
 **ベストプラクティス：**
+
 - 本番環境では独自ドメインを設定し、Route 53でDNS管理
 - HTTPS証明書（ACM）を使用してセキュアな配信を実現
 
 #### **3. CDKによる自動デプロイの便利さ**
 
 **BucketDeployment Construct:**
+
 - `aws-cdk-lib.aws_s3_deployment.BucketDeployment`を使用すると、ローカルディレクトリを自動的にS3へアップロード
 - CDKデプロイ時に毎回最新のフロントエンドビルド成果物がS3に反映される
 - Lambda関数（Custom Resource）で実装されており、CloudFormationスタック更新時に自動実行
 
 **注意点：**
+
 - `frontend/out`ディレクトリが存在しない場合、CDKデプロイが失敗する
 - 必ず`npm run build`を事前に実行する必要がある
 
@@ -128,18 +143,21 @@
 #### **1. TypeScript型エラーの事前チェック**
 
 **対策：**
+
 - フロントエンド変更時は必ず`npm run build`でビルドエラーがないか確認
 - CI/CDパイプラインにTypeScriptビルドを組み込み、PRマージ前に自動チェック
 
 #### **2. Amplify v6型定義の正しい使用**
 
 **対策：**
+
 - Amplify v6のドキュメントを精査し、`graphqlClient`の型を明示的に指定
 - `as any`型アサーションは一時的な対応として、将来的に正しい型定義に移行
 
 #### **3. フロントエンドビルド成果物の存在確認**
 
 **対策：**
+
 - CDKデプロイ前に`frontend/out`ディレクトリの存在確認スクリプトを追加
 - デプロイ自動化スクリプトに`npm run build`を含める
 
