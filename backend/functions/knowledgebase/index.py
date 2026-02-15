@@ -8,6 +8,7 @@ Handles:
 """
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -30,9 +31,6 @@ config = get_config()
 
 AIHELPER_USER_ID = "AIHELPER"
 AIHELPER_DISPLAY_NAME = "AIHelper"
-
-# Current user context (set by lambda_handler)
-_current_user: dict = {}
 
 # Presigned URL expiry (seconds)
 PRESIGNED_URL_EXPIRY = 900  # 15 minutes
@@ -76,11 +74,6 @@ def lambda_handler(event: dict, context: Any) -> Any:
     info = event.get("info", {})
     field_name = info.get("fieldName", "")
     arguments = event.get("arguments", {})
-    
-    # Extract user identity from AppSync context
-    request_ctx = event.get("requestContext", {})
-    identity = request_ctx.get("identity", {})
-    _set_current_user(identity)
 
     logger.info("Knowledgebase handler: field=%s", field_name)
 
@@ -103,38 +96,36 @@ def lambda_handler(event: dict, context: Any) -> Any:
 # =========================================================
 
 
-def _set_current_user(identity: dict) -> None:
-    """Set current user from AppSync identity."""
-    global _current_user
-    _current_user = identity
 
-
-def _get_current_user() -> dict:
-    """Get current user identity."""
-    return _current_user
 
 
 def _save_kb_search_messages(
     conversation_id: str,
     user_query: str,
+    user_id: str,
+    display_name: str,
     answer: str,
     sources: list[str],
 ) -> tuple[str, str]:
     """Save KB search user question and AI answer to Messages table.
     
+    Args:
+        conversation_id: Conversation ID
+        user_query: User's query text
+        user_id: Authenticated user ID from AppSync
+        display_name: User's display name from AppSync
+        answer: AI-generated answer
+        sources: List of source file names
+    
     Returns: (user_message_id, ai_message_id)
     """
     messages_table = get_dynamodb_table(config.messages_table)
-    now = utc_now_iso()
     
-    # Get user info from AppSync context
-    current_user = _get_current_user()
-    user_id = current_user.get("claims", {}).get("sub", "UNKNOWN")
-    # Extract username from Cognito sub claim
-    if ":" in user_id:
-        user_id = user_id.split(":")[-1]
-    
-    display_name = current_user.get("claims", {}).get("cognito:username", user_id)
+    # Generate timestamps: user question 1 second before AI answer
+    # This ensures proper ordering in message list (questions before answers)
+    now_dt = datetime.now(timezone.utc)
+    user_timestamp = (now_dt - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+    ai_timestamp = now_dt.isoformat().replace("+00:00", "Z")
     
     # User question message
     user_msg_id = generate_uuid()
@@ -144,7 +135,7 @@ def _save_kb_search_messages(
         "userId": user_id,
         "displayName": display_name,
         "content": f"📚 KB検索: {user_query}",
-        "timestamp": now,
+        "timestamp": user_timestamp,
         "isUsedInSummary": False,
     }
     messages_table.put_item(Item=user_message)
@@ -163,7 +154,7 @@ def _save_kb_search_messages(
         "userId": AIHELPER_USER_ID,
         "displayName": "AIHelper (KB)",
         "content": answer + sources_attribution,
-        "timestamp": now,
+        "timestamp": ai_timestamp,
         "isUsedInSummary": False,
     }
     messages_table.put_item(Item=ai_message)
@@ -370,6 +361,8 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
     inp = arguments.get("input", {})
     conversation_id = inp["conversationId"]
     user_query = inp["query"]
+    user_id = inp.get("userId", "UNKNOWN")
+    display_name = inp.get("displayName", user_id)
 
     # 1. Get knowledge sources for this conversation
     table = get_dynamodb_table(config.knowledge_sources_table)
@@ -387,7 +380,7 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
             "ヘッダーの📚ボタンからファイルをアップロードしてください。"
         )
         user_msg_id, ai_msg_id = _save_kb_search_messages(
-            conversation_id, user_query, answer, []
+            conversation_id, user_query, user_id, display_name, answer, []
         )
         return {
             "conversationId": conversation_id,
@@ -404,6 +397,8 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
         user_msg_id, ai_msg_id = _save_kb_search_messages(
             conversation_id,
             user_query,
+            user_id,
+            display_name,
             result["answer"],
             result["sources"],
         )
@@ -438,7 +433,7 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
         answer = "登録されたドキュメントから該当する情報は見つかりませんでした。"
         source_names = [s["fileName"] for s in sources]
         user_msg_id, ai_msg_id = _save_kb_search_messages(
-            conversation_id, user_query, answer, source_names
+            conversation_id, user_query, user_id, display_name, answer, source_names
         )
         return {
             "conversationId": conversation_id,
@@ -472,7 +467,7 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
 
     # Save user question and AI answer to Messages table
     user_msg_id, ai_msg_id = _save_kb_search_messages(
-        conversation_id, user_query, answer, source_names
+        conversation_id, user_query, user_id, display_name, answer, source_names
     )
 
     return {

@@ -170,6 +170,8 @@ input DeleteKnowledgebaseInput {
 input SearchKnowledgebaseInput {
   conversationId: ID!
   query: String!
+  userId: String!
+  displayName: String!
 }
 
 # ------ Responses ------

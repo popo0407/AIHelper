@@ -23,6 +23,7 @@ import {
   CREATE_CONVERSATION,
   UPDATE_CONVERSATION_TITLE,
   SEARCH_KNOWLEDGEBASE,
+  LIST_KNOWLEDGE_SOURCES,
   ON_NEW_MESSAGE,
   ON_SUMMARY_UPDATE,
   ON_LOCK_CHANGE,
@@ -36,6 +37,7 @@ import type {
   LockState,
   AIActionType,
   KnowledgeSearchResult,
+  KnowledgeSource,
 } from '@/types';
 import { AIHELPER_USER_ID } from '@/types';
 
@@ -249,6 +251,20 @@ export function ChatScreen({
       setLocks([]);
     }
 
+    // ナレッジソースを読み込み
+    try {
+      const kbResult = await graphqlClient.graphql({
+        query: LIST_KNOWLEDGE_SOURCES,
+        variables: { conversationId: conversation.conversationId },
+      });
+      const kbData = extractData<KnowledgeSource[]>(kbResult, 'listKnowledgeSources');
+      const sources = kbData ?? [];
+      setKbSourceCount(sources.length);
+    } catch (err) {
+      console.error('Failed to load knowledge sources:', err);
+      setKbSourceCount(0);
+    }
+
     setIsLoading(false);
   }
 
@@ -336,6 +352,8 @@ export function ChatScreen({
             input: {
               conversationId: conversation.conversationId,
               query,
+              userId: user.loginId,
+              displayName: user.displayName,
             },
           },
         });
