@@ -9,6 +9,7 @@
 #### **1. 修正背景**
 
 前回のAI送信ボタン改善で、AIHelperButtonsコンポーネント全体を削除してしまいましたが、実際には：
+
 - ❌ 削除するべきだったのは「入力している内容についてのAI回答（answer）」ボタンだけ
 - ✅ 「選択メッセージをAI要約」「選択メッセージに対するAI意見」などのボタンは残すべきだった
 
@@ -25,18 +26,20 @@
    - `.filter((button) => !excludeButtonIds.includes(button.id))` でボタンを条件付きレンダリング
    - JSXドキュメントコメントを更新
 
-3. [frontend/src/__tests__/AIHelperButtons.test.tsx](../frontend/src/__tests__/AIHelperButtons.test.tsx)
+3. [frontend/src/**tests**/AIHelperButtons.test.tsx](../frontend/src/__tests__/AIHelperButtons.test.tsx)
    - excludeButtonIdsプロップのテストを追加（3つのテスト）
    - テスト総数：22個（すべてパス）
 
 #### **3. 改善効果**
 
 **修正前の状態（誤り）：**
+
 - ❌ AIHelperButtonsが完全に削除されていた
 - ❌ 「選択メッセージをAI要約」「意見」ボタンが使用できない
 - ✅ AI送信機能はMessageInputに統合済み（これは正しい）
 
 **修正後の状態（正解）：**
+
 - ✅ AIHelperButtons復活（全ボタンが表示）
 - ✅ answer（入力テキストについてのAI回答）ボタンのみ非表示
   - その機能はMessageInputの「AI送信」ボタンで実装済み
@@ -46,6 +49,7 @@
 #### **4. excludeButtonIds プロップの利点**
 
 新しい `excludeButtonIds` プロップにより：
+
 - 汎用性が向上（将来的に他のボタンも除外可能）
 - ChatScreen側で簡単に必要な機能をコントロール可能
 - コンポーネントの責務が明確化
@@ -61,6 +65,7 @@
 #### **5. テスト結果**
 
 ✅ AIHelperButtons.test.tsx: **22 tests passed**
+
 - 基本的なボタン表示テスト
 - excludeButtonIds デバッグに関するテスト（3個）
 - enable/disable条件テスト
