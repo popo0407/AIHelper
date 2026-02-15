@@ -8,17 +8,19 @@ import { MessageInput } from '@/components/MessageInput';
 describe('MessageInput', () => {
   const onChange = jest.fn();
   const onSend = jest.fn();
+  const onAISend = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  function renderInput(value = '', disabled = false) {
+  function renderInput(value = '', disabled = false, withAISend = false) {
     return render(
       <MessageInput
         value={value}
         onChange={onChange}
         onSend={onSend}
+        onAISend={withAISend ? onAISend : undefined}
         disabled={disabled}
       />
     );
@@ -122,5 +124,44 @@ describe('MessageInput', () => {
 
     expect(textarea).toBeDisabled();
     expect(sendButton).toBeDisabled();
+  });
+
+  // ── 7. AI送信ボタン ──
+  it('onAISendが渡されているときAI送信ボタンが表示される', () => {
+    renderInput('テスト', false, true);
+
+    const aiSendButton = screen.getByLabelText('AIに質問を送信');
+    expect(aiSendButton).toBeInTheDocument();
+  });
+
+  it('onAISendが渡されていないときAI送信ボタンは表示されない', () => {
+    renderInput('テスト', false, false);
+
+    const aiSendButton = screen.queryByLabelText('AIに質問を送信');
+    expect(aiSendButton).not.toBeInTheDocument();
+  });
+
+  it('AI送信ボタンをクリックすると onAISend が呼ばれる', async () => {
+    const user = userEvent.setup();
+    renderInput('AIへの質問', false, true);
+
+    const aiSendButton = screen.getByLabelText('AIに質問を送信');
+    await user.click(aiSendButton);
+
+    expect(onAISend).toHaveBeenCalledTimes(1);
+  });
+
+  it('値が空のときAI送信ボタンが disabled', () => {
+    renderInput('', false, true);
+
+    const aiSendButton = screen.getByLabelText('AIに質問を送信');
+    expect(aiSendButton).toBeDisabled();
+  });
+
+  it('値があるときAI送信ボタンが enabled', () => {
+    renderInput('質問内容', false, true);
+
+    const aiSendButton = screen.getByLabelText('AIに質問を送信');
+    expect(aiSendButton).not.toBeDisabled();
   });
 });

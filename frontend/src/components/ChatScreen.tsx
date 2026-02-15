@@ -5,7 +5,6 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { SummarySidebar } from '@/components/SummarySidebar';
-import { AIHelperButtons } from '@/components/AIHelperButtons';
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { KnowledgebasePanel } from '@/components/KnowledgebasePanel';
 import { graphqlClient, extractData } from '@/lib/appsync';
@@ -586,6 +585,26 @@ export function ChatScreen({
     [user, conversation.conversationId, inputText, selectedMessageIds]
   );
 
+  // ── AI Send (with user message display) ──
+  const handleAISend = useCallback(async () => {
+    if (!inputText.trim()) return;
+
+    // Add user message to chat
+    const userMessage: Message = {
+      conversationId: conversation.conversationId,
+      messageId: `temp-${Date.now()}`,
+      userId: user.loginId,
+      displayName: user.displayName,
+      content: inputText,
+      timestamp: new Date().toISOString(),
+      isUsedInSummary: false,
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    // Call AI Helper
+    await handleAIAction('answer');
+  }, [inputText, conversation.conversationId, user, handleAIAction]);
+
   // ── Copy share link ──
   const handleCopyLink = useCallback(() => {
     const url = `${window.location.origin}/chat?cid=${conversation.conversationId}`;
@@ -698,21 +717,13 @@ export function ChatScreen({
           />
           <div ref={messagesEndRef} />
 
-          {/* AI buttons */}
-          <AIHelperButtons
-            selectedCount={selectedMessageIds.size}
-            inputText={inputText}
-            onAction={handleAIAction}
-            isProcessing={isAIProcessing}
-            lockState={lockState}
-          />
-
           {/* Message input */}
           <div className="border-t border-serendie-gray-200 bg-white p-4">
             <MessageInput
               value={inputText}
               onChange={setInputText}
               onSend={handleSendMessage}
+              onAISend={handleAISend}
               disabled={isLoading}
               kbSearchEnabled={kbSearchEnabled}
               onToggleKbSearch={() => setKbSearchEnabled((prev) => !prev)}

@@ -6,6 +6,7 @@ interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
+  onAISend?: () => void;
   disabled?: boolean;
   kbSearchEnabled?: boolean;
   onToggleKbSearch?: () => void;
@@ -19,6 +20,7 @@ export function MessageInput({
   value,
   onChange,
   onSend,
+  onAISend,
   disabled = false,
   kbSearchEnabled = false,
   onToggleKbSearch,
@@ -106,6 +108,16 @@ export function MessageInput({
         >
           {kbSearchEnabled ? '🔍 検索' : '送信'}
         </button>
+        {onAISend && !kbSearchEnabled && (
+          <button
+            className="btn-secondary flex-shrink-0"
+            onClick={onAISend}
+            disabled={disabled || !value.trim()}
+            aria-label="AIに質問を送信"
+          >
+            AI送信
+          </button>
+        )}
       </div>
     </div>
   );

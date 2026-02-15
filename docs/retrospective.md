@@ -2,6 +2,55 @@
 
 ---
 
+## 📅 **2026年2月15日（追記4） — AI送信ボタンのUI改善とユーザー入力の表示**
+
+### ✅ **完了した内容**
+
+#### **1. 要望**
+
+- AIアシスタントのボタンを「AI送信」という名前に変更し、「送信」ボタンの隣に配置
+- AI送信時にユーザーの入力内容もチャット欄に表示されるように改善（現在は表示されていなかった）
+
+#### **2. 実施した変更**
+
+**変更箇所：**
+
+1. [frontend/src/components/MessageInput.tsx](../frontend/src/components/MessageInput.tsx)
+   - `onAISend` プロパティを追加
+   - 「AI送信」ボタンを「送信」ボタンの隣に配置
+   - ナレッジベース検索モード時はAI送信ボタンを非表示
+
+2. [frontend/src/components/ChatScreen.tsx](../frontend/src/components/ChatScreen.tsx)
+   - `handleAISend`メソッドを新規作成
+     - ユーザー入力をメッセージとしてチャットに追加
+     - その後AIに質問を送信
+   - `AIHelperButtons`コンポーネントを削除（メッセージ入力エリアに統合）
+
+3. [frontend/src/__tests__/MessageInput.test.tsx](../frontend/src/__tests__/MessageInput.test.tsx)
+   - AI送信ボタンのテストケースを追加（5つのテスト）
+   - 全15テストが正常にパス
+
+#### **3. 改善効果**
+
+**Before：**
+- AIHelperButtonsが別の場所に表示されていた
+- AI送信時にユーザー入力がチャット欄に表示されない
+- UIが分散していて直感的でない
+
+**After：**
+- ✅ 「送信」と「AI送信」が並んで表示され、意図が明確
+- ✅ AI送信時もユーザーの質問がチャット履歴に残る
+- ✅ UIがシンプルで統一感が向上
+- ✅ 通常のチャットと同様の操作感
+
+#### **4. 技術的なポイント**
+
+- `handleAISend`でユーザーメッセージを即座に追加してからAI処理を開始
+- `onAISend`プロップの有無で条件付きレンダリング
+- ナレッジベース検索モード（`kbSearchEnabled`）時はAI送信ボタンを非表示（機能的に競合するため）
+
+---
+
 ## 📅 **2026年2月15日（追記3） — AIHelper機能のメッセージ選択・入力データ送信バグ修正**
 
 ### ✅ **完了した内容**
@@ -9,6 +58,7 @@
 #### **1. 問題の発見**
 
 **問題：** AIHelperの以下の機能で、選択したチャットの内容や入力したチャットの内容が送信されていなかった
+
 - 選択したチャットをAI要約
 - 選択したチャットに対するAI意見
 - 入力している内容についてのAI回答
@@ -20,6 +70,7 @@
 **根本原因：** `frontend/src/components/ChatScreen.tsx`の`handleAIAction`のuseCallback依存配列に`inputText`と`selectedMessageIds`が含まれていなかった
 
 **詳細：**
+
 - `handleAIAction`は`[user, conversation.conversationId]`のみに依存
 - `inputText`と`selectedMessageIds`が依存配列に含まれていないため、コールバックが作成時の古い値（初期値の空の状態）をキャプチャ
 - ボタンクリック時に常に空のデータが送信されていた
@@ -36,6 +87,7 @@
 ```
 
 **効果：**
+
 - ✅ `inputText`や`selectedMessageIds`が変更されるたびに`handleAIAction`が再作成される
 - ✅ 常に最新のメッセージ選択状態とユーザー入力がAIに送信される
 - ✅ AIHelperが正しく選択メッセージと入力内容を受け取れる
@@ -43,30 +95,36 @@
 #### **4. テストと検証**
 
 **ユニットテスト：**
+
 - ✅ フロントエンド: `AIHelperButtons.test.tsx` — 19テスト全て通過
 - ✅ バックエンド: `test_ai_support.py` — 11テスト全て通過
 
 **デプロイ：**
+
 - ✅ `npm run build` — フロントエンドビルド成功
 - ✅ `cdk deploy aichat-dev-frontend` — AWS環境デプロイ成功
 
 ### 🔍 **原因分析**
 
 **技術的な問題：**
+
 - React HooksのuseCallbackの依存配列管理不足
 - クロージャによる古い値のキャプチャ
 
 **検出の遅れた理由：**
+
 - ユニットテストではモック関数を使用していたため、実際のデータフローの問題を検出できなかった
 - 統合テストやE2Eテストが不足していた
 
 ### 💡 **改善策**
 
 **即座の対応：**
+
 - ✅ useCallbackの依存配列に必要な状態変数を追加
 - ✅ フロントエンドとバックエンドのユニットテスト実行で既存機能に影響がないことを確認
 
 **今後の予防策：**
+
 1. **useCallback/useMemoの依存配列チェック**
    - ESLint rule `react-hooks/exhaustive-deps`を有効化して警告を確認
    - コードレビュー時に依存配列を重点的にチェック

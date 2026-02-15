@@ -11,7 +11,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **ユーザー認証:** Amazon Cognito による安全なログイン（管理者のみユーザー登録可）
 - **リアルタイムチャット:** AppSync (GraphQL WebSocket) でリアルタイム更新
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
-- **AIアシスタント:** 複数の相談ボタンで AI に質問・回答を依頼
+- **AIアシスタント:** メッセージ入力欄の「AI送信」ボタンで AI に質問・回答を依頼（ユーザーの質問もチャット履歴に表示）
 - **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、Bedrock RAG で検索・回答
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
 - **会話管理:** 複数会話のサポート、リンク共有機能
@@ -90,9 +90,8 @@ AICHAT/
 │   │   │   ├── ChatHeader.tsx
 │   │   │   ├── ChatBubble.tsx
 │   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageInput.tsx
+│   │   │   ├── MessageInput.tsx        # 送信・AI送信ボタンを統合
 │   │   │   ├── SummarySidebar.tsx
-│   │   │   ├── AIHelperButtons.tsx
 │   │   │   ├── KnowledgebasePanel.tsx
 │   │   │   └── NotificationBanner.tsx
 │   │   ├── graphql/                # GraphQL 操作定義
