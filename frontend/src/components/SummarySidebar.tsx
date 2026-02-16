@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { Summary, LockState } from '@/types';
 import { SUMMARY_MAX_LENGTH } from '@/types';
 
@@ -28,6 +29,7 @@ interface SummarySidebarProps {
  * - Lock state shown as glassmorphism overlay
  * - Editing state highlighted with accent border
  * - AI-generated content has a subtle badge
+ * - Copy button added for copying summary text to clipboard
  */
 export function SummarySidebar({
   summary,
@@ -46,8 +48,45 @@ export function SummarySidebar({
   canAddToSummary = false,
   selectedMessageCount = 0,
 }: SummarySidebarProps) {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [copyMessage, setCopyMessage] = useState('');
+
   const charCount = isEditing ? editContent.length : (summary?.current?.length ?? 0);
   const isOverLimit = charCount > SUMMARY_MAX_LENGTH;
+
+  // Reset copy status after 3 seconds
+  useEffect(() => {
+    if (copyStatus !== 'idle') {
+      const timer = setTimeout(() => {
+        setCopyStatus('idle');
+        setCopyMessage('');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [copyStatus]);
+
+  /**
+   * Copy summary text to clipboard
+   */
+  const handleCopySummary = async () => {
+    const textToCopy = isEditing ? editContent : (summary?.current ?? '');
+
+    if (!textToCopy) {
+      setCopyStatus('error');
+      setCopyMessage('コピーするテキストがありません');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopyStatus('success');
+      setCopyMessage('コピーしました！');
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+      setCopyStatus('error');
+      setCopyMessage('コピーに失敗しました');
+    }
+  };
 
   return (
     <div className={`sidebar-panel flex flex-col ${isEditing ? 'sidebar-editing' : ''}`}>
@@ -57,10 +96,43 @@ export function SummarySidebar({
           <h2 className="text-lg font-bold text-serendie-gray-900">
             要約
           </h2>
-          <span className="text-xs text-serendie-gray-400">
-            {charCount} / {SUMMARY_MAX_LENGTH}
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Copy button */}
+            <button
+              onClick={handleCopySummary}
+              disabled={!summary?.current || isEditing}
+              className="p-1 rounded hover:bg-serendie-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="要約をコピー"
+              title="要約をコピー"
+            >
+              {copyStatus === 'success' ? (
+                <span className="text-green-500" aria-label="コピー成功">
+                  ✓
+                </span>
+              ) : (
+                <span className="text-serendie-gray-600">📋</span>
+              )}
+            </button>
+            <span className="text-xs text-serendie-gray-400">
+              {charCount} / {SUMMARY_MAX_LENGTH}
+            </span>
+          </div>
         </div>
+
+        {/* Copy status message */}
+        {copyStatus !== 'idle' && (
+          <div
+            className={`mt-2 text-sm p-2 rounded ${
+              copyStatus === 'success'
+                ? 'bg-green-50 text-green-700'
+                : 'bg-red-50 text-red-700'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            {copyMessage}
+          </div>
+        )}
         {/* Add to summary button */}
         {selectedMessageCount > 0 && (
           <button

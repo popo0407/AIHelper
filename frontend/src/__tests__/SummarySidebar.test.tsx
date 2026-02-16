@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SummarySidebar } from '@/components/SummarySidebar';
 import type { Summary, LockState } from '@/types';
@@ -83,10 +83,10 @@ describe('SummarySidebar', () => {
     expect(screen.getByText(/最終更新: 田中太郎/)).toBeInTheDocument();
   });
 
-  it('ヘッダーに「要約・議事録」タイトルが表示される', () => {
+  it('ヘッダーに「要約」タイトルが表示される', () => {
     render(<SummarySidebar {...defaultProps} />);
 
-    expect(screen.getByText('要約・議事録')).toBeInTheDocument();
+    expect(screen.getByText('要約')).toBeInTheDocument();
   });
 
   // ── 2. 編集モードに切り替えられること ──
@@ -204,5 +204,32 @@ describe('SummarySidebar', () => {
     // testSummary.current の長さ + " / 5000"
     const expectedLength = testSummary.current!.length;
     expect(screen.getByText(`${expectedLength} / 5000`)).toBeInTheDocument();
+  });
+
+  // ── 4. コピー機能 ──
+  describe('コピー機能', () => {
+    it('コピーボタンが表示される', () => {
+      render(<SummarySidebar {...defaultProps} />);
+
+      expect(screen.getByLabelText('要約をコピー')).toBeInTheDocument();
+    });
+
+    it('テキストがない場合はコピーボタンが disabled', () => {
+      render(<SummarySidebar {...defaultProps} summary={null} />);
+
+      expect(screen.getByLabelText('要約をコピー')).toBeDisabled();
+    });
+
+    it('編集中はコピーボタンが disabled', () => {
+      render(
+        <SummarySidebar
+          {...defaultProps}
+          isEditing={true}
+          editContent="編集中"
+        />
+      );
+
+      expect(screen.getByLabelText('要約をコピー')).toBeDisabled();
+    });
   });
 });
