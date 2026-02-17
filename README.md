@@ -13,7 +13,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
 - **要約のコピー機能:** 右サイドバーの要約表示領域全体をクリップボードにコピー可能
 - **AIアシスタント:** メッセージ入力欄の「AI送信」ボタンで AI に質問・回答を依頼（ユーザーの質問もチャット履歴に表示）
-- **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、Bedrock RAG で検索・回答
+- **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS）で RAG 検索・回答生成
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
 - **会話管理:** 複数会話のサポート、リンク共有機能
 
@@ -24,10 +24,10 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **認証:** Amazon Cognito User Pools
 - **ストレージ:** Amazon DynamoDB
 - **AI エンジン:** Amazon Bedrock（Claude Haiku 4.5 推論プロファイルモデル）
-- **ナレッジベース:** Amazon S3 + Bedrock RAG（ドキュメント検索）
+- **ナレッジベース:** Amazon S3（Tokyo）+ AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS、Titan Embeddings V2 + cosine類似度検索）
 - **CDN / CORS プロキシ:** Amazon CloudFront（S3 presigned URL のプロキシ）
-- **リージョン:** Tokyo（東京）（Bedrock のみオレゴン）
-- **Infrastructure:** AWS CDK
+- **リージョン:** Tokyo（ap-northeast-1）
+- **Infrastructure:** AWS CDK + AWS CLI (Knowledge Base)
 
 ---
 
@@ -43,6 +43,8 @@ AICHAT/
 │   ├── app.py                      # CDK エントリーポイント
 │   ├── cdk.json                    # CDK 設定
 │   ├── requirements-cdk.txt        # CDK 依存関係
+│   ├── deploy-kb-complete.py       # S3 Vectors + Knowledge Base デプロイスクリプト (AWS CLI)
+│   ├── add-datasource.py           # Knowledge Base データソース追加スクリプト
 │   ├── graphql/
 │   │   └── schema.graphql          # AppSync GraphQL スキーマ
 │   └── lib/
@@ -467,7 +469,13 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 ---
 
 ## � **変更履歴**
+### v0.6.0 (2026-02-17)
 
+- **Knowledge Base S3_VECTORS 実装:** Tokyo リージョン（ap-northeast-1）でS3_VECTORSストレージを使用したBedrock Knowledge Baseのデプロイ成功
+- **AWS CLI デプロイスクリプト:** `deploy-kb-complete.py` でS3 Vectorsバケット・インデックス・IAMロール・Knowledge Baseを自動作成
+- **データソース自動追加:** `add-datasource.py` で既存S3バケットをデータソースとして登録し、自動インジェスト実行
+- **リージョン統一:** Knowledge Base を us-west-2 から ap-northeast-1 に移行し、全リソースをTokyoリージョンに統一
+- **検索機能確認:** Bedrock Agent Runtime `retrieve` API で正常動作を確認（4ドキュメントインデックス済み）
 ### v0.5.0 (2026-02-14)
 
 - **ISSUE 01:** ユーザーID表示の改善 — 要約の最終更新表示がUUIDからユーザー名に変更

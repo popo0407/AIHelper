@@ -41,33 +41,6 @@ MAX_FILE_SIZE = 25 * 1024 * 1024
 # Allowed content types
 ALLOWED_CONTENT_TYPES = {"pdf", "docx", "doc", "html", "md", "txt"}
 
-# ----- Prompt Templates -----
-
-EXTRACT_KEYWORDS_PROMPT = """あなたは質問分析の専門家です。
-ユーザーの質問から、ドキュメント検索に最適な3〜5個のキーワードを抽出してください。
-
-ユーザーの質問:
-{user_query}
-
-出力形式: JSON配列のみ（例: ["キーワード1", "キーワード2", "キーワード3"]）
-余計な説明は不要です。"""
-
-RAG_ANSWER_PROMPT = """あなたはナレッジベース検索アシスタントです。
-ユーザーの質問に対し、提供されたドキュメントのみから回答してください。
-
-ユーザーの質問:
-{user_query}
-
-参照ドキュメント:
----
-{retrieved_chunks}
----
-
-注意:
-- ドキュメントに情報がない場合は「該当する情報は見つかりませんでした」と明記
-- 必ず出典ファイル名を【出典: ファイル名】の形式で記載
-- 日本語で簡潔に回答"""
-
 
 def lambda_handler(event: dict, context: Any) -> Any:
     """Main Lambda handler routed by AppSync field name."""
@@ -357,22 +330,19 @@ def handle_delete_knowledgebase(arguments: dict) -> dict:
 
 
 def handle_search_knowledgebase(arguments: dict) -> dict:
-    """RAG pipeline: extract keywords → retrieve → generate answer."""
+    """Search Knowledge Base using Bedrock RetrieveAndGenerate API."""
     inp = arguments.get("input", {})
     conversation_id = inp["conversationId"]
     user_query = inp["query"]
     user_id = inp.get("userId", "UNKNOWN")
     display_name = inp.get("displayName", user_id)
     
-    # Debug logging
     logger.info(
-        "searchKnowledgebase input: conversationId=%s, query=%s, userId=%s, displayName=%s",
+        "searchKnowledgebase: conversationId=%s, query=%s, userId=%s",
         conversation_id,
         user_query,
         user_id,
-        display_name,
     )
-    logger.info("Full input dict: %s", json.dumps(inp, default=str))
 
     # 1. Get knowledge sources for this conversation
     table = get_dynamodb_table(config.knowledge_sources_table)
@@ -401,7 +371,7 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
             "aiMessageId": ai_msg_id,
         }
 
-    # 2. Mock mode or real Bedrock
+    # 2. Mock mode
     if config.use_mock_ai:
         result = _mock_search_result(conversation_id, user_query, sources)
         user_msg_id, ai_msg_id = _save_kb_search_messages(
@@ -416,66 +386,53 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
         result["aiMessageId"] = ai_msg_id
         return result
 
-    # 3. Extract keywords using Bedrock
-    bedrock_client = get_bedrock_client(config.bedrock_region)
-    keywords_prompt = EXTRACT_KEYWORDS_PROMPT.format(user_query=user_query)
-    keywords_raw = invoke_bedrock(
-        bedrock_client,
-        config.bedrock_model_id,
-        keywords_prompt,
-        max_tokens=200,
-        temperature=0.1,
-    )
-
+    # 3. Call Bedrock RetrieveAndGenerate API
     try:
-        keywords = json.loads(keywords_raw)
-    except (json.JSONDecodeError, TypeError):
-        keywords = [user_query]
-
-    logger.info("Extracted keywords: %s", keywords)
-
-    # 4. Retrieve relevant content from S3 files
-    retrieved_chunks = _retrieve_from_s3(
-        conversation_id, sources, keywords, user_query
-    )
-
-    if not retrieved_chunks:
-        answer = "登録されたドキュメントから該当する情報は見つかりませんでした。"
-        source_names = [s["fileName"] for s in sources]
-        user_msg_id, ai_msg_id = _save_kb_search_messages(
-            conversation_id, user_query, user_id, display_name, answer, source_names
+        bedrock_client = boto3.client(
+            "bedrock-agent-runtime",
+            region_name=config.bedrock_region,
         )
-        return {
-            "conversationId": conversation_id,
-            "query": user_query,
-            "answer": answer,
-            "sources": source_names,
-            "userMessageId": user_msg_id,
-            "aiMessageId": ai_msg_id,
-        }
-
-    # 5. Generate answer using Bedrock RAG
-    chunks_text = "\n\n".join(
-        [
-            f"【{c['fileName']}】\n{c['content']}"
-            for c in retrieved_chunks
-        ]
-    )
-    rag_prompt = RAG_ANSWER_PROMPT.format(
-        user_query=user_query,
-        retrieved_chunks=chunks_text,
-    )
-    answer = invoke_bedrock(
-        bedrock_client,
-        config.bedrock_model_id,
-        rag_prompt,
-        max_tokens=2048,
-        temperature=0.3,
-    )
-
-    source_names = list(set(c["fileName"] for c in retrieved_chunks))
-
-    # Save user question and AI answer to Messages table
+        
+        response = bedrock_client.retrieve_and_generate(
+            input={"text": user_query},
+            retrieveAndGenerateConfiguration={
+                "type": "KNOWLEDGE_BASE",
+                "knowledgeBaseConfiguration": {
+                    "knowledgeBaseId": config.bedrock_kb_id,
+                    "modelArn": f"arn:aws:bedrock:{config.bedrock_region}::foundation-model/{config.bedrock_model_id}",
+                },
+            },
+        )
+        
+        # Extract answer and source references
+        answer = response.get("output", {}).get("text", "回答の生成に失敗しました。")
+        
+        # Extract source file names from citations
+        source_names = []
+        citations = response.get("citations", [])
+        for citation in citations:
+            for ref in citation.get("retrievedReferences", []):
+                location = ref.get("location", {})
+                s3_location = location.get("s3Location", {})
+                uri = s3_location.get("uri", "")
+                if uri:
+                    # Extract file name from S3 URI
+                    file_name = uri.split("/")[-1]
+                    if file_name and file_name not in source_names:
+                        source_names.append(file_name)
+        
+        # If no sources extracted from citations, use all registered sources
+        if not source_names:
+            source_names = [s["fileName"] for s in sources]
+        
+        logger.info("KB search completed: sources=%s", source_names)
+        
+    except Exception as e:
+        logger.error("Bedrock RetrieveAndGenerate failed: %s", e, exc_info=True)
+        answer = f"ナレッジベース検索中にエラーが発生しました: {str(e)}"
+        source_names = []
+    
+    # 4. Save user question and AI answer to Messages table
     user_msg_id, ai_msg_id = _save_kb_search_messages(
         conversation_id, user_query, user_id, display_name, answer, source_names
     )
@@ -488,165 +445,6 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
         "userMessageId": user_msg_id,
         "aiMessageId": ai_msg_id,
     }
-
-
-# =========================================================
-# S3 text retrieval (simple keyword matching)
-# =========================================================
-
-
-def _retrieve_from_s3(
-    conversation_id: str,
-    sources: list[dict],
-    keywords: list[str],
-    user_query: str,
-) -> list[dict]:
-    """Retrieve relevant text chunks from S3 files.
-
-    Simple implementation: download files, extract text,
-    and search for keyword matches.
-    When AWS Knowledge Bases is configured, this can be
-    replaced with the Retrieve API.
-    """
-    s3_client = boto3.client("s3")
-    results = []
-
-    for source in sources:
-        try:
-            s3_key = source["s3Key"]
-            file_name = source["fileName"]
-            content_type = source.get("contentType", "txt")
-
-            # Get file from S3
-            obj = s3_client.get_object(
-                Bucket=config.knowledge_bucket,
-                Key=s3_key,
-            )
-            raw_content = obj["Body"].read()
-
-            # Extract text based on content type
-            text = _extract_text(raw_content, content_type)
-            if not text:
-                continue
-
-            # Simple keyword matching: split into chunks and score
-            chunks = _split_into_chunks(text, chunk_size=500)
-            for chunk in chunks:
-                chunk_lower = chunk.lower()
-                query_lower = user_query.lower()
-                score = sum(
-                    1 for kw in keywords if kw.lower() in chunk_lower
-                )
-                # Also check if query terms appear
-                if any(term in chunk_lower for term in query_lower.split()):
-                    score += 1
-
-                if score > 0:
-                    results.append(
-                        {
-                            "fileName": file_name,
-                            "content": chunk.strip(),
-                            "score": score,
-                        }
-                    )
-        except Exception as e:
-            logger.warning("Failed to process file %s: %s", source.get("fileName"), e)
-            continue
-
-    # Sort by score and return top results
-    results.sort(key=lambda x: x["score"], reverse=True)
-    return results[:5]
-
-
-def _extract_text(raw_content: bytes, content_type: str) -> str:
-    """Extract text from file content based on type."""
-    if content_type in ("txt", "md"):
-        return raw_content.decode("utf-8", errors="replace")
-    elif content_type == "html":
-        return _extract_html_text(raw_content)
-    elif content_type in ("pdf",):
-        return _extract_pdf_text(raw_content)
-    elif content_type in ("docx", "doc"):
-        return _extract_docx_text(raw_content)
-    return ""
-
-
-def _extract_html_text(raw_content: bytes) -> str:
-    """Extract text from HTML content."""
-    import re
-
-    text = raw_content.decode("utf-8", errors="replace")
-    # Remove HTML tags
-    text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL)
-    text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def _extract_pdf_text(raw_content: bytes) -> str:
-    """Extract text from PDF content.
-
-    Uses a simple approach - in production, consider PyPDF2 in Lambda Layer.
-    """
-    try:
-        import io
-
-        from PyPDF2 import PdfReader
-
-        reader = PdfReader(io.BytesIO(raw_content))
-        text_parts = []
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text_parts.append(page_text)
-        return "\n".join(text_parts)
-    except ImportError:
-        logger.warning("PyPDF2 not available, skipping PDF extraction")
-        return ""
-    except Exception as e:
-        logger.warning("PDF extraction failed: %s", e)
-        return ""
-
-
-def _extract_docx_text(raw_content: bytes) -> str:
-    """Extract text from DOCX content.
-
-    Uses python-docx if available, otherwise falls back.
-    """
-    try:
-        import io
-
-        from docx import Document
-
-        doc = Document(io.BytesIO(raw_content))
-        return "\n".join(p.text for p in doc.paragraphs if p.text)
-    except ImportError:
-        logger.warning("python-docx not available, skipping DOCX extraction")
-        return ""
-    except Exception as e:
-        logger.warning("DOCX extraction failed: %s", e)
-        return ""
-
-
-def _split_into_chunks(text: str, chunk_size: int = 500) -> list[str]:
-    """Split text into chunks of roughly chunk_size characters."""
-    if not text:
-        return []
-    chunks = []
-    words = text.split()
-    current_chunk: list[str] = []
-    current_len = 0
-    for word in words:
-        current_chunk.append(word)
-        current_len += len(word) + 1
-        if current_len >= chunk_size:
-            chunks.append(" ".join(current_chunk))
-            current_chunk = []
-            current_len = 0
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-    return chunks
 
 
 # =========================================================

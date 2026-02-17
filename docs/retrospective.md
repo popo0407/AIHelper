@@ -2,6 +2,128 @@
 
 ---
 
+## 📅 **2026年2月17日 — Bedrock Knowledge Base S3_VECTORSデプロイ成功**
+
+### ✅ **完了した内容**
+
+#### **1. 問題の経緯**
+
+CDK/CloudFormationでBedrock Knowledge BaseをS3_VECTORSストレージで東京リージョン（ap-northeast-1）にデプロイしようとしたが、繰り返しエラーが発生：
+
+- CDK/CloudFormation: `Invalid request provided: CreateKnowledgeBase` エラー
+- AWS CLI（誤った手法）: `Bedrock Knowledge Base was unable to assume the given role` エラー
+- 空の`s3VectorsConfiguration: {}`での試行: バリデーションエラー
+
+#### **2. 根本原因の特定**
+
+S3_VECTORSストレージは**事前作成が必須**であることを発見：
+
+- S3 Vectors Bucket を `aws s3vectors create-vector-bucket` で作成  
+- Vector Index を `aws s3vectors create-index` で作成（data-type, dimension, distance-metric指定必須）
+- Knowledge Base作成時に `vectorBucketArn` と `indexArn` を明示的に指定
+
+**誤ったエラーメッセージ:**
+
+- "unable to assume role" エラーは、実際にはIAMではなくS3 Vectorsリソース不足が原因だった
+- 空のs3VectorsConfigurationでは自動作成されない
+
+#### **3. 実装したソリューション**
+
+**作成したスクリプト:**
+
+1. [cdk/deploy-kb-complete.py](../cdk/deploy-kb-complete.py)
+   - S3 Vectors Bucket作成（`aichat-dev-vectors`）
+   - Vector Index作成（`aichat-dev-index`、float32、1024次元、cosine類似度）
+   - IAM Role作成（S3、S3Vectors、Bedrock InvokeModel権限）
+   - Knowledge Base作成（S3_VECTORS、Titan Embed Text V2）
+
+2. [cdk/add-datasource.py](../cdk/add-datasource.py)
+   - 既存S3バケット（`aichat-dev-knowledge-590184009554`）をデータソースとして追加
+   - チャンク設定（512トークン、20%オーバーラップ）
+   - 自動インジェストジョブ実行
+
+**パラメータの教訓:**
+
+- `--data-type`: `float32`（小文字必須）
+- `--distance-metric`: `cosine`（小文字必須）
+- `--dimension`: `1024`（Titan Embed Text V2の次元数）
+- `indexName`フィールドは`indexArn`指定時には不要
+
+#### **4. デプロイ結果**
+
+**作成されたリソース:**
+
+- **S3 Vectors Bucket**: `aichat-dev-vectors`
+- **Vector Index**: `aichat-dev-index` (arn:aws:s3vectors:ap-northeast-1:590184009554:bucket/aichat-dev-vectors/index/aichat-dev-index)
+- **IAM Role**: `aichat-dev-kb-role`
+- **Knowledge Base**: `2GUBTZQH2E` (STATUS: ACTIVE)
+- **Data Source**: `VMQLUARIKW` (4ドキュメントインデックス済み)
+
+**インジェスト結果:**
+
+```
+Status: COMPLETE
+Documents Scanned: 4
+Documents Indexed: 4
+Documents Failed: 0
+```
+
+**検索テスト:**
+
+```bash
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id 2GUBTZQH2E \
+  --retrieval-query "text=Statement" \
+  --region ap-northeast-1
+# 結果: Score 0.58 で正常に検索結果を返す
+```
+
+#### **5. アーキテクチャ変更**
+
+**変更前（失敗）:**
+
+- CDK/CloudFormationでKnowledge Baseを作成しようとした
+- us-west-2リージョンにKnowledge Baseを配置
+- S3_VECTORSの事前作成要件を理解していなかった
+
+**変更後（成功）:**
+
+- AWS CLIで`aws s3vectors`コマンドを使用してインフラ作成
+- ap-northeast-1リージョンに全リソースを統一
+- S3 Vectors → IAM Role → Knowledge Base → Data Source の順で明示的に作成
+- Pythonスクリプトで自動化（`deploy-kb-complete.py`、`add-datasource.py`）
+
+#### **6. 学んだ教訓**
+
+**技術的学び:**
+
+1. **S3_VECTORSは特殊なストレージ:** 通常のS3バケットではなく、`aws s3vectors`コマンドで管理する専用リソース
+2. **エラーメッセージの解釈:** "unable to assume role"は必ずしもIAMの問題ではない
+3. **パラメータの大文字小文字:** AWS CLIのenum値は小文字が多い（`float32`、`cosine`）
+4. **indexArnとindexNameの排他性:** ARN指定時にnameフィールドは不要
+
+**プロセス的学び:**
+
+1. **ドキュメント確認の重要性:** 公式ドキュメントで事前作成要件を確認すべきだった
+2. **既存リソースの調査:** 動作中のKnowledge Base (`2E1B7TUJR9`) の設定を早期に確認すべきだった
+3. **段階的アプローチ:** 一度に全てを実行せず、バケット→インデックス→ロール→KBの順で検証
+
+#### **7. 再発防止策**
+
+**技術面:**
+
+- [ ] S3_VECTORSのドキュメントリンクをスキルファイルに追加
+- [ ] `aws s3vectors`コマンドの使用方法をスキルに記録
+- [ ] 他のBedrockストレージタイプ（OpenSearch Serverless、RDS Aurora）の要件も調査
+
+**プロセス面:**
+
+- [ ] 新技術採用時は必ず公式ドキュメントを先に確認  
+- [ ] エラー発生時は既存の動作中リソースの設定を早期に確認
+- [ ] CloudFormation/CDKで未対応の機能はAWS CLIへの早期切り替えを検討
+
+---
+
 ## 📅 **2026年2月16日（修正） — AI送信ボタン改善の修正（AIHelperButtons復活）**
 
 ### ✅ **完了した内容**

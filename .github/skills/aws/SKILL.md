@@ -850,89 +850,37 @@ AWS Bedrock で利用可能な基礎モデル (Foundation Model) のモデル ID
 
 また、各モデルは **ON_DEMAND**（直接呼び出し）または **INFERENCE_PROFILE**（推論プロファイル経由）など、異なるスループット形式に対応しています。
 
-### モデル ID の確認方法
-
-**AWS CLI を使用して利用可能なモデル一覧を確認**:
-
-```bash
-# リージョンを指定してAnthropic社のモデルIDを取得
-aws bedrock list-foundation-models \
-  --region ap-northeast-1 \
-  --by-provider anthropic \
-  --query "modelSummaries[*].{ModelId:modelId, Name:modelName}" \
-  --output table
-
-# 特定のモデルファミリーを絞り込む場合
-aws bedrock list-foundation-models \
-  --region ap-northeast-1 \
-  --by-provider anthropic \
-  --query "modelSummaries[?contains(modelId, 'haiku') || contains(modelId, 'sonnet')].{ModelId:modelId, Name:modelName}" \
-  --output table
-```
-
 ### スループット型（ON_DEMAND vs INFERENCE_PROFILE）の確認方法
 
 **重要**: モデルのスループット形式を確認しないまま Lambda にデプロイすると、`ValidationException - Invocation with on-demand throughput isn't supported` エラーが発生します。
 
-**AWS CLI で特定モデルのスループット対応状況を確認**:
-
-```bash
-# 特定のモデルの詳細情報を取得
-aws bedrock get-foundation-model \
-  --model-identifier anthropic.claude-3-5-sonnet-20240620-v1:0 \
-  --region ap-northeast-1 \
-  --query "modelDetails.{ModelId:modelId, InferenceTypes:inferenceTypesSupported}" \
-  --output json
-
-# PowerShell で複数モデルを一括確認
-foreach($modelId in @(
-  "anthropic.claude-3-haiku-20240307-v1:0",
-  "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "anthropic.claude-3-5-sonnet-20241022-v2:0"
-)) {
-  $json = aws bedrock get-foundation-model --model-identifier $modelId --region ap-northeast-1 --output json | ConvertFrom-Json
-  Write-Host "$modelId => $($json.modelDetails.inferenceTypesSupported -join ', ')"
-}
-```
-
-**ap-northeast-1 での確認済みモデル**（2024 年末時点）:
-
-| モデル                                      | 対応スループット型 | 推奨用途                          |
-| ------------------------------------------- | ------------------ | --------------------------------- |
-| `anthropic.claude-3-haiku-20240307-v1:0`    | ON_DEMAND          | ✅ 直接呼び出し可（軽量タスク）   |
-| `anthropic.claude-3-5-sonnet-20240620-v1:0` | ON_DEMAND          | ✅ 直接呼び出し可（バランス重視） |
-| `anthropic.claude-3-5-sonnet-20241022-v2:0` | INFERENCE_PROFILE  | ❌ 推論プロファイル経由のみ       |
-| `anthropic.claude-haiku-4-5-20251001-v1:0`  | INFERENCE_PROFILE  | ❌ 推論プロファイル経由のみ       |
-
 ### 重要な注意点
 
 1. **モデル ID の形式**: モデル ID は `anthropic.claude-{model-family}-{version}:{variant}` の形式（例: `anthropic.claude-haiku-4-5-20251001-v1:0`）
-2. **リージョン依存**: 同じモデルでもリージョンによって利用不可の場合がある
-3. **スループット形式の重要性**: ON_DEMAND 対応のモデルのみを直接呼び出しできる。他のモデルは推論プロファイルを使用する必要がある
-4. **バージョン管理**: モデルのバージョンは定期的に更新されるため、最新のモデル ID を確認する
-5. **Model Access 設定**: AWS Bedrock Console でモデルへのアクセスを有効化する必要がある
-
-### トラブルシューティング
-
-**エラー**: `ValidationException - Invocation with on-demand throughput isn't supported`
-
-**原因**: INFERENCE_PROFILE のみ対応するモデルを ON_DEMAND で呼び出そうとしている
-
-**解決策**:
-
-1. `aws bedrock get-foundation-model` で モデルのスループット対応状況を確認
-2. ON_DEMAND 対応モデルに変更するか、推論プロファイルを使用する
-
-### トラブルシューティング
-
-**"ValidationException - The provided model identifier is invalid" エラーが発生した場合**:
-
-1. `aws bedrock list-foundation-models` で利用可能なモデル ID を確認
-2. AWS Bedrock Console で該当モデルへのアクセスが有効になっているか確認
-3. リージョンが正しいか確認（`BEDROCK_REGION` 環境変数）
-4. モデル ID のスペルミスやバージョン番号の誤りを確認
-
-### 参考情報
+2. **スループット形式の重要性**: ON_DEMAND 対応のモデルのみを直接呼び出しできる。他のモデルは推論プロファイルを使用する必要がある
 
 - [AWS Bedrock Supported Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)
 - [AWS Bedrock Model IDs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html)
+
+---
+
+## 10. Bedrock Knowledge Base（RAG）デプロイ戦略 - Tokyo リージョン対応
+
+### 最新状態
+
+✅ **東京リージョン（ap-northeast-1）で Knowledge Base のS3 Vectors 構成が対応**
+
+### CloudFormation デプロイフロー
+
+**CDK での直接デプロイ不可**：Bedrock Knowledge Base + Data Source は `cdk deploy` で実行できません（PowerShell リダイレクト処理の失敗）。
+
+推奨フロー：
+
+1. **CDK で CloudFormation テンプレート生成**
+
+2. **AWS CLI スクリプトでデプロイ**
+
+### ID 管理
+
+- Knowledge Base ID と Data Source ID は CloudFormation Stack Outputs から自動取得
+- `cdk/outputs.json` に `Bedrock.BedrockKbId`、`Bedrock.BedrockDsId` として保存
