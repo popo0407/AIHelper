@@ -884,3 +884,140 @@ AWS Bedrock で利用可能な基礎モデル (Foundation Model) のモデル ID
 
 - Knowledge Base ID と Data Source ID は CloudFormation Stack Outputs から自動取得
 - `cdk/outputs.json` に `Bedrock.BedrockKbId`、`Bedrock.BedrockDsId` として保存
+
+### S3_VECTORS 実装詳細（AWS CLI使用）
+
+#### 必須前提条件
+
+S3_VECTORSストレージは**事前作成が必須**：
+
+1. S3 Vectors Bucket作成
+2. Vector Index作成（embedding model設定含む）
+3. IAM Role作成（S3Vectors権限含む）
+4. Knowledge Base作成（ARN明示指定）
+
+**重要**: 空の`s3VectorsConfiguration: {}`では自動作成されない。
+
+#### デプロイスクリプト
+
+**[cdk/deploy-kb-complete.py](../../cdk/deploy-kb-complete.py)**
+
+完全自動デプロイスクリプト：
+
+```bash
+python cdk/deploy-kb-complete.py
+```
+
+**処理内容:**
+
+1. **S3 Vectors Bucket作成**
+   ```bash
+   aws s3vectors create-vector-bucket \
+     --vector-bucket-name <bucket-name> \
+     --region ap-northeast-1
+   ```
+
+2. **Vector Index作成**
+   ```bash
+   aws s3vectors create-index \
+     --vector-bucket-name <bucket-name> \
+     --index-name <index-name> \
+     --data-type float32 \       # 小文字必須
+     --dimension 1024 \           # Titan Embed V2
+     --distance-metric cosine \   # 小文字必須
+     --region ap-northeast-1
+   ```
+
+   **パラメータ:**
+   - `data-type`: `float32`（大文字NGでバリデーションエラー）
+   - `dimension`: `1024`（Titan Embed Text V2に合わせる）
+   - `distance-metric`: `cosine` または `euclidean`（小文字必須）
+
+3. **IAM Role作成**
+   
+   S3Vectors権限が必要：
+   ```json
+   {
+     "Effect": "Allow",
+     "Action": [
+       "s3vectors:GetBucket",
+       "s3vectors:DescribeBucket",
+       "s3vectors:ListIndexes",
+       "s3vectors:DescribeIndex",
+       "s3vectors:QueryIndex",
+       "s3vectors:UpsertDataObjects",
+       "s3vectors:DeleteDataObjects"
+     ],
+     "Resource": [
+       "arn:aws:s3vectors:ap-northeast-1:*:bucket/<bucket-name>",
+       "arn:aws:s3vectors:ap-northeast-1:*:bucket/<bucket-name>/index/*"
+     ]
+   }
+   ```
+
+4. **Knowledge Base作成**
+   
+   ```python
+   storageConfiguration = {
+       "type": "S3_VECTORS",
+       "s3VectorsConfiguration": {
+           "vectorBucketArn": "arn:aws:s3vectors:ap-northeast-1:ACCOUNT:bucket/NAME",
+           "indexArn": "arn:aws:s3vectors:ap-northeast-1:ACCOUNT:bucket/NAME/index/INDEX"
+           # ⚠️ indexNameフィールドは指定しない（indexArnで完結）
+       }
+   }
+   ```
+
+#### データソース追加
+
+**[cdk/add-datasource.py](../../cdk/add-datasource.py)**
+
+```bash
+python cdk/add-datasource.py
+```
+
+S3バケットをデータソースとして登録し、自動インジェスト実行。
+
+#### よくあるエラーと対処法
+
+**1. "invalid request provided: CreateKnowledgeBase"**
+
+- **原因**: S3 Vectorsリソース未作成
+- **対処**: `deploy-kb-complete.py`でインフラを先に作成
+
+**2. "unable to assume role"**
+
+- **原因**: 実際にはS3 Vectorsリソース不足（IAMではない）
+- **対処**: S3 Vectors Bucket/Indexの存在確認
+
+**3. "Vector index name should not be present with namespace arn"**
+
+- **原因**: `indexArn`指定時に`indexName`も指定している
+- **対処**: `indexName`フィールドを削除
+
+**4. "Value at '/dataType' failed to satisfy constraint"**
+
+- **原因**: `FLOAT32`（大文字）を指定している
+- **対処**: `float32`（小文字）に修正
+
+**5. "Value at '/distanceMetric' failed to satisfy constraint"**
+
+- **原因**: `COSINE`（大文字）を指定している
+- **対処**: `cosine`（小文字）に修正
+
+#### 検証方法
+
+```bash
+# Knowledge Base ステータス確認
+aws bedrock-agent get-knowledge-base \
+  --knowledge-base-id <KB_ID> \
+  --region ap-northeast-1 \
+  --query 'knowledgeBase.status'
+
+# 検索テスト
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id <KB_ID> \
+  --retrieval-query "text=keyword" \
+  --region ap-northeast-1 \
+  --query 'retrievalResults[0].score'
+```
