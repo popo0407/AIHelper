@@ -2,6 +2,59 @@
 
 ---
 
+## 📅 **2026年2月18日 — cdk/ フォルダクリーンアップ**
+
+### ✅ **完了した内容**
+
+#### **課題**
+
+cdk/ フォルダに開発中に生成されたテストファイルや一時ファイルが多数残っており、新しい環境でのセットアップ時に混乱を招く可能性があった。
+
+#### **実施内容**
+
+**削除したファイル（9ファイル）:**
+- `app_output.txt` - デバッグ出力
+- `kb-config-test.json` - テスト設定ファイル
+- `kb-config.json` - テスト設定ファイル
+- `lambda-response.json` - テストレスポンス
+- `response.json` - テストレスポンス
+- `synth-error.log` - エラーログ（空ファイル）
+- `test-kb-search-payload.json` - テストペイロード
+- `test-payload.json` - テストペイロード
+- `lib/stacks/bedrock_kb_stack.py` - 古いスタック（bedrock_stack.py に統合済み）
+
+**削除したフォルダ:**
+- `cdk.out/` - CDK 合成結果（自動生成）
+- `dist/` - ビルド成果物（自動生成）
+- `__pycache__/` - Python キャッシュ（自動生成）
+
+**修正したファイル:**
+- `.gitignore` - `cdk/cdk.json` を削除（必須ファイルなのでバージョン管理すべき）
+
+#### **結果**
+
+**残った必須ファイル:**
+- `app.py` - CDK エントリーポイント
+- `cdk.json` - CDK 設定
+- `cdk.json.example` - 設定ファイルのバックアップ
+- `requirements-cdk.txt` - Python 依存関係
+- `graphql/schema.graphql` - GraphQL スキーマ
+- `lib/stacks/*.py` - 各スタック定義（8ファイル）
+
+**自動生成ファイル（.gitignore済み）:**
+- `outputs.json` - デプロイ結果
+- `cdk.out/` - 合成結果
+- `__pycache__/` - Python キャッシュ
+
+#### **効果**
+
+✅ 新しい環境でのセットアップが明確化  
+✅ 必要なファイルと不要なファイルの区別が容易に  
+✅ Git リポジトリのサイズ削減  
+✅ 開発者がどのファイルを編集すべきか明確に
+
+---
+
 ## 📅 **2026年2月17日 — S3 Vectors + Bedrock KB 完全CDK管理への移行**
 
 ### ✅ **完了した内容**
@@ -51,10 +104,12 @@ aws cloudformation describe-stacks --stack-name aichat-dev-bedrock
 **Status**: `CREATE_COMPLETE`
 
 **Outputs**:
+
 - `KnowledgeBaseId`: `MLAENRLJKJ`
 - `DataSourceId`: `NOIQ6SSSIL`
 
 **作成されたリソース（CDK管理）**:
+
 1. VectorBucket（`aichat-dev-vectors`）
 2. VectorIndex（`aichat-dev-kb-index`, 1024次元, float32, cosine）
 3. IAM Role（最小権限）
