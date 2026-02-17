@@ -66,12 +66,13 @@ lambda_stack = LambdaStack(
     project_name=project_name,
     database_stack=database_stack,
     cloudfront_domain_name=cloudfront_stack.distribution.distribution_domain_name,
+    bedrock_kb_id=bedrock_stack.knowledge_base_id,
     use_mock_ai=use_mock_ai,
     env=aws_env,
 )
 lambda_stack.add_dependency(database_stack)
 lambda_stack.add_dependency(cloudfront_stack)
-# Note: Bedrock Knowledge Base ID will be added to Lambda environment variables after deployment from CDK outputs
+lambda_stack.add_dependency(bedrock_stack)
 
 # AppSync (GraphQL API)
 appsync_stack = AppSyncStack(
