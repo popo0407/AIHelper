@@ -2,6 +2,67 @@
 
 ---
 
+## 📅 **2026年2月18日 — Knowledge Base 環境変数バグ修正**
+
+### ✅ **完了した内容**
+
+#### **問題**
+
+ナレッジベース検索時にエラーが発生：
+```
+'AppConfig' object has no attribute 'bedrock_kb_id'
+```
+
+#### **原因**
+
+[cdk/app.py](../cdk/app.py) で `LambdaStack` インスタンス化時に `bedrock_kb_id` パラメータを渡していなかった。
+
+```python
+# 修正前
+lambda_stack = LambdaStack(
+    ...,
+    use_mock_ai=use_mock_ai,  # bedrock_kb_id が欠けている
+    env=aws_env,
+)
+```
+
+#### **修正内容**
+
+1. **bedrock_kb_id 引数追加**
+   ```python
+   lambda_stack = LambdaStack(
+       ...,
+       bedrock_kb_id=bedrock_stack.knowledge_base_id,  # 追加
+       use_mock_ai=use_mock_ai,
+       env=aws_env,
+   )
+   ```
+
+2. **依存関係追加**
+   ```python
+   lambda_stack.add_dependency(bedrock_stack)  # 追加
+   ```
+
+#### **結果**
+
+Lambda 環境変数に `BEDROCK_KB_ID=MLAENRLJKJ` が正しく設定され、ナレッジベース検索が動作可能に。
+
+```json
+{
+  "BEDROCK_KB_ID": "MLAENRLJKJ",
+  "BEDROCK_REGION": "ap-northeast-1",
+  "KNOWLEDGE_BUCKET": "aichat-dev-knowledge-590184009554",
+  ...
+}
+```
+
+#### **学び**
+
+- CDK スタック間の依存関係と値の受け渡しを明示的に設定する重要性
+- CDK デプロイ後は環境変数を確認する習慣（`aws lambda get-function-configuration`）
+
+---
+
 ## 📅 **2026年2月18日 — cdk/ フォルダクリーンアップ**
 
 ### ✅ **完了した内容**
@@ -13,6 +74,7 @@ cdk/ フォルダに開発中に生成されたテストファイルや一時フ
 #### **実施内容**
 
 **削除したファイル（9ファイル）:**
+
 - `app_output.txt` - デバッグ出力
 - `kb-config-test.json` - テスト設定ファイル
 - `kb-config.json` - テスト設定ファイル
@@ -24,16 +86,19 @@ cdk/ フォルダに開発中に生成されたテストファイルや一時フ
 - `lib/stacks/bedrock_kb_stack.py` - 古いスタック（bedrock_stack.py に統合済み）
 
 **削除したフォルダ:**
+
 - `cdk.out/` - CDK 合成結果（自動生成）
 - `dist/` - ビルド成果物（自動生成）
 - `__pycache__/` - Python キャッシュ（自動生成）
 
 **修正したファイル:**
+
 - `.gitignore` - `cdk/cdk.json` を削除（必須ファイルなのでバージョン管理すべき）
 
 #### **結果**
 
 **残った必須ファイル:**
+
 - `app.py` - CDK エントリーポイント
 - `cdk.json` - CDK 設定
 - `cdk.json.example` - 設定ファイルのバックアップ
@@ -42,6 +107,7 @@ cdk/ フォルダに開発中に生成されたテストファイルや一時フ
 - `lib/stacks/*.py` - 各スタック定義（8ファイル）
 
 **自動生成ファイル（.gitignore済み）:**
+
 - `outputs.json` - デプロイ結果
 - `cdk.out/` - 合成結果
 - `__pycache__/` - Python キャッシュ
