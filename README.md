@@ -27,7 +27,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **ナレッジベース:** Amazon S3（Tokyo）+ AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS、Titan Embeddings V2 + cosine類似度検索）
 - **CDN / CORS プロキシ:** Amazon CloudFront（S3 presigned URL のプロキシ）
 - **リージョン:** Tokyo（ap-northeast-1）
-- **Infrastructure:** AWS CDK + AWS CLI (Knowledge Base)
+- **Infrastructure:** 完全 AWS CDK 管理（S3 Vectors + Knowledge Base + Data Source）
 
 ---
 
@@ -43,8 +43,6 @@ AICHAT/
 │   ├── app.py                      # CDK エントリーポイント
 │   ├── cdk.json                    # CDK 設定
 │   ├── requirements-cdk.txt        # CDK 依存関係
-│   ├── deploy-kb-complete.py       # S3 Vectors + Knowledge Base デプロイスクリプト (AWS CLI)
-│   ├── add-datasource.py           # Knowledge Base データソース追加スクリプト
 │   ├── graphql/
 │   │   └── schema.graphql          # AppSync GraphQL スキーマ
 │   └── lib/
@@ -52,6 +50,7 @@ AICHAT/
 │       │   ├── database_stack.py   # DynamoDB + S3 定義
 │       │   ├── cognito_stack.py    # Cognito User Pool 定義
 │       │   ├── cloudfront_stack.py # CloudFront Distribution (S3プロキシ)
+│       │   ├── bedrock_stack.py    # Bedrock Knowledge Base（S3 Vectors + KB + DS）
 │       │   ├── lambda_stack.py     # Lambda 関数定義
 │       │   ├── appsync_stack.py    # AppSync API 定義
 │       │   └── frontend_stack.py   # フロントエンド配信（S3 + CloudFront + 自動デプロイ）
@@ -469,6 +468,7 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 ---
 
 ## � **変更履歴**
+
 ### v0.6.0 (2026-02-17)
 
 - **Knowledge Base S3_VECTORS 実装:** Tokyo リージョン（ap-northeast-1）でS3_VECTORSストレージを使用したBedrock Knowledge Baseのデプロイ成功
@@ -476,6 +476,7 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 - **データソース自動追加:** `add-datasource.py` で既存S3バケットをデータソースとして登録し、自動インジェスト実行
 - **リージョン統一:** Knowledge Base を us-west-2 から ap-northeast-1 に移行し、全リソースをTokyoリージョンに統一
 - **検索機能確認:** Bedrock Agent Runtime `retrieve` API で正常動作を確認（4ドキュメントインデックス済み）
+
 ### v0.5.0 (2026-02-14)
 
 - **ISSUE 01:** ユーザーID表示の改善 — 要約の最終更新表示がUUIDからユーザー名に変更

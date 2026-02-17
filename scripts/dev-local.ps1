@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
     ローカル開発環境起動スクリプト
@@ -75,7 +75,8 @@ if ($existingProcess) {
             try {
                 Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
                 Write-Host "  ✅ プロセス $pid を停止しました" -ForegroundColor $SuccessColor
-            } catch {
+            }
+            catch {
                 Write-Host "  ⚠️  プロセス $pid の停止に失敗しました" -ForegroundColor $WarningColor
             }
         }
@@ -111,13 +112,16 @@ if (!$NoEnvSetup) {
             
             if (Test-Path $envPath) {
                 Write-Host "  ✅ .env.local を自動生成しました" -ForegroundColor $SuccessColor
-            } else {
+            }
+            else {
                 Write-Host "  ⚠️  .env.local の生成に失敗しました（手動で設定してください）" -ForegroundColor $WarningColor
             }
-        } else {
+        }
+        else {
             Write-Host "  ℹ️  ローカル開発の場合は .env.local を手動で作成してください" -ForegroundColor $InfoColor
         }
-    } else {
+    }
+    else {
         Write-Host "  ✅ .env.local は既に存在します" -ForegroundColor $SuccessColor
     }
 }
@@ -135,7 +139,8 @@ try {
         exit 1
     }
     Write-Host "✅ 依存関係のインストール完了" -ForegroundColor $SuccessColor
-} finally {
+}
+finally {
     Pop-Location
 }
 
@@ -149,6 +154,7 @@ Write-Host "   💡 終了するには Ctrl+C を押してください" -Foregro
 Push-Location frontend
 try {
     npm run dev -- -p $Port
-} finally {
+}
+finally {
     Pop-Location
 }

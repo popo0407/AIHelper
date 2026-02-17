@@ -24,6 +24,7 @@ class LambdaStack(Stack):
         project_name: str,
         database_stack: DatabaseStack,
         cloudfront_domain_name: str,
+        bedrock_kb_id: str = "",
         use_mock_ai: bool = True,
         **kwargs,
     ) -> None:
@@ -123,8 +124,9 @@ class LambdaStack(Stack):
             "KNOWLEDGE_SOURCES_TABLE": database_stack.knowledge_sources_table.table_name,
             "KNOWLEDGE_BUCKET": database_stack.knowledge_bucket.bucket_name,
             "USE_MOCK_AI": "true" if use_mock_ai else "false",
-            "BEDROCK_REGION": "us-west-2",
-            "BEDROCK_MODEL_ID": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "BEDROCK_REGION": "ap-northeast-1",  # Tokyo region for Knowledge Base
+            "BEDROCK_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",  # Haiku for RAG processing
+            "BEDROCK_KB_ID": bedrock_kb_id,
         }
 
         # =========================================================
@@ -174,7 +176,7 @@ class LambdaStack(Stack):
                 os.path.join(backend_path, "functions", "summarizer")
             ),
             layers=[common_layer],
-            timeout=Duration.seconds(120),
+            timeout=Duration.seconds(30),
             memory_size=512,
             environment=common_env,
             role=lambda_role,
@@ -254,7 +256,7 @@ class LambdaStack(Stack):
                 os.path.join(backend_path, "functions", "knowledgebase")
             ),
             layers=[common_layer],
-            timeout=Duration.seconds(120),
+            timeout=Duration.seconds(30),
             memory_size=512,
             environment=common_env,
             role=lambda_role,

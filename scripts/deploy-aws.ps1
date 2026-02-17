@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
     AWS へのデプロイスクリプト
@@ -73,7 +73,8 @@ Write-Host "`n🔐 AWS 認証をチェック中..." -ForegroundColor $InfoColor
 try {
     $awsIdentity = aws sts get-caller-identity --output text 2>$null
     Write-Host "✅ AWS 認証済み" -ForegroundColor $SuccessColor
-} catch {
+}
+catch {
     Write-Host "⚠️  AWS 認証情報が見つかりません。AWS SSO ログインを実行します..." -ForegroundColor $WarningColor
     aws sso login
 }
@@ -101,7 +102,8 @@ try {
         exit 1
     }
     Write-Host "✅ フロントエンドのビルド完了" -ForegroundColor $SuccessColor
-} finally {
+}
+finally {
     Pop-Location
 }
 
@@ -123,7 +125,8 @@ try {
         exit 1
     }
     Write-Host "✅ CDK デプロイ完了" -ForegroundColor $SuccessColor
-} finally {
+}
+finally {
     Pop-Location
 }
 
@@ -139,7 +142,8 @@ if ($SetEnv) {
         & ".\scripts\update-frontend-env.ps1"
         if ($LASTEXITCODE -eq 0) {
             Write-Host "✅ .env.local を自動生成しました" -ForegroundColor $SuccessColor
-        } else {
+        }
+        else {
             Write-Host "⚠️  .env.local の自動生成に失敗しました（手動で設定してください）" -ForegroundColor $WarningColor
         }
     }

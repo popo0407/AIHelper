@@ -2,6 +2,88 @@
 
 ---
 
+## 📅 **2026年2月17日 — S3 Vectors + Bedrock KB 完全CDK管理への移行**
+
+### ✅ **完了した内容**
+
+#### **1. 課題の発見**
+
+AWS CLI スクリプトで S3 Vectors と Knowledge Base を管理していたが、ユーザーから以下の指摘：
+
+> "S3VectorBucketとインデックスもCDKで作れるらしいよ。作ったやつ一回消して、CDKで全部完結できる形にしてみてよ。"
+
+CloudFormation リソース（`AWS::S3Vectors::VectorBucket`, `AWS::S3Vectors::Index`）が存在し、CDK の L1 Construct 経由で管理可能であることが判明。
+
+#### **2. 実装内容**
+
+**変更したファイル:**
+
+1. **[cdk/lib/stacks/bedrock_stack.py](../cdk/lib/stacks/bedrock_stack.py)**
+   - `CfnResource` を使用して `AWS::S3Vectors::VectorBucket` を作成
+   - `CfnResource` を使用して `AWS::S3Vectors::Index` を作成
+   - `RemovalPolicy.RETAIN` を適用（データ保護）
+   - 依存関係を明示（`vector_index.add_dependency(vector_bucket)`）
+   - IAM権限を最小特権に変更（`s3vectors:*` → 具体的な5つのアクション）
+   - Knowledge Base が Vector Index に依存することを明示
+
+2. **[.github/skills/aws/SKILL.md](../.github/skills/aws/SKILL.md)**
+   - AWS CLI デプロイガイドを削除
+   - CDK 完全管理のベストプラクティスを追加
+   - Python コード例を提供
+   - 実装時の注意点（小文字パラメータ、IAM権限、RemovalPolicy等）を記載
+
+3. **[README.md](../README.md)**
+   - "Infrastructure: AWS CDK + AWS CLI (Knowledge Base)" → "完全 AWS CDK 管理"
+   - ディレクトリ構成から obsolete なスクリプト（`deploy-kb-complete.py`, `add-datasource.py`）を削除
+
+**削除したファイル:**
+
+- `cdk/deploy-kb-complete.py` - AWS CLI デプロイスクリプト
+- `cdk/add-datasource.py` - AWS CLI データソース追加スクリプト
+- `kb-cdk-trial/` - 検証用フォルダ（1600+ファイル）
+
+#### **3. デプロイ結果**
+
+```bash
+aws cloudformation describe-stacks --stack-name aichat-dev-bedrock
+```
+
+**Status**: `CREATE_COMPLETE`
+
+**Outputs**:
+- `KnowledgeBaseId`: `MLAENRLJKJ`
+- `DataSourceId`: `NOIQ6SSSIL`
+
+**作成されたリソース（CDK管理）**:
+1. VectorBucket（`aichat-dev-vectors`）
+2. VectorIndex（`aichat-dev-kb-index`, 1024次元, float32, cosine）
+3. IAM Role（最小権限）
+4. Knowledge Base（S3_VECTORS）
+5. Data Source（S3バケット連携）
+
+#### **4. 技術的な学び**
+
+**成功の鍵:**
+
+1. **IAM権限**: `s3vectors:GetVectors` が Knowledge Base 作成時に必須
+2. **依存関係**: L1 Construct では手動で `add_dependency()` が必要
+3. **RemovalPolicy**: `RETAIN` でデータ保護必須
+4. **パラメータ**: `dataType: "float32"`, `distanceMetric: "cosine"` は小文字
+5. **既存リソース削除**: AlreadyExists エラー回避のため完全削除が必要
+
+**ハマったポイント:**
+
+- 初回デプロイ時に "unable to assume role" エラー → `GetVectors` 権限追加で解決
+- ROLLBACK 時に VectorBucket が `DELETE_SKIPPED` → 手動削除後に再デプロイ
+
+### 🎯 **今後の方針**
+
+- **✅ 完了**: S3 Vectors リソースも含めて完全に CDK で管理
+- **運用改善**: CloudFormation でスタック単位の管理が可能に
+- **メンテナンス性向上**: AWS CLI スクリプトの保守不要
+
+---
+
 ## 📅 **2026年2月17日 — Bedrock Knowledge Base S3_VECTORSデプロイ成功**
 
 ### ✅ **完了した内容**
@@ -18,7 +100,7 @@ CDK/CloudFormationでBedrock Knowledge BaseをS3_VECTORSストレージで東京
 
 S3_VECTORSストレージは**事前作成が必須**であることを発見：
 
-- S3 Vectors Bucket を `aws s3vectors create-vector-bucket` で作成  
+- S3 Vectors Bucket を `aws s3vectors create-vector-bucket` で作成
 - Vector Index を `aws s3vectors create-index` で作成（data-type, dimension, distance-metric指定必須）
 - Knowledge Base作成時に `vectorBucketArn` と `indexArn` を明示的に指定
 
@@ -118,7 +200,7 @@ aws bedrock-agent-runtime retrieve \
 
 **プロセス面:**
 
-- [ ] 新技術採用時は必ず公式ドキュメントを先に確認  
+- [ ] 新技術採用時は必ず公式ドキュメントを先に確認
 - [ ] エラー発生時は既存の動作中リソースの設定を早期に確認
 - [ ] CloudFormation/CDKで未対応の機能はAWS CLIへの早期切り替えを検討
 

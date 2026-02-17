@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """CDK Application Entry Point for AICHAT."""
 import aws_cdk as cdk
+from aws_cdk import aws_s3 as s3
 from lib.stacks.database_stack import DatabaseStack
 from lib.stacks.cognito_stack import CognitoStack
 from lib.stacks.cloudfront_stack import CloudFrontStack
 from lib.stacks.appsync_stack import AppSyncStack
 from lib.stacks.lambda_stack import LambdaStack
 from lib.stacks.frontend_stack import FrontendStack
+from lib.stacks.bedrock_stack import BedrockStack
 
 app = cdk.App()
 
@@ -48,6 +50,15 @@ cloudfront_stack = CloudFrontStack(
 )
 cloudfront_stack.add_dependency(database_stack)
 
+# Bedrock Knowledge Base (ap-northeast-1 Tokyo) - S3_VECTORS storage
+bedrock_stack = BedrockStack(
+    app, f"{project_name}-{env_name}-bedrock",
+    environment=env_name,
+    knowledge_bucket=database_stack.knowledge_bucket,
+    env=aws_env,
+)
+bedrock_stack.add_dependency(database_stack)
+
 # Lambda Functions
 lambda_stack = LambdaStack(
     app, f"{project_name}-{env_name}-lambda",
@@ -60,6 +71,7 @@ lambda_stack = LambdaStack(
 )
 lambda_stack.add_dependency(database_stack)
 lambda_stack.add_dependency(cloudfront_stack)
+# Note: Bedrock Knowledge Base ID will be added to Lambda environment variables after deployment from CDK outputs
 
 # AppSync (GraphQL API)
 appsync_stack = AppSyncStack(
