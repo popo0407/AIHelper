@@ -12,7 +12,6 @@ frontend/dist/
 cdk/cdk.out/
 cdk/.cdk.staging/
 cdk/venv/
-cdk/cdk.json
 cdk/outputs.json
 
 # Python
