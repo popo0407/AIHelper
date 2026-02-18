@@ -4,7 +4,7 @@
     "ExportsOutputRefUserConversationsTableB6019FACA39E59CC": "aichat-dev-user-conversations",
     "ExportsOutputFnGetAttKnowledgeBucketD7C8B00DArn0E6CDADF": "arn:aws:s3:::aichat-dev-knowledge-590184009554",
     "ExportsOutputRefLocksTable0C14848D3E4A5705": "aichat-dev-locks",
-    "ExportsOutputRefKnowledgeSourcesTable5F503991E9CD07B2": "aichat-dev-knowledge-sources",
+    "ExportsOutputRefKnowledgeSourcesTable5F503991E9CD07B2": "aichat-dev-knowledge-sources-v2",
     "ExportsOutputRefSummaryTable793657C311F6DC3D": "aichat-dev-summary",
     "ExportsOutputRefKnowledgeBucketD7C8B00D4F4CC779": "aichat-dev-knowledge-590184009554",
     "ExportsOutputRefConversationsTableCD91EB96EE2E4585": "aichat-dev-conversations"
@@ -15,19 +15,16 @@
     "ExportsOutputRefUserPool6BA7E5F296FD7236": "ap-northeast-1_IfSlGDx1L",
     "UserPoolArn": "arn:aws:cognito-idp:ap-northeast-1:590184009554:userpool/ap-northeast-1_IfSlGDx1L"
   },
-  "aichat-dev-frontend": {
-    "FrontendBucketName": "aichat-dev-frontend-590184009554",
-    "FrontendDistributionId": "E1QYBAICGTZBG",
-    "FrontendURL": "https://dg88b3kzz7k6f.cloudfront.net"
-  },
   "aichat-dev-cloudfront": {
     "DistributionId": "E29MLDC5MPJ9RB",
     "ExportsOutputFnGetAttKnowledgeDistribution532372B6DomainNameEEDB3829": "d392h1opjkvv3a.cloudfront.net",
     "DistributionDomainName": "d392h1opjkvv3a.cloudfront.net"
   },
   "aichat-dev-bedrock": {
-    "KnowledgeBaseId": "MLAENRLJKJ",
-    "DataSourceId": "NOIQ6SSSIL"
+    "KnowledgeBaseId": "64EKKDPAWX",
+    "ExportsOutputFnGetAttKnowledgeBaseKnowledgeBaseIdFC83E473": "64EKKDPAWX",
+    "DataSourceId": "QZ7IB6AXUT",
+    "ExportsOutputFnGetAttDataSourceDataSourceIdA5356048": "QZ7IB6AXUT"
   },
   "aichat-dev-lambda": {
     "ExportsOutputFnGetAttLockManagerFunctionDFEE08A6Arn85434CC0": "arn:aws:lambda:ap-northeast-1:590184009554:function:aichat-dev-lock-manager",
@@ -38,8 +35,8 @@
     "ExportsOutputFnGetAttSummarizerFunctionDC62D143ArnFD55A870": "arn:aws:lambda:ap-northeast-1:590184009554:function:aichat-dev-summarizer"
   },
   "aichat-dev-appsync": {
-    "GraphqlApiId": "7476y36cprdohe43k64c4cmeei",
-    "GraphqlApiUrl": "https://pv3zgt7iffexngujucbsdxq4ie.appsync-api.ap-northeast-1.amazonaws.com/graphql",
+    "GraphqlApiId": "wu3kchjgajhcde56xle5d363b4",
+    "GraphqlApiUrl": "https://ojxiporwovgipe5uzum3krobau.appsync-api.ap-northeast-1.amazonaws.com/graphql",
     "GraphqlApiKey": ""
   }
 }

@@ -939,4 +939,3 @@ iam.PolicyStatement(
 - "constraint" → パラメータを小文字に修正
 
 **検証結果**: Tokyo（ap-northeast-1）で動作確認済み
-

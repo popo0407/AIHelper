@@ -625,3 +625,25 @@ cdk deploy --all --context environment=dev
 ---
 
 最終更新: 2026年2月15日
+
+新しい環境でのセットアップ手順
+
+# 1. リポジトリをクローン
+
+git clone https://github.com/popo0407/AIHelper.git
+cd AIHelper/cdk
+
+# 2. Python 仮想環境作成
+
+python -m venv .venv
+.venv\Scripts\activate # Windows
+
+# source .venv/bin/activate # Linux/Mac
+
+# 3. CDK 依存関係インストール
+
+pip install -r requirements-cdk.txt
+
+# 4. CDK デプロイ
+
+cdk deploy --all --require-approval never

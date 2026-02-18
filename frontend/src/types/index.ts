@@ -130,9 +130,9 @@ export const AI_BUTTONS: AIButtonConfig[] = [
 // ------ Knowledgebase Types ------
 
 export interface KnowledgeSource {
-  knowledgeSourceId: string;
   conversationId: string;
   fileName: string;
+  originalFileName: string;
   fileSize: number;
   s3Key: string;
   contentType: string;
@@ -156,9 +156,14 @@ export interface UploadKnowledgebaseResponse {
   error?: string;
 }
 
+export interface CompleteKnowledgebaseUploadResponse {
+  success: boolean;
+  error?: string;
+}
+
 export interface DeleteKnowledgebaseResponse {
   success: boolean;
-  knowledgeSourceId?: string;
+  fileName?: string;
   error?: string;
 }
 

@@ -72,6 +72,8 @@ export function ConversationSelect({
         error: err instanceof Error ? err.message : String(err),
         userId: user.loginId,
       });
+      console.error('Full error object:', err);
+      console.error('Error stringified:', JSON.stringify(err, null, 2));
     } finally {
       setIsLoading(false);
     }

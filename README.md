@@ -468,7 +468,17 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 ---
 
 ## � **変更履歴**
+### v0.6.1 (2026-02-18)
 
+- **`.metadata.json` 生成機能実装:** Knowledge Base ファイルアップロード時に会話IDを含むメタデータファイルを自動生成
+- **会話ベースフィルタリング:** Bedrock検索時に `conversationId` で絞り込み、会話ごとに独立したRAG検索を実現
+- **短縮会話ID導入:** UUIDから8文字英数字ID（36^8 = 約2.8兆通り）に変更、URLとファイル名を簡潔化
+- **DynamoDB schema更新:** `KnowledgeSourcesTable` の sort key を `knowledgeSourceId` → `fileName` に変更、テーブル名を `-v2` に更新
+- **Bedrockスタック再構築:** `UPDATE_ROLLBACK_COMPLETE` 状態から復旧、VectorBucket名を `-v2` に変更
+  - 新Knowledge Base ID: `64EKKDPAWX`
+  - 新DataSource ID: `QZ7IB6AXUT`
+  - VectorBucket: `aichat-dev-vectors-v2`
+- **IngestionTrigger復活:** S3アップロード時の自動インデックス作成機能を再実装
 ### v0.6.0 (2026-02-17)
 
 - **Knowledge Base S3_VECTORS 実装:** Tokyo リージョン（ap-northeast-1）でS3_VECTORSストレージを使用したBedrock Knowledge Baseのデプロイ成功

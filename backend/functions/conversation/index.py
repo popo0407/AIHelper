@@ -13,6 +13,7 @@ from common.config import get_config
 from common.utils import (
     build_response,
     generate_uuid,
+    generate_short_id,
     get_dynamodb_table,
     utc_now_iso,
 )
@@ -115,7 +116,7 @@ def handle_create_conversation(args: dict) -> dict[str, Any]:
     if not created_by:
         return build_response(False, error="createdBy is required.")
 
-    conversation_id = generate_uuid()
+    conversation_id = generate_short_id(8)  # 8-char short ID instead of UUID
     now = utc_now_iso()
 
     conversation_item = {

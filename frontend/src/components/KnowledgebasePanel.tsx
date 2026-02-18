@@ -5,11 +5,13 @@ import { graphqlClient, extractData } from '@/lib/appsync';
 import {
   LIST_KNOWLEDGE_SOURCES,
   UPLOAD_KNOWLEDGEBASE,
+  COMPLETE_KNOWLEDGEBASE_UPLOAD,
   DELETE_KNOWLEDGEBASE,
 } from '@/graphql/operations';
 import type {
   KnowledgeSource,
   UploadKnowledgebaseResponse,
+  CompleteKnowledgebaseUploadResponse,
   DeleteKnowledgebaseResponse,
 } from '@/types';
 import { ALLOWED_KB_CONTENT_TYPES, MAX_KB_FILE_SIZE } from '@/types';
@@ -163,7 +165,36 @@ export function KnowledgebasePanel({
           return;
         }
 
-        // 3. Refresh the list
+        // Verify knowledgeSource exists
+        if (!data.knowledgeSource) {
+          console.error('knowledgeSource is missing in upload response');
+          setError('アップロード情報の取得に失敗しました');
+          return;
+        }
+
+        // 3. Complete upload: generate .metadata.json for Bedrock filtering
+        const completeResult = await graphqlClient.graphql({
+          query: COMPLETE_KNOWLEDGEBASE_UPLOAD,
+          variables: {
+            input: {
+              conversationId,
+              fileName: data.knowledgeSource.fileName,
+            },
+          },
+        });
+
+        const completeData = extractData<CompleteKnowledgebaseUploadResponse>(
+          completeResult as any,
+          'completeKnowledgebaseUpload'
+        );
+
+        if (!completeData?.success) {
+          console.error('Metadata creation failed:', completeData?.error);
+          setError('メタデータの作成に失敗しました');
+          return;
+        }
+
+        // 4. Refresh the list
         await loadSources();
       } catch (err) {
         console.error('Upload failed:', err);
@@ -178,10 +209,10 @@ export function KnowledgebasePanel({
 
   // ── Delete handler ──
   const handleDelete = useCallback(
-    async (knowledgeSourceId: string, fileName: string) => {
-      if (!window.confirm(`「${fileName}」を削除しますか？`)) return;
+    async (fileName: string, originalFileName: string) => {
+      if (!window.confirm(`「${originalFileName}」を削除しますか？`)) return;
 
-      setDeletingId(knowledgeSourceId);
+      setDeletingId(fileName);
       setError(null);
 
       try {
@@ -190,7 +221,7 @@ export function KnowledgebasePanel({
           variables: {
             input: {
               conversationId,
-              knowledgeSourceId,
+              fileName,
             },
           },
         });
@@ -207,7 +238,7 @@ export function KnowledgebasePanel({
         // Remove from list
         setSources((prev) => {
           return prev.filter(
-            (s) => s.knowledgeSourceId !== knowledgeSourceId
+            (s) => s.fileName !== fileName
           );
         });
       } catch (err) {
@@ -314,7 +345,7 @@ export function KnowledgebasePanel({
             <ul className="divide-y divide-serendie-gray-100" role="list">
               {sources.map((source) => (
                 <li
-                  key={source.knowledgeSourceId}
+                  key={`${source.conversationId}-${source.fileName}`}
                   className="flex items-center justify-between py-2 gap-2"
                 >
                   <div className="min-w-0 flex-1">
@@ -334,12 +365,12 @@ export function KnowledgebasePanel({
                   <button
                     className="text-red-500 hover:text-red-700 text-sm flex-shrink-0 px-2 py-1 rounded hover:bg-red-50 transition-colors"
                     onClick={() =>
-                      handleDelete(source.knowledgeSourceId, source.fileName)
+                      handleDelete(source.fileName, source.originalFileName)
                     }
-                    disabled={deletingId === source.knowledgeSourceId}
+                    disabled={deletingId === source.fileName}
                     aria-label={`${source.fileName}を削除`}
                   >
-                    {deletingId === source.knowledgeSourceId
+                    {deletingId === source.fileName
                       ? '削除中...'
                       : '🗑 削除'}
                   </button>

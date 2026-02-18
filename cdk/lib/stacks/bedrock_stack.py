@@ -30,7 +30,8 @@ class BedrockStack(Stack):
         region = Stack.of(self).region
 
         # ====== S3 Vectors: VectorBucket (CDK-managed) ======
-        vector_bucket_name = f"aichat-{environment}-vectors"
+        # 既存のVectorBucketとの衝突を避けるため -v2 サフィックスを追加
+        vector_bucket_name = f"aichat-{environment}-vectors-v2"
         vector_bucket = CfnResource(
             self,
             "VectorBucket",
@@ -42,7 +43,7 @@ class BedrockStack(Stack):
         vector_bucket.apply_removal_policy(RemovalPolicy.RETAIN)
 
         # ====== S3 Vectors: Index (CDK-managed) ======
-        vector_index_name = f"aichat-{environment}-kb-index"
+        vector_index_name = f"aichat-{environment}-kb-index-v2"
         vector_index = CfnResource(
             self,
             "VectorIndex",
@@ -151,15 +152,15 @@ class BedrockStack(Stack):
                 type="S3",
                 s3_configuration=bedrock.CfnDataSource.S3DataSourceConfigurationProperty(
                     bucket_arn=knowledge_bucket.bucket_arn,
-                    inclusion_prefixes=["conversations/"]
+                    # No prefix filter - use metadata filter instead
                 )
             ),
             vector_ingestion_configuration=bedrock.CfnDataSource.VectorIngestionConfigurationProperty(
                 chunking_configuration=bedrock.CfnDataSource.ChunkingConfigurationProperty(
                     chunking_strategy="FIXED_SIZE",
                     fixed_size_chunking_configuration=bedrock.CfnDataSource.FixedSizeChunkingConfigurationProperty(
-                        max_tokens=512,
-                        overlap_percentage=20
+                        max_tokens=300,
+                        overlap_percentage=10
                     )
                 )
             )

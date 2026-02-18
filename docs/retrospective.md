@@ -2,6 +2,130 @@
 
 ---
 
+## 📅 **2026年2月18日 — Bedrockスタック再構築（UPDATE_ROLLBACK_COMPLETE解決）**
+
+### ✅ **完了した内容**
+
+`.metadata.json`生成機能実装後、Bedrockスタックが`UPDATE_ROLLBACK_COMPLETE`状態でデプロイ不能に。スタックを一旦除外して再構築することで解決。
+
+#### **問題の経緯**
+
+1. **最初の失敗**：DataSource更新時にvector store削除エラー
+   - DynamoDB schema変更（`knowledgeSourceId` → `fileName`）
+   - Bedrock filterキー変更（`x-amz-meta-conversation-id` → `conversationId`）
+   - 既存Knowledge Base更新時にDataSource削除ポリシー(`DELETE`)が問題に
+
+2. **手動削除の影響**：AWS CLIで KB/DataSource削除 → CloudFormationスタックに古いID参照が残存
+   - スタック: 古い Knowledge Base ID `MLAENRLJKJ` を参照
+   - 実リソース: 既に削除済み
+   - → `UPDATE_ROLLBACK_COMPLETE` 状態で停止
+
+3. **再デプロイ失敗**：VectorBucketの重複
+   - スタック削除時 `RemovalPolicy.RETAIN` → VectorBucket残存（`aichat-dev-vectors`）
+   - 新規作成時に既存バケット名と衝突 → `CREATE_FAILED`
+
+#### **解決手順**
+
+**Step 1: CDKからBedrockスタックを一時除外**
+```python
+# cdk/app.py
+# from lib.stacks.bedrock_stack import BedrockStack  # コメントアウト
+
+# bedrock_stack = BedrockStack(...)  # コメントアウト
+
+# Lambdaスタックのパラメータもコメントアウト
+# bedrock_kb_id=bedrock_stack.knowledge_base_id,
+# bedrock_ds_id=bedrock_stack.data_source_id,
+```
+
+**Step 2: ROLLBACK状態のスタック削除**
+```bash
+aws cloudformation delete-stack --stack-name aichat-dev-bedrock --region ap-northeast-1
+aws cloudformation wait stack-delete-complete --stack-name aichat-dev-bedrock
+```
+
+**Step 3: VectorBucket名変更（衝突回避）**
+```python
+# cdk/lib/stacks/bedrock_stack.py
+vector_bucket_name = f"aichat-{environment}-vectors-v2"  # -v2 追加
+vector_index_name = f"aichat-{environment}-kb-index-v2"   # -v2 追加
+```
+
+**Step 4: Bedrockスタックを再追加・デプロイ**
+```python
+# cdk/app.py のコメントアウトを解除
+from lib.stacks.bedrock_stack import BedrockStack
+
+bedrock_stack = BedrockStack(...)
+lambda_stack = LambdaStack(..., bedrock_kb_id=bedrock_stack.knowledge_base_id, ...)
+```
+
+```bash
+cdk deploy aichat-dev-bedrock --outputs-file outputs.json --require-approval never
+```
+
+**Step 5: Lambda/AppSyncスタック更新（新KB ID反映）**
+```bash
+cdk deploy aichat-dev-lambda aichat-dev-appsync --outputs-file outputs.json --require-approval never
+```
+
+#### **デプロイ結果**
+
+✅ **全スタック正常デプロイ完了**
+- `aichat-dev-bedrock`: `CREATE_COMPLETE`（新規作成）
+- `aichat-dev-lambda`: `UPDATE_COMPLETE`（IngestionTriggerFunction復活）
+- `aichat-dev-appsync`: `UPDATE_COMPLETE`
+
+**新しいリソースID:**
+- Knowledge Base ID: `64EKKDPAWX`（旧: `MLAENRLJKJ`）
+- DataSource ID: `QZ7IB6AXUT`（旧: `NOIQ6SSSIL`）
+- VectorBucket: `aichat-dev-vectors-v2`（旧: `aichat-dev-vectors`）
+
+#### **教訓と再発防止策**
+
+**問題の根本原因:**
+1. ❌ **CloudFormationスタックと実リソースの不整合**：手動削除がスタック状態と矛盾
+2. ❌ **RemovalPolicy理解不足**：`RETAIN`がリソース残存させることを考慮せず
+3. ❌ **リソース名の固定**：環境に対して一意な名前のため、削除後の再作成で衝突
+
+**再発防止策:**
+1. ✅ **原則：CDKでリソース管理を完結させる**
+   - 手動での AWS CLI操作は最小限に
+   - 削除が必要な場合は `cdk destroy` を優先
+
+2. ✅ **RemovalPolicyを適切に設定**
+   ```python
+   # 開発環境: 削除可能
+   vector_bucket.apply_removal_policy(RemovalPolicy.DESTROY)
+   
+   # 本番環境: 保持
+   if environment == "prod":
+       vector_bucket.apply_removal_policy(RemovalPolicy.RETAIN)
+   ```
+
+3. ✅ **リソース名にタイムスタンプやバージョンを含める**
+   ```python
+   # 衝突を避けるバージョニング
+   vector_bucket_name = f"aichat-{environment}-vectors-v2"
+   ```
+
+4. ✅ **段階的デプロイ戦略**
+   - 大規模変更時は依存スタックを一時除外
+   - 問題スタックのみを削除・再作成
+   - 段階的に全スタックを再統合
+
+5. ✅ **outputs.jsonで状態確認**
+   - デプロイ後は必ず `outputs.json` でリソースID確認
+   - フロントエンドの `.env.local` との整合性チェック
+
+#### **今後の改善点**
+
+- [ ] 開発環境のRemovalPolicyを`DESTROY`に変更（クリーンな削除を可能に）
+- [ ] 古いVectorBucketのクリーンアップスクリプト作成
+- [ ] CloudFormationスタック状態監視アラート設定
+
+---
+
 ## 📅 **2026年2月18日 — Knowledge Base 環境変数バグ修正**
 
 ### ✅ **完了した内容**
@@ -9,6 +133,7 @@
 #### **問題**
 
 ナレッジベース検索時にエラーが発生：
+
 ```
 'AppConfig' object has no attribute 'bedrock_kb_id'
 ```
@@ -29,6 +154,7 @@ lambda_stack = LambdaStack(
 #### **修正内容**
 
 1. **bedrock_kb_id 引数追加**
+
    ```python
    lambda_stack = LambdaStack(
        ...,

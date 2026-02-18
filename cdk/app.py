@@ -67,6 +67,7 @@ lambda_stack = LambdaStack(
     database_stack=database_stack,
     cloudfront_domain_name=cloudfront_stack.distribution.distribution_domain_name,
     bedrock_kb_id=bedrock_stack.knowledge_base_id,
+    bedrock_ds_id=bedrock_stack.data_source_id,
     use_mock_ai=use_mock_ai,
     env=aws_env,
 )

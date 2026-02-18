@@ -137,18 +137,19 @@ class DatabaseStack(Stack):
         )
 
         # =========================================================
-        # KnowledgeSources Table  PK: conversationId, SK: knowledgeSourceId
-        # ナレッジベースのメタデータを管理
+        # KnowledgeSources Table  PK: conversationId, SK: fileName
+        # ナレッジベースのメタデータを管理（同名ファイルは上書き）
+        # テーブル名変更: v2（キースキーマ変更のため再作成が必要）
         # =========================================================
         self.knowledge_sources_table = dynamodb.Table(
             self,
             "KnowledgeSourcesTable",
-            table_name=f"{project_name}-{env_name}-knowledge-sources",
+            table_name=f"{project_name}-{env_name}-knowledge-sources-v2",
             partition_key=dynamodb.Attribute(
                 name="conversationId", type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name="knowledgeSourceId", type=dynamodb.AttributeType.STRING
+                name="fileName", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=removal,

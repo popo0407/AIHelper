@@ -20,6 +20,7 @@ class AppConfig:
     use_mock_ai: bool
     bedrock_region: str
     bedrock_model_id: str
+    bedrock_kb_id: str
 
 
 def get_config() -> AppConfig:
@@ -50,4 +51,5 @@ def get_config() -> AppConfig:
         bedrock_model_id=os.environ.get(
             "BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         ),
+        bedrock_kb_id=os.environ.get("BEDROCK_KB_ID", ""),
     )

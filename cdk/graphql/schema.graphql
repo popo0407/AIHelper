@@ -64,9 +64,9 @@ type Notification {
 }
 
 type KnowledgeSource {
-  knowledgeSourceId: ID!
   conversationId: ID!
   fileName: String!
+  originalFileName: String!
   fileSize: Int!
   s3Key: String!
   contentType: String!
@@ -92,9 +92,14 @@ type UploadKnowledgebaseResponse {
   error: String
 }
 
+type CompleteKnowledgebaseUploadResponse {
+  success: Boolean!
+  error: String
+}
+
 type DeleteKnowledgebaseResponse {
   success: Boolean!
-  knowledgeSourceId: ID
+  fileName: String
   error: String
 }
 
@@ -119,6 +124,11 @@ input SaveSummaryEditInput {
   userId: String!
   displayName: String
   content: String!
+}
+
+input CompleteKnowledgebaseUploadInput {
+  conversationId: ID!
+  fileName: String!
 }
 
 input AcquireLockInput {
@@ -164,7 +174,7 @@ input UploadKnowledgebaseInput {
 
 input DeleteKnowledgebaseInput {
   conversationId: ID!
-  knowledgeSourceId: ID!
+  fileName: String!
 }
 
 input SearchKnowledgebaseInput {
@@ -227,6 +237,9 @@ type Mutation {
   uploadKnowledgebase(
     input: UploadKnowledgebaseInput!
   ): UploadKnowledgebaseResponse!
+  completeKnowledgebaseUpload(
+    input: CompleteKnowledgebaseUploadInput!
+  ): CompleteKnowledgebaseUploadResponse!
   deleteKnowledgebase(
     input: DeleteKnowledgebaseInput!
   ): DeleteKnowledgebaseResponse!

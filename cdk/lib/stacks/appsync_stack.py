@@ -171,6 +171,11 @@ class AppSyncStack(Stack):
             field_name="uploadKnowledgebase",
         )
         knowledgebase_ds.create_resolver(
+            "CompleteKnowledgebaseUploadResolver",
+            type_name="Mutation",
+            field_name="completeKnowledgebaseUpload",
+        )
+        knowledgebase_ds.create_resolver(
             "DeleteKnowledgebaseResolver",
             type_name="Mutation",
             field_name="deleteKnowledgebase",

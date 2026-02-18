@@ -8,6 +8,8 @@ Handles:
 """
 import json
 import logging
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -42,6 +44,42 @@ MAX_FILE_SIZE = 25 * 1024 * 1024
 ALLOWED_CONTENT_TYPES = {"pdf", "docx", "doc", "html", "md", "txt"}
 
 
+def _sanitize_filename(filename: str, max_length: int = 60) -> str:
+    """Sanitize filename to prevent metadata size issues in Bedrock S3 Vectors.
+    
+    Args:
+        filename: Original filename
+        max_length: Maximum length for sanitized filename (default: 60)
+        
+    Returns:
+        Sanitized filename with ASCII-only characters
+    """
+    # Split extension
+    name_parts = filename.rsplit(".", 1)
+    name = name_parts[0]
+    ext = name_parts[1] if len(name_parts) > 1 else ""
+    
+    # Remove non-ASCII characters
+    name_ascii = "".join(c for c in name if ord(c) < 128 and (c.isalnum() or c in "-_"))
+    
+    # If name becomes empty (e.g., Japanese-only filename), use timestamp
+    if len(name_ascii) < 1:
+        name_ascii = f"file_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+        logger.info(f"Japanese-only filename '{filename}' → '{name_ascii}.{ext}'")
+    
+    # Truncate if too long
+    max_name_length = max_length - len(ext) - 1 if ext else max_length
+    if len(name_ascii) > max_name_length:
+        name_ascii = name_ascii[:max_name_length]
+    
+    # Reconstruct filename
+    sanitized = f"{name_ascii}.{ext}" if ext else name_ascii
+    
+    if sanitized != filename:
+        logger.info(f"Sanitized: '{filename}' → '{sanitized}'")
+    return sanitized
+
+
 def lambda_handler(event: dict, context: Any) -> Any:
     """Main Lambda handler routed by AppSync field name."""
     info = event.get("info", {})
@@ -53,6 +91,7 @@ def lambda_handler(event: dict, context: Any) -> Any:
     handlers = {
         "listKnowledgeSources": handle_list_knowledge_sources,
         "uploadKnowledgebase": handle_upload_knowledgebase,
+        "completeKnowledgebaseUpload": handle_complete_knowledgebase_upload,
         "deleteKnowledgebase": handle_delete_knowledgebase,
         "searchKnowledgebase": handle_search_knowledgebase,
     }
@@ -88,7 +127,7 @@ def _save_kb_search_messages(
         user_id: Authenticated user ID from AppSync
         display_name: User's display name from AppSync
         answer: AI-generated answer
-        sources: List of source file names
+        sources: List of source file names (unused but kept for compatibility)
     
     Returns: (user_message_id, ai_message_id)
     """
@@ -114,19 +153,14 @@ def _save_kb_search_messages(
     messages_table.put_item(Item=user_message)
     logger.info("Saved user KB question: %s (user=%s)", user_msg_id, user_id)
     
-    # AI answer message with source attribution
-    sources_attribution = (
-        f"\n\n【参照元: {', '.join(sources)}】"
-        if sources
-        else ""
-    )
+    # AI answer message (no source attribution)
     ai_msg_id = generate_uuid()
     ai_message = {
         "conversationId": conversation_id,
         "messageId": ai_msg_id,
         "userId": AIHELPER_USER_ID,
         "displayName": "AIHelper (KB)",
-        "content": answer + sources_attribution,
+        "content": answer,
         "timestamp": ai_timestamp,
         "isUsedInSummary": False,
     }
@@ -185,19 +219,22 @@ def handle_upload_knowledgebase(arguments: dict) -> dict:
             error=f"ファイルサイズが上限（25MB）を超えています: {file_size / 1024 / 1024:.1f}MB",
         )
 
-    knowledge_source_id = generate_uuid()
-    s3_key = f"conversations/{conversation_id}/{knowledge_source_id}/{file_name}"
+    # Sanitize filename to prevent Bedrock S3 Vectors metadata size limit
+    sanitized_file_name = _sanitize_filename(file_name)
+
+    # Use sanitized filename directly (no UUID - enables overwrite)
+    s3_key = f"conversations/{conversation_id}/{sanitized_file_name}"
     now = utc_now_iso()
 
     # Get identity (userId) from AppSync event
     uploaded_by = _get_user_id_from_event(arguments)
 
-    # Store metadata in DynamoDB
+    # Store metadata in DynamoDB (fileName as sort key - enables overwrite)
     table = get_dynamodb_table(config.knowledge_sources_table)
     item = {
         "conversationId": conversation_id,
-        "knowledgeSourceId": knowledge_source_id,
-        "fileName": file_name,
+        "fileName": sanitized_file_name,  # Use sanitized name as PK
+        "originalFileName": file_name,  # Keep original for display
         "fileSize": file_size,
         "s3Key": s3_key,
         "contentType": content_type,
@@ -207,7 +244,7 @@ def handle_upload_knowledgebase(arguments: dict) -> dict:
     }
     table.put_item(Item=item)
 
-    # Generate presigned PUT URL for S3 upload
+    # Generate presigned PUT URL for S3 upload with conversation metadata
     # CloudFront 経由でアップロードするため、S3 presigned URL のホスト部分を
     # CloudFront ドメインに置換する。CloudFront が Host ヘッダーを S3 オリジンに
     # 書き換えるため、presigned URL の署名検証は正常に通過する。
@@ -234,9 +271,15 @@ def handle_upload_knowledgebase(arguments: dict) -> dict:
             s3={"addressing_style": "virtual"},
         ),
     )
+    
+    # Generate presigned URL for client-side upload
+    # Note: Metadata cannot be set via presigned URL - it will be added via completeKnowledgebaseUpload
     presigned_url = s3_client.generate_presigned_url(
         "put_object",
-        Params={"Bucket": config.knowledge_bucket, "Key": s3_key},
+        Params={
+            "Bucket": config.knowledge_bucket,
+            "Key": s3_key,
+        },
         ExpiresIn=PRESIGNED_URL_EXPIRY,
     )
 
@@ -267,6 +310,70 @@ def handle_upload_knowledgebase(arguments: dict) -> dict:
 
 
 # =========================================================
+# Mutation: completeKnowledgebaseUpload
+# =========================================================
+
+
+def handle_complete_knowledgebase_upload(arguments: dict) -> dict:
+    """Generate and upload .metadata.json for Bedrock Knowledge Base filtering.
+    
+    This mutation must be called after the client successfully uploads a file to S3.
+    It creates a .metadata.json file containing conversationId for Bedrock filtering.
+    
+    Args:
+        arguments: {
+            "input": {
+                "conversationId": str,
+                "fileName": str (sanitized filename)
+            }
+        }
+    
+    Returns:
+        {"success": bool, "error": str | None}
+    """
+    inp = arguments.get("input", {})
+    conversation_id = inp.get("conversationId")
+    file_name = inp.get("fileName")
+    
+    if not conversation_id or not file_name:
+        return {"success": False, "error": "conversationId and fileName are required"}
+    
+    try:
+        # Construct S3 keys
+        document_key = f"conversations/{conversation_id}/{file_name}"
+        metadata_key = f"{document_key}.metadata.json"
+        
+        # Create metadata JSON content
+        # Bedrock Knowledge Base uses "metadataAttributes" structure
+        metadata_content = {
+            "metadataAttributes": {
+                "conversationId": conversation_id
+            }
+        }
+        
+        # Upload .metadata.json to S3
+        s3_client = boto3.client("s3", region_name="ap-northeast-1")
+        s3_client.put_object(
+            Bucket=config.knowledge_bucket,
+            Key=metadata_key,
+            Body=json.dumps(metadata_content, ensure_ascii=False, indent=2),
+            ContentType="application/json",
+        )
+        
+        logger.info(
+            "Metadata file created: %s for document %s",
+            metadata_key,
+            document_key,
+        )
+        
+        return {"success": True, "error": None}
+        
+    except Exception as e:
+        logger.error("Failed to create metadata file: %s", e, exc_info=True)
+        return {"success": False, "error": str(e)}
+
+
+# =========================================================
 # Mutation: deleteKnowledgebase
 # =========================================================
 
@@ -275,7 +382,7 @@ def handle_delete_knowledgebase(arguments: dict) -> dict:
     """Delete knowledge source: S3 file + DynamoDB metadata."""
     inp = arguments.get("input", {})
     conversation_id = inp["conversationId"]
-    knowledge_source_id = inp["knowledgeSourceId"]
+    file_name = inp["fileName"]  # Changed from knowledgeSourceId
 
     table = get_dynamodb_table(config.knowledge_sources_table)
 
@@ -283,7 +390,7 @@ def handle_delete_knowledgebase(arguments: dict) -> dict:
     response = table.get_item(
         Key={
             "conversationId": conversation_id,
-            "knowledgeSourceId": knowledge_source_id,
+            "fileName": file_name,
         }
     )
     item = response.get("Item")
@@ -292,14 +399,25 @@ def handle_delete_knowledgebase(arguments: dict) -> dict:
 
     s3_key = item["s3Key"]
 
-    # Delete from S3
+    # Delete from S3 (document + metadata.json)
     try:
         s3_client = boto3.client("s3")
+        
+        # Delete document file
         s3_client.delete_object(
             Bucket=config.knowledge_bucket,
             Key=s3_key,
         )
         logger.info("S3 object deleted: %s", s3_key)
+        
+        # Delete metadata file
+        metadata_key = f"{s3_key}.metadata.json"
+        s3_client.delete_object(
+            Bucket=config.knowledge_bucket,
+            Key=metadata_key,
+        )
+        logger.info("S3 metadata deleted: %s", metadata_key)
+        
     except Exception as e:
         logger.error("Failed to delete S3 object: %s", e)
         return build_response(False, error=f"S3ファイルの削除に失敗しました: {str(e)}")
@@ -308,19 +426,19 @@ def handle_delete_knowledgebase(arguments: dict) -> dict:
     table.delete_item(
         Key={
             "conversationId": conversation_id,
-            "knowledgeSourceId": knowledge_source_id,
+            "fileName": file_name,
         }
     )
 
     logger.info(
-        "Knowledge source deleted: id=%s, file=%s",
-        knowledge_source_id,
-        item.get("fileName"),
+        "Knowledge source deleted: file=%s, conversation=%s",
+        file_name,
+        conversation_id,
     )
 
     return {
         "success": True,
-        "knowledgeSourceId": knowledge_source_id,
+        "fileName": file_name,
     }
 
 
@@ -386,7 +504,7 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
         result["aiMessageId"] = ai_msg_id
         return result
 
-    # 3. Call Bedrock RetrieveAndGenerate API
+    # 3. Call Bedrock RetrieveAndGenerate API with conversation filter
     try:
         bedrock_client = boto3.client(
             "bedrock-agent-runtime",
@@ -400,6 +518,16 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
                 "knowledgeBaseConfiguration": {
                     "knowledgeBaseId": config.bedrock_kb_id,
                     "modelArn": f"arn:aws:bedrock:{config.bedrock_region}::foundation-model/{config.bedrock_model_id}",
+                    "retrievalConfiguration": {
+                        "vectorSearchConfiguration": {
+                            "filter": {
+                                "equals": {
+                                    "key": "conversationId",
+                                    "value": conversation_id,
+                                }
+                            }
+                        }
+                    }
                 },
             },
         )

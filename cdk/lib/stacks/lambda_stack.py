@@ -7,6 +7,8 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_iam as iam,
     aws_logs as logs,
+    aws_s3 as s3,
+    aws_s3_notifications as s3n,
 )
 from constructs import Construct
 
@@ -25,6 +27,7 @@ class LambdaStack(Stack):
         database_stack: DatabaseStack,
         cloudfront_domain_name: str,
         bedrock_kb_id: str = "",
+        bedrock_ds_id: str = "",
         use_mock_ai: bool = True,
         **kwargs,
     ) -> None:
@@ -267,3 +270,77 @@ class LambdaStack(Stack):
         self.knowledgebase_fn.add_environment(
             "CLOUDFRONT_DOMAIN_NAME", self._cloudfront_domain_name
         )
+
+        # =========================================================
+        # Ingestion Trigger Lambda (Auto-sync for Knowledge Base)
+        # =========================================================
+        if bedrock_kb_id and bedrock_ds_id:
+            # IAM Role for Ingestion Trigger
+            ingestion_trigger_role = iam.Role(
+                self,
+                "IngestionTriggerRole",
+                assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+                managed_policies=[
+                    iam.ManagedPolicy.from_aws_managed_policy_name(
+                        "service-role/AWSLambdaBasicExecutionRole"
+                    )
+                ]
+            )
+            
+            # Grant permission to start ingestion jobs
+            ingestion_trigger_role.add_to_policy(
+                iam.PolicyStatement(
+                    effect=iam.Effect.ALLOW,
+                    actions=[
+                        "bedrock:StartIngestionJob",
+                        "bedrock:GetIngestionJob",
+                        "bedrock:ListIngestionJobs"
+                    ],
+                    resources=[
+                        f"arn:aws:bedrock:{self.region}:{self.account}:knowledge-base/{bedrock_kb_id}"
+                    ]
+                )
+            )
+            
+            # Ingestion Trigger Lambda Function
+            self.ingestion_trigger_fn = lambda_.Function(
+                self,
+                "IngestionTriggerFunction",
+                function_name=f"{project_name}-{env_name}-ingestion-trigger",
+                runtime=lambda_.Runtime.PYTHON_3_12,
+                handler="index.lambda_handler",
+                code=lambda_.Code.from_asset(
+                    os.path.join(backend_path, "functions", "ingestion_trigger")
+                ),
+                role=ingestion_trigger_role,
+                timeout=Duration.seconds(60),
+                memory_size=256,
+                environment={
+                    "BEDROCK_KB_ID": bedrock_kb_id,
+                    "BEDROCK_DS_ID": bedrock_ds_id,
+                    "BEDROCK_REGION": self.region,
+                    "ENVIRONMENT": env_name
+                },
+                log_retention=logs.RetentionDays.ONE_WEEK,
+            )
+            
+            # Reference S3 bucket from database stack (avoid circular dependency)
+            knowledge_bucket = s3.Bucket.from_bucket_name(
+                self,
+                "KnowledgeBucketRef",
+                database_stack.knowledge_bucket.bucket_name
+            )
+            
+            # S3 Event Notification: ObjectCreated (upload)
+            knowledge_bucket.add_event_notification(
+                s3.EventType.OBJECT_CREATED,
+                s3n.LambdaDestination(self.ingestion_trigger_fn),
+                s3.NotificationKeyFilter(prefix="conversations/")
+            )
+            
+            # S3 Event Notification: ObjectRemoved (delete)
+            knowledge_bucket.add_event_notification(
+                s3.EventType.OBJECT_REMOVED,
+                s3n.LambdaDestination(self.ingestion_trigger_fn),
+                s3.NotificationKeyFilter(prefix="conversations/")
+            )

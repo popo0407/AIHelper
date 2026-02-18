@@ -20,6 +20,15 @@ export const GET_CONVERSATION = /* GraphQL */ `
   }
 `;
 
+export const COMPLETE_KNOWLEDGEBASE_UPLOAD = /* GraphQL */ `
+  mutation CompleteKnowledgebaseUpload($input: CompleteKnowledgebaseUploadInput!) {
+    completeKnowledgebaseUpload(input: $input) {
+      success
+      error
+    }
+  }
+`;
+
 export const LIST_CONVERSATIONS = /* GraphQL */ `
   query ListConversations($loginId: ID!) {
     listConversations(loginId: $loginId) {
@@ -231,9 +240,9 @@ export const ASK_AI_HELPER = /* GraphQL */ `
 export const LIST_KNOWLEDGE_SOURCES = /* GraphQL */ `
   query ListKnowledgeSources($conversationId: ID!) {
     listKnowledgeSources(conversationId: $conversationId) {
-      knowledgeSourceId
       conversationId
       fileName
+      originalFileName
       fileSize
       s3Key
       contentType
@@ -250,9 +259,9 @@ export const UPLOAD_KNOWLEDGEBASE = /* GraphQL */ `
     uploadKnowledgebase(input: $input) {
       success
       knowledgeSource {
-        knowledgeSourceId
         conversationId
         fileName
+        originalFileName
         fileSize
         s3Key
         contentType
@@ -271,7 +280,7 @@ export const DELETE_KNOWLEDGEBASE = /* GraphQL */ `
   mutation DeleteKnowledgebase($input: DeleteKnowledgebaseInput!) {
     deleteKnowledgebase(input: $input) {
       success
-      knowledgeSourceId
+      fileName
       error
     }
   }
