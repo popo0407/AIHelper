@@ -293,6 +293,7 @@ export const SEARCH_KNOWLEDGEBASE = /* GraphQL */ `
       query
       answer
       sources
+      sourceDisplayNames
       userMessageId
       aiMessageId
     }

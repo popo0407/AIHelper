@@ -468,6 +468,7 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 ---
 
 ## � **変更履歴**
+
 ### v0.6.1 (2026-02-18)
 
 - **`.metadata.json` 生成機能実装:** Knowledge Base ファイルアップロード時に会話IDを含むメタデータファイルを自動生成
@@ -479,6 +480,7 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
   - 新DataSource ID: `QZ7IB6AXUT`
   - VectorBucket: `aichat-dev-vectors-v2`
 - **IngestionTrigger復活:** S3アップロード時の自動インデックス作成機能を再実装
+
 ### v0.6.0 (2026-02-17)
 
 - **Knowledge Base S3_VECTORS 実装:** Tokyo リージョン（ap-northeast-1）でS3_VECTORSストレージを使用したBedrock Knowledge Baseのデプロイ成功

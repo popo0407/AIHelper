@@ -532,11 +532,21 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
             },
         )
         
-        # Extract answer and source references
-        answer = response.get("output", {}).get("text", "回答の生成に失敗しました。")
+        # Extract answer from Bedrock (without citation information)\n        answer = response.get(\"output\", {}).get(\"text\", \"回答の生成に失敗しました。\")
         
-        # Extract source file names from citations
-        source_names = []
+        # Remove any citation/reference information from the answer
+        # Pattern: 【参照元: ...】or [Citation: ...] etc.
+        answer = re.sub(
+            r'【参照元[：:][^】]*】|【Citation[：:][^】]*】|\[Citation[：:][^\]]*\]|\[References?[：:][^\]]*\]',
+            '',
+            answer
+        ).strip()
+        
+        # Build map of sanitized filename -> original filename for display
+        # Only include sources that were actually used in the search
+        source_names = []  # Sanitized names (used internally)
+        source_display_names = []  # Original names (for UI)
+        
         citations = response.get("citations", [])
         for citation in citations:
             for ref in citation.get("retrievedReferences", []):
@@ -544,14 +554,16 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
                 s3_location = location.get("s3Location", {})
                 uri = s3_location.get("uri", "")
                 if uri:
-                    # Extract file name from S3 URI
-                    file_name = uri.split("/")[-1]
-                    if file_name and file_name not in source_names:
-                        source_names.append(file_name)
-        
-        # If no sources extracted from citations, use all registered sources
-        if not source_names:
-            source_names = [s["fileName"] for s in sources]
+                    # Extract sanitized file name from S3 URI
+                    sanitized_name = uri.split("/")[-1]
+                    if sanitized_name and sanitized_name not in source_names:
+                        source_names.append(sanitized_name)
+                        # Find original filename from sources list
+                        for src in sources:
+                            if src["fileName"] == sanitized_name:
+                                original_name = src.get("originalFileName", sanitized_name)
+                                source_display_names.append(original_name)
+                                break
         
         logger.info("KB search completed: sources=%s", source_names)
         
@@ -569,7 +581,8 @@ def handle_search_knowledgebase(arguments: dict) -> dict:
         "conversationId": conversation_id,
         "query": user_query,
         "answer": answer,
-        "sources": source_names,
+        "sources": source_names,  # Sanitized names for internal use
+        "sourceDisplayNames": source_display_names,  # Original names for UI
         "userMessageId": user_msg_id,
         "aiMessageId": ai_msg_id,
     }

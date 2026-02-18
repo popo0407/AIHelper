@@ -27,6 +27,7 @@
 #### **解決手順**
 
 **Step 1: CDKからBedrockスタックを一時除外**
+
 ```python
 # cdk/app.py
 # from lib.stacks.bedrock_stack import BedrockStack  # コメントアウト
@@ -39,12 +40,14 @@
 ```
 
 **Step 2: ROLLBACK状態のスタック削除**
+
 ```bash
 aws cloudformation delete-stack --stack-name aichat-dev-bedrock --region ap-northeast-1
 aws cloudformation wait stack-delete-complete --stack-name aichat-dev-bedrock
 ```
 
 **Step 3: VectorBucket名変更（衝突回避）**
+
 ```python
 # cdk/lib/stacks/bedrock_stack.py
 vector_bucket_name = f"aichat-{environment}-vectors-v2"  # -v2 追加
@@ -52,6 +55,7 @@ vector_index_name = f"aichat-{environment}-kb-index-v2"   # -v2 追加
 ```
 
 **Step 4: Bedrockスタックを再追加・デプロイ**
+
 ```python
 # cdk/app.py のコメントアウトを解除
 from lib.stacks.bedrock_stack import BedrockStack
@@ -65,6 +69,7 @@ cdk deploy aichat-dev-bedrock --outputs-file outputs.json --require-approval nev
 ```
 
 **Step 5: Lambda/AppSyncスタック更新（新KB ID反映）**
+
 ```bash
 cdk deploy aichat-dev-lambda aichat-dev-appsync --outputs-file outputs.json --require-approval never
 ```
@@ -72,11 +77,13 @@ cdk deploy aichat-dev-lambda aichat-dev-appsync --outputs-file outputs.json --re
 #### **デプロイ結果**
 
 ✅ **全スタック正常デプロイ完了**
+
 - `aichat-dev-bedrock`: `CREATE_COMPLETE`（新規作成）
 - `aichat-dev-lambda`: `UPDATE_COMPLETE`（IngestionTriggerFunction復活）
 - `aichat-dev-appsync`: `UPDATE_COMPLETE`
 
 **新しいリソースID:**
+
 - Knowledge Base ID: `64EKKDPAWX`（旧: `MLAENRLJKJ`）
 - DataSource ID: `QZ7IB6AXUT`（旧: `NOIQ6SSSIL`）
 - VectorBucket: `aichat-dev-vectors-v2`（旧: `aichat-dev-vectors`）
@@ -84,26 +91,30 @@ cdk deploy aichat-dev-lambda aichat-dev-appsync --outputs-file outputs.json --re
 #### **教訓と再発防止策**
 
 **問題の根本原因:**
+
 1. ❌ **CloudFormationスタックと実リソースの不整合**：手動削除がスタック状態と矛盾
 2. ❌ **RemovalPolicy理解不足**：`RETAIN`がリソース残存させることを考慮せず
 3. ❌ **リソース名の固定**：環境に対して一意な名前のため、削除後の再作成で衝突
 
 **再発防止策:**
+
 1. ✅ **原則：CDKでリソース管理を完結させる**
    - 手動での AWS CLI操作は最小限に
    - 削除が必要な場合は `cdk destroy` を優先
 
 2. ✅ **RemovalPolicyを適切に設定**
+
    ```python
    # 開発環境: 削除可能
    vector_bucket.apply_removal_policy(RemovalPolicy.DESTROY)
-   
+
    # 本番環境: 保持
    if environment == "prod":
        vector_bucket.apply_removal_policy(RemovalPolicy.RETAIN)
    ```
 
 3. ✅ **リソース名にタイムスタンプやバージョンを含める**
+
    ```python
    # 衝突を避けるバージョニング
    vector_bucket_name = f"aichat-{environment}-vectors-v2"

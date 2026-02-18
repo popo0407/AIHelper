@@ -26,6 +26,11 @@
     "DataSourceId": "QZ7IB6AXUT",
     "ExportsOutputFnGetAttDataSourceDataSourceIdA5356048": "QZ7IB6AXUT"
   },
+  "aichat-dev-frontend": {
+    "FrontendBucketName": "aichat-dev-frontend-590184009554",
+    "FrontendDistributionId": "E1QYBAICGTZBG",
+    "FrontendURL": "https://dg88b3kzz7k6f.cloudfront.net"
+  },
   "aichat-dev-lambda": {
     "ExportsOutputFnGetAttLockManagerFunctionDFEE08A6Arn85434CC0": "arn:aws:lambda:ap-northeast-1:590184009554:function:aichat-dev-lock-manager",
     "ExportsOutputFnGetAttAISupportFunction7B82DCA5ArnB1BD384D": "arn:aws:lambda:ap-northeast-1:590184009554:function:aichat-dev-ai-support",

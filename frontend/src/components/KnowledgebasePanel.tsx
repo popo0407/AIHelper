@@ -350,7 +350,7 @@ export function KnowledgebasePanel({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-serendie-gray-900 truncate">
-                      {_getFileIcon(source.contentType)} {source.fileName}
+                      {_getFileIcon(source.contentType)} {source.originalFileName || source.fileName}
                     </p>
                     <p className="text-xs text-serendie-gray-500">
                       {_formatFileSize(source.fileSize)} ・{' '}
@@ -368,7 +368,7 @@ export function KnowledgebasePanel({
                       handleDelete(source.fileName, source.originalFileName)
                     }
                     disabled={deletingId === source.fileName}
-                    aria-label={`${source.fileName}を削除`}
+                    aria-label={`${source.originalFileName || source.fileName}を削除`}
                   >
                     {deletingId === source.fileName
                       ? '削除中...'

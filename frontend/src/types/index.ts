@@ -147,6 +147,7 @@ export interface KnowledgeSearchResult {
   query: string;
   answer: string;
   sources: string[];
+  sourceDisplayNames?: string[];
 }
 
 export interface UploadKnowledgebaseResponse {
