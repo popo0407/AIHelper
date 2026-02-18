@@ -14,7 +14,9 @@ type UserConversation {
   loginId: ID!
   conversationId: ID!
   joinedAt: AWSDateTime!
-  role: String # e.g., "owner", "participant"
+  role: String! # 'creator' | 'participant' | 'inactive'
+  lastMessageId: String
+  lastUpdatedAt: AWSDateTime
 }
 
 type Message {
@@ -165,6 +167,17 @@ input JoinConversationInput {
   conversationId: ID!
 }
 
+input LeaveConversationInput {
+  loginId: String!
+  conversationId: ID!
+}
+
+input UpdateLastMessageIdInput {
+  loginId: String!
+  conversationId: ID!
+  messageId: ID!
+}
+
 input UploadKnowledgebaseInput {
   conversationId: ID!
   fileName: String!
@@ -199,6 +212,18 @@ type JoinConversationResponse {
   error: String
 }
 
+type LeaveConversationResponse {
+  success: Boolean!
+  conversationId: ID
+  error: String
+}
+
+type UpdateLastMessageIdResponse {
+  success: Boolean!
+  userConversation: UserConversation
+  error: String
+}
+
 # ------ Queries ------
 
 type Query {
@@ -226,6 +251,8 @@ type Mutation {
     input: CreateConversationInput!
   ): CreateConversationResponse!
   joinConversation(input: JoinConversationInput!): JoinConversationResponse!
+  leaveConversation(input: LeaveConversationInput!): LeaveConversationResponse!
+  updateLastMessageId(input: UpdateLastMessageIdInput!): UpdateLastMessageIdResponse!
   # Subscription対応: 単純な型を返す
   sendMessage(input: SendMessageInput!): Message!
   updateSummary(input: UpdateSummaryInput!): Summary!

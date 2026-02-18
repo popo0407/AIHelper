@@ -2,6 +2,48 @@
 
 ---
 
+## 📅 **2026年2月19日 — ユーザー会話アクセス制限機能実装**
+
+### ✅ **完了した内容**
+
+ユーザーが特定の会話セッションにのみ参加できるようにするアクセス制御機能を実装。
+
+#### **実装内容**
+
+1. **GraphQL Schema拡張**
+   - `UserConversation`型に`lastMessageId`, `lastUpdatedAt`, `role`フィールド追加
+   - `leaveConversation`, `updateLastMessageId`ミューテーション追加
+   - 対応するInput型とResponse型を定義
+
+2. **Backend Lambda（conversation/index.py）**
+   - `leaveConversation`: 参加者退出（roleをinactiveに更新、creator退出禁止）
+   - `updateLastMessageId`: メッセージ既読位置追跡
+   - `joinConversation`改修: role（creator/participant）管理、inactive→participant再活性化
+   - `createConversation`改修: UserConversationレコードにrole='creator'設定
+   - `listConversations`改修: role='inactive'をフィルタで除外
+
+3. **AppSync Resolver追加**
+   - `LeaveConversationResolver`, `UpdateLastMessageIdResolver`をconversation_dsに追加
+
+4. **Frontend**
+   - GraphQL operations追加（LEAVE_CONVERSATION, UPDATE_LAST_MESSAGE_ID）
+   - ChatScreen: Subscription受信時に自動的にupdateLastMessageId呼び出し
+   - page.tsx: 共有リンク経由でjoinConversation自動実行
+   - UserConversation型定義追加
+
+5. **テスト（32件全パス）**
+   - leaveConversation: 正常退出/creator退出禁止/非参加者エラー/inactive二重退出
+   - updateLastMessageId: active更新/creator更新/inactive拒否/非参加者拒否
+   - listConversations: inactiveフィルタリング確認
+   - 参加→退出→再参加の一連フロー確認
+
+#### **改善点**
+
+- 既存テスト2件（conversationIdsチェック）が実装と乖離していたため修正
+- conftest.pyにUSER_CONVERSATIONS_TABLE環境変数とテーブル作成を追加
+
+---
+
 ## 📅 **2026年2月18日 — Bedrockスタック再構築（UPDATE_ROLLBACK_COMPLETE解決）**
 
 ### ✅ **完了した内容**

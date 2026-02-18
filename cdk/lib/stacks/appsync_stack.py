@@ -125,6 +125,16 @@ class AppSyncStack(Stack):
             type_name="Mutation",
             field_name="joinConversation",
         )
+        conversation_ds.create_resolver(
+            "LeaveConversationResolver",
+            type_name="Mutation",
+            field_name="leaveConversation",
+        )
+        conversation_ds.create_resolver(
+            "UpdateLastMessageIdResolver",
+            type_name="Mutation",
+            field_name="updateLastMessageId",
+        )
         chat_ds.create_resolver(
             "SendMessageResolver",
             type_name="Mutation",

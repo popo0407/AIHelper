@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { LoginScreen } from '@/components/LoginScreen';
 import { ConversationSelect } from '@/components/ConversationSelect';
 import { ChatScreen } from '@/components/ChatScreen';
+import { graphqlClient, extractData } from '@/lib/appsync';
+import { JOIN_CONVERSATION } from '@/graphql/operations';
 import type { User, Conversation } from '@/types';
 
 /** Application screens */
@@ -21,16 +23,51 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const cid = params.get('cid');
       if (cid && currentUser) {
-        setCurrentConversation({
-          conversationId: cid,
-          createdBy: '',
-          createdAt: '',
-          participants: [],
-          status: 'active',
-          shareLink: null,
-          title: null,
-        });
-        setScreen('chat');
+        // Auto-join conversation via share link
+        graphqlClient
+          .graphql({
+            query: JOIN_CONVERSATION,
+            variables: {
+              input: {
+                loginId: currentUser.loginId,
+                conversationId: cid,
+              },
+            },
+          })
+          .then((result) => {
+            const data = extractData<{
+              success: boolean;
+              conversation: Conversation;
+              error?: string;
+            }>(result as any, 'joinConversation');
+            if (data?.success && data.conversation) {
+              setCurrentConversation(data.conversation);
+            } else {
+              // Fallback: still try to open with minimal info
+              setCurrentConversation({
+                conversationId: cid,
+                createdBy: '',
+                createdAt: '',
+                participants: [],
+                status: 'active',
+                shareLink: null,
+                title: null,
+              });
+            }
+            setScreen('chat');
+          })
+          .catch(() => {
+            setCurrentConversation({
+              conversationId: cid,
+              createdBy: '',
+              createdAt: '',
+              participants: [],
+              status: 'active',
+              shareLink: null,
+              title: null,
+            });
+            setScreen('chat');
+          });
       }
     }
   }, [currentUser]);

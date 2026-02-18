@@ -5,6 +5,8 @@ Handles:
   - Query.listConversations
   - Mutation.createConversation
   - Mutation.joinConversation
+  - Mutation.leaveConversation
+  - Mutation.updateLastMessageId
 """
 import logging
 from typing import Any
@@ -37,6 +39,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         "listConversations": handle_list_conversations,
         "createConversation": handle_create_conversation,
         "joinConversation": handle_join_conversation,
+        "leaveConversation": handle_leave_conversation,
+        "updateLastMessageId": handle_update_last_message_id,
         "updateConversationTitle": handle_update_conversation_title,
     }
 
@@ -72,14 +76,19 @@ def handle_get_conversation(args: dict) -> dict | None:
 
 
 def handle_list_conversations(args: dict) -> list[dict]:
-    """List conversations for a user from UserConversations table."""
+    """List conversations for a user from UserConversations table.
+    
+    Only returns conversations where user role is not 'inactive'.
+    """
     login_id = args.get("loginId")
 
     # Query UserConversations table
     user_conversations_table = get_dynamodb_table(config.user_conversations_table)
     response = user_conversations_table.query(
         KeyConditionExpression="loginId = :lid",
-        ExpressionAttributeValues={":lid": login_id}
+        FilterExpression="attribute_not_exists(#role) OR #role <> :inactive",
+        ExpressionAttributeNames={"#role": "role"},
+        ExpressionAttributeValues={":lid": login_id, ":inactive": "inactive"}
     )
     
     user_conversation_items = response.get("Items", [])
@@ -145,13 +154,14 @@ def handle_create_conversation(args: dict) -> dict[str, Any]:
         }
     )
 
-    # Add user-conversation relationship
+    # Add user-conversation relationship with role='creator'
     user_conversations_table = get_dynamodb_table(config.user_conversations_table)
     user_conversations_table.put_item(
         Item={
             "loginId": created_by,
             "conversationId": conversation_id,
             "joinedAt": now,
+            "role": "creator",
         }
     )
 
@@ -193,20 +203,31 @@ def handle_join_conversation(args: dict) -> dict[str, Any]:
             ExpressionAttributeValues={":uid": [login_id]},
         )
 
-    # Add user-conversation relationship
+    # Add or reactivate user-conversation relationship
     user_conversations_table = get_dynamodb_table(config.user_conversations_table)
-    try:
+    existing_uc = user_conversations_table.get_item(
+        Key={"loginId": login_id, "conversationId": conversation_id}
+    ).get("Item")
+
+    if existing_uc and existing_uc.get("role") == "inactive":
+        # Reactivate inactive participant
+        user_conversations_table.update_item(
+            Key={"loginId": login_id, "conversationId": conversation_id},
+            UpdateExpression="SET #role = :role, joinedAt = :now",
+            ExpressionAttributeNames={"#role": "role"},
+            ExpressionAttributeValues={":role": "participant", ":now": utc_now_iso()},
+        )
+    elif not existing_uc:
+        # New participant
         user_conversations_table.put_item(
             Item={
                 "loginId": login_id,
                 "conversationId": conversation_id,
                 "joinedAt": utc_now_iso(),
-            },
-            ConditionExpression="attribute_not_exists(loginId) AND attribute_not_exists(conversationId)"
+                "role": "participant",
+            }
         )
-    except Exception:
-        # Already joined - ignore
-        pass
+    # If already active, do nothing (idempotent)
 
     # Fetch title
     summary_table = get_dynamodb_table(config.summary_table)
@@ -217,6 +238,95 @@ def handle_join_conversation(args: dict) -> dict[str, Any]:
         "User joined conversation: %s -> %s", login_id, conversation_id
     )
     return build_response(True, data={"conversation": conv_item})
+
+
+def handle_leave_conversation(args: dict) -> dict[str, Any]:
+    """Leave an existing conversation by setting role to 'inactive'."""
+    inp = args.get("input", {})
+    login_id = inp.get("loginId")
+    conversation_id = inp.get("conversationId")
+
+    if not login_id or not conversation_id:
+        return build_response(
+            False, error="loginId and conversationId are required."
+        )
+
+    user_conversations_table = get_dynamodb_table(config.user_conversations_table)
+    response = user_conversations_table.get_item(
+        Key={"loginId": login_id, "conversationId": conversation_id}
+    )
+    existing = response.get("Item")
+
+    if not existing:
+        return build_response(False, error="Not a participant.")
+
+    if existing.get("role") == "creator":
+        return build_response(
+            False, error="Creator cannot leave conversation."
+        )
+
+    if existing.get("role") == "inactive":
+        return build_response(
+            False, error="Already left this conversation."
+        )
+
+    # Set role to 'inactive'
+    user_conversations_table.update_item(
+        Key={"loginId": login_id, "conversationId": conversation_id},
+        UpdateExpression="SET #role = :role",
+        ExpressionAttributeNames={"#role": "role"},
+        ExpressionAttributeValues={":role": "inactive"},
+    )
+
+    logger.info(
+        "User left conversation: %s -> %s", login_id, conversation_id
+    )
+    return build_response(
+        True, data={"conversationId": conversation_id}
+    )
+
+
+def handle_update_last_message_id(args: dict) -> dict[str, Any]:
+    """Update the lastMessageId for a user in a conversation."""
+    inp = args.get("input", {})
+    login_id = inp.get("loginId")
+    conversation_id = inp.get("conversationId")
+    message_id = inp.get("messageId")
+
+    if not login_id or not conversation_id or not message_id:
+        return build_response(
+            False,
+            error="loginId, conversationId, and messageId are required.",
+        )
+
+    user_conversations_table = get_dynamodb_table(config.user_conversations_table)
+    response = user_conversations_table.get_item(
+        Key={"loginId": login_id, "conversationId": conversation_id}
+    )
+    existing = response.get("Item")
+
+    if not existing or existing.get("role") == "inactive":
+        return build_response(False, error="Not an active participant.")
+
+    now = utc_now_iso()
+    user_conversations_table.update_item(
+        Key={"loginId": login_id, "conversationId": conversation_id},
+        UpdateExpression="SET lastMessageId = :msgId, lastUpdatedAt = :now",
+        ExpressionAttributeValues={":msgId": message_id, ":now": now},
+    )
+
+    # Fetch updated record
+    updated = user_conversations_table.get_item(
+        Key={"loginId": login_id, "conversationId": conversation_id}
+    ).get("Item", {})
+
+    logger.info(
+        "LastMessageId updated: user=%s, conv=%s, msg=%s",
+        login_id,
+        conversation_id,
+        message_id,
+    )
+    return build_response(True, data={"userConversation": updated})
 
 
 def handle_update_conversation_title(args: dict) -> dict:

@@ -129,6 +129,19 @@ export const AI_BUTTONS: AIButtonConfig[] = [
 
 // ------ Knowledgebase Types ------
 
+// ------ UserConversation Types ------
+
+export interface UserConversation {
+  loginId: string;
+  conversationId: string;
+  joinedAt: string;
+  role: 'creator' | 'participant' | 'inactive';
+  lastMessageId?: string | null;
+  lastUpdatedAt?: string | null;
+}
+
+// ------ Knowledgebase Types (file) ------
+
 export interface KnowledgeSource {
   conversationId: string;
   fileName: string;

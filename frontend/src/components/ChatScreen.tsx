@@ -24,6 +24,7 @@ import {
   UPDATE_CONVERSATION_TITLE,
   SEARCH_KNOWLEDGEBASE,
   LIST_KNOWLEDGE_SOURCES,
+  UPDATE_LAST_MESSAGE_ID,
   ON_NEW_MESSAGE,
   ON_SUMMARY_UPDATE,
   ON_LOCK_CHANGE,
@@ -128,6 +129,22 @@ export function ChatScreen({
                 }
                 return [...prev, newMsg];
               });
+
+              // Auto-update lastMessageId for access control tracking
+              graphqlClient
+                .graphql({
+                  query: UPDATE_LAST_MESSAGE_ID,
+                  variables: {
+                    input: {
+                      loginId: user.loginId,
+                      conversationId: conversation.conversationId,
+                      messageId: newMsg.messageId,
+                    },
+                  },
+                })
+                .catch((err: unknown) =>
+                  console.error('Failed to update lastMessageId:', err)
+                );
             }
           },
           error: (err: unknown) =>

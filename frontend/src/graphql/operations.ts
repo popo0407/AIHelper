@@ -126,6 +126,33 @@ export const JOIN_CONVERSATION = /* GraphQL */ `
   }
 `;
 
+export const LEAVE_CONVERSATION = /* GraphQL */ `
+  mutation LeaveConversation($input: LeaveConversationInput!) {
+    leaveConversation(input: $input) {
+      success
+      conversationId
+      error
+    }
+  }
+`;
+
+export const UPDATE_LAST_MESSAGE_ID = /* GraphQL */ `
+  mutation UpdateLastMessageId($input: UpdateLastMessageIdInput!) {
+    updateLastMessageId(input: $input) {
+      success
+      userConversation {
+        loginId
+        conversationId
+        joinedAt
+        role
+        lastMessageId
+        lastUpdatedAt
+      }
+      error
+    }
+  }
+`;
+
 export const SEND_MESSAGE = /* GraphQL */ `
   mutation SendMessage($input: SendMessageInput!) {
     sendMessage(input: $input) {

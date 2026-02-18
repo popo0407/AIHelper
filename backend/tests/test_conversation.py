@@ -67,8 +67,9 @@ class TestCreateConversation:
         assert "conversationId" in conv
         assert "createdAt" in conv
 
-    def test_会話作成後にユーザーのconversationIdsが更新される(self, dynamodb_tables, users_table):
-        """ユーザーの conversationIds に新しい会話 ID が追加される。"""
+    def test_会話作成後にUserConversationsレコードが作成される(self, dynamodb_tables, users_table,
+                                                            user_conversations_table):
+        """UserConversations テーブルに新しいレコードが作成される。"""
         _seed_user(users_table, "creator2")
 
         event = make_appsync_event("createConversation", {
@@ -77,9 +78,12 @@ class TestCreateConversation:
         result = _handler()(event, None)
         conv_id = result["conversation"]["conversationId"]
 
-        # ユーザーの conversationIds を確認
-        user = users_table.get_item(Key={"loginId": "creator2"})["Item"]
-        assert conv_id in user["conversationIds"]
+        # UserConversations テーブルを確認
+        uc = user_conversations_table.get_item(
+            Key={"loginId": "creator2", "conversationId": conv_id}
+        ).get("Item")
+        assert uc is not None
+        assert uc["role"] == "creator"
 
     def test_会話作成後に空の要約が初期化される(self, dynamodb_tables, users_table, summary_table):
         """会話作成時に空の要約レコードが作成される。"""
@@ -172,7 +176,8 @@ class TestListConversations:
     """Query.listConversations のテスト群."""
 
     def test_ユーザーの会話一覧を取得できる(self, dynamodb_tables, users_table,
-                                     conversations_table, summary_table):
+                                     conversations_table, summary_table,
+                                     user_conversations_table):
         """ユーザーが参加している会話の一覧を title 付きで返す。"""
         users_table.put_item(Item={
             "loginId": "list_user",
@@ -182,6 +187,19 @@ class TestListConversations:
         })
         _seed_conversation(conversations_table, "conv-l1", "list_user")
         _seed_conversation(conversations_table, "conv-l2", "list_user")
+        # UserConversations テーブルにも追加
+        user_conversations_table.put_item(Item={
+            "loginId": "list_user",
+            "conversationId": "conv-l1",
+            "joinedAt": "2024-01-01T00:00:00+00:00",
+            "role": "creator",
+        })
+        user_conversations_table.put_item(Item={
+            "loginId": "list_user",
+            "conversationId": "conv-l2",
+            "joinedAt": "2024-01-01T00:00:00+00:00",
+            "role": "creator",
+        })
         summary_table.put_item(Item={
             "conversationId": "conv-l1",
             "title": "会議1",
@@ -259,9 +277,10 @@ class TestJoinConversation:
         assert "conversation" in result
         assert result["conversation"]["title"] == "参加テスト"
 
-    def test_参加後にユーザーのconversationIdsが更新される(self, dynamodb_tables, users_table,
-                                                   conversations_table, summary_table):
-        """参加後、ユーザーの conversationIds に会話 ID が追加される。"""
+    def test_参加後にUserConversationsレコードが作成される(self, dynamodb_tables, users_table,
+                                                        conversations_table, summary_table,
+                                                        user_conversations_table):
+        """参加後、UserConversations テーブルにレコードが追加される。"""
         _seed_user(users_table, "joiner2")
         _seed_conversation(conversations_table, "conv-join2", "creator1")
         summary_table.put_item(Item={
@@ -278,8 +297,11 @@ class TestJoinConversation:
         })
         _handler()(event, None)
 
-        user = users_table.get_item(Key={"loginId": "joiner2"})["Item"]
-        assert "conv-join2" in user["conversationIds"]
+        uc = user_conversations_table.get_item(
+            Key={"loginId": "joiner2", "conversationId": "conv-join2"}
+        ).get("Item")
+        assert uc is not None
+        assert uc["role"] == "participant"
 
     def test_既に参加済みのユーザーは重複追加されない(self, dynamodb_tables, users_table,
                                              conversations_table, summary_table):
@@ -414,3 +436,268 @@ class TestUpdateConversationTitle:
         })
         with pytest.raises(ValueError, match="conversationId is required"):
             _handler()(event, None)
+
+
+# ================================================================
+# leaveConversation
+# ================================================================
+
+def _seed_user_conversation(user_conversations_table, login_id, conv_id,
+                             role="participant"):
+    """テスト用UserConversationレコードを作成するヘルパー。"""
+    user_conversations_table.put_item(Item={
+        "loginId": login_id,
+        "conversationId": conv_id,
+        "joinedAt": "2024-01-01T00:00:00+00:00",
+        "role": role,
+    })
+
+
+class TestLeaveConversation:
+    """Mutation.leaveConversation のテスト群."""
+
+    def test_participantが退出できる(self, dynamodb_tables, user_conversations_table):
+        """participant が退出すると role が 'inactive' に更新される。"""
+        _seed_user_conversation(user_conversations_table, "leaver1", "conv-leave1")
+
+        event = make_appsync_event("leaveConversation", {
+            "input": {"loginId": "leaver1", "conversationId": "conv-leave1"}
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is True
+        assert result["conversationId"] == "conv-leave1"
+
+        # role が 'inactive' に更新されていること
+        uc = user_conversations_table.get_item(
+            Key={"loginId": "leaver1", "conversationId": "conv-leave1"}
+        )["Item"]
+        assert uc["role"] == "inactive"
+
+    def test_creatorは退出できない(self, dynamodb_tables, user_conversations_table):
+        """role='creator' のユーザーは退出エラーとなる。"""
+        _seed_user_conversation(user_conversations_table, "creator1", "conv-leave2",
+                                 role="creator")
+
+        event = make_appsync_event("leaveConversation", {
+            "input": {"loginId": "creator1", "conversationId": "conv-leave2"}
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+        assert "Creator" in result["error"]
+
+    def test_非参加者が退出するとエラー(self, dynamodb_tables, user_conversations_table):
+        """UserConversation レコードがないユーザーはエラー。"""
+        event = make_appsync_event("leaveConversation", {
+            "input": {"loginId": "ghost", "conversationId": "conv-leave3"}
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+        assert "Not a participant" in result["error"]
+
+    def test_既にinactiveの場合エラー(self, dynamodb_tables, user_conversations_table):
+        """既に inactive のユーザーが再度退出しようとするとエラー。"""
+        _seed_user_conversation(user_conversations_table, "inactive1", "conv-leave4",
+                                 role="inactive")
+
+        event = make_appsync_event("leaveConversation", {
+            "input": {"loginId": "inactive1", "conversationId": "conv-leave4"}
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+        assert "Already left" in result["error"]
+
+    def test_loginIdが未指定の場合エラー(self, dynamodb_tables):
+        """loginId がない場合はエラー。"""
+        event = make_appsync_event("leaveConversation", {
+            "input": {"conversationId": "conv-1"}
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+        assert "required" in result["error"]
+
+
+# ================================================================
+# updateLastMessageId
+# ================================================================
+
+class TestUpdateLastMessageId:
+    """Mutation.updateLastMessageId のテスト群."""
+
+    def test_active参加者がlastMessageIdを更新できる(self, dynamodb_tables,
+                                                 user_conversations_table):
+        """active 参加者が lastMessageId を正常に更新できる。"""
+        _seed_user_conversation(user_conversations_table, "user1", "conv-msg1")
+
+        event = make_appsync_event("updateLastMessageId", {
+            "input": {
+                "loginId": "user1",
+                "conversationId": "conv-msg1",
+                "messageId": "msg-001",
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is True
+        uc = result["userConversation"]
+        assert uc["lastMessageId"] == "msg-001"
+        assert "lastUpdatedAt" in uc
+
+    def test_creator参加者がlastMessageIdを更新できる(self, dynamodb_tables,
+                                                  user_conversations_table):
+        """creator も lastMessageId を正常に更新できる。"""
+        _seed_user_conversation(user_conversations_table, "creator1", "conv-msg2",
+                                 role="creator")
+
+        event = make_appsync_event("updateLastMessageId", {
+            "input": {
+                "loginId": "creator1",
+                "conversationId": "conv-msg2",
+                "messageId": "msg-002",
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is True
+
+    def test_inactive参加者はエラー(self, dynamodb_tables, user_conversations_table):
+        """role='inactive' のユーザーは更新不可。"""
+        _seed_user_conversation(user_conversations_table, "inactive1", "conv-msg3",
+                                 role="inactive")
+
+        event = make_appsync_event("updateLastMessageId", {
+            "input": {
+                "loginId": "inactive1",
+                "conversationId": "conv-msg3",
+                "messageId": "msg-003",
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+        assert "Not an active participant" in result["error"]
+
+    def test_非参加者はエラー(self, dynamodb_tables, user_conversations_table):
+        """UserConversation レコードがないユーザーはエラー。"""
+        event = make_appsync_event("updateLastMessageId", {
+            "input": {
+                "loginId": "ghost",
+                "conversationId": "conv-msg4",
+                "messageId": "msg-004",
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+
+    def test_必須パラメータ未指定でエラー(self, dynamodb_tables):
+        """messageId がない場合はエラー。"""
+        event = make_appsync_event("updateLastMessageId", {
+            "input": {
+                "loginId": "user1",
+                "conversationId": "conv-1",
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["success"] is False
+        assert "required" in result["error"]
+
+
+# ================================================================
+# listConversations - inactive フィルタリング
+# ================================================================
+
+class TestListConversationsAccessControl:
+    """listConversations のアクセス制御テスト群."""
+
+    def test_inactiveな会話はリストに表示されない(self, dynamodb_tables,
+                                           conversations_table, summary_table,
+                                           user_conversations_table):
+        """role='inactive' の会話はリストから除外される。"""
+        _seed_conversation(conversations_table, "conv-active", "user1")
+        _seed_conversation(conversations_table, "conv-inactive", "user1")
+        summary_table.put_item(Item={
+            "conversationId": "conv-active",
+            "title": "アクティブ会話",
+            "current": "", "previous": "",
+            "updatedAt": "2024-01-01T00:00:00+00:00",
+            "updatedBy": "user1",
+        })
+        summary_table.put_item(Item={
+            "conversationId": "conv-inactive",
+            "title": "非アクティブ会話",
+            "current": "", "previous": "",
+            "updatedAt": "2024-01-01T00:00:00+00:00",
+            "updatedBy": "user1",
+        })
+        _seed_user_conversation(user_conversations_table, "filter_user",
+                                 "conv-active", role="participant")
+        _seed_user_conversation(user_conversations_table, "filter_user",
+                                 "conv-inactive", role="inactive")
+
+        event = make_appsync_event("listConversations",
+                                    {"loginId": "filter_user"})
+        result = _handler()(event, None)
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["conversationId"] == "conv-active"
+
+    def test_joinしてからの退出後再参加のフロー(self, dynamodb_tables,
+                                          conversations_table, summary_table,
+                                          user_conversations_table, users_table):
+        """参加 → 退出 → 再参加の一連フローが正しく動作する。"""
+        _seed_user(users_table, "flow_user")
+        _seed_conversation(conversations_table, "conv-flow", "creator1",
+                           participants=["creator1"])
+        summary_table.put_item(Item={
+            "conversationId": "conv-flow",
+            "title": "フローテスト",
+            "current": "", "previous": "",
+            "updatedAt": "2024-01-01T00:00:00+00:00",
+            "updatedBy": "creator1",
+        })
+
+        # Step 1: Join
+        event = make_appsync_event("joinConversation", {
+            "input": {"loginId": "flow_user", "conversationId": "conv-flow"}
+        })
+        result = _handler()(event, None)
+        assert result["success"] is True
+
+        # Verify role is participant
+        uc = user_conversations_table.get_item(
+            Key={"loginId": "flow_user", "conversationId": "conv-flow"}
+        )["Item"]
+        assert uc["role"] == "participant"
+
+        # Step 2: Leave
+        event = make_appsync_event("leaveConversation", {
+            "input": {"loginId": "flow_user", "conversationId": "conv-flow"}
+        })
+        result = _handler()(event, None)
+        assert result["success"] is True
+
+        # Verify role is inactive
+        uc = user_conversations_table.get_item(
+            Key={"loginId": "flow_user", "conversationId": "conv-flow"}
+        )["Item"]
+        assert uc["role"] == "inactive"
+
+        # Step 3: Rejoin
+        event = make_appsync_event("joinConversation", {
+            "input": {"loginId": "flow_user", "conversationId": "conv-flow"}
+        })
+        result = _handler()(event, None)
+        assert result["success"] is True
+
+        # Verify role is reactivated to participant
+        uc = user_conversations_table.get_item(
+            Key={"loginId": "flow_user", "conversationId": "conv-flow"}
+        )["Item"]
+        assert uc["role"] == "participant"

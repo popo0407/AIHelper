@@ -23,6 +23,7 @@ TEST_ENV_VARS = {
     "ENVIRONMENT": "test",
     "PROJECT_NAME": "aichat-test",
     "USERS_TABLE": "test-users",
+    "USER_CONVERSATIONS_TABLE": "test-user-conversations",
     "MESSAGES_TABLE": "test-messages",
     "SUMMARY_TABLE": "test-summary",
     "LOCKS_TABLE": "test-locks",
@@ -145,6 +146,31 @@ def _create_knowledge_sources_table(dynamodb):
     )
 
 
+def _create_user_conversations_table(dynamodb):
+    """UserConversations テーブルを作成する（GSI byConversation 付き）。"""
+    dynamodb.create_table(
+        TableName=TEST_ENV_VARS["USER_CONVERSATIONS_TABLE"],
+        KeySchema=[
+            {"AttributeName": "loginId", "KeyType": "HASH"},
+            {"AttributeName": "conversationId", "KeyType": "RANGE"},
+        ],
+        AttributeDefinitions=[
+            {"AttributeName": "loginId", "AttributeType": "S"},
+            {"AttributeName": "conversationId", "AttributeType": "S"},
+        ],
+        GlobalSecondaryIndexes=[
+            {
+                "IndexName": "byConversation",
+                "KeySchema": [
+                    {"AttributeName": "conversationId", "KeyType": "HASH"},
+                ],
+                "Projection": {"ProjectionType": "ALL"},
+            },
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
+
+
 @pytest.fixture()
 def dynamodb_tables():
     """全 DynamoDB テーブルを moto でモック作成するフィクスチャ。"""
@@ -156,6 +182,7 @@ def dynamodb_tables():
         _create_locks_table(dynamodb)
         _create_conversations_table(dynamodb)
         _create_knowledge_sources_table(dynamodb)
+        _create_user_conversations_table(dynamodb)
         yield dynamodb
 
 
@@ -193,6 +220,12 @@ def conversations_table(dynamodb_tables):
 def knowledge_sources_table(dynamodb_tables):
     """KnowledgeSources テーブルリソースを返す。"""
     return dynamodb_tables.Table(TEST_ENV_VARS["KNOWLEDGE_SOURCES_TABLE"])
+
+
+@pytest.fixture()
+def user_conversations_table(dynamodb_tables):
+    """UserConversations テーブルリソースを返す。"""
+    return dynamodb_tables.Table(TEST_ENV_VARS["USER_CONVERSATIONS_TABLE"])
 
 
 @pytest.fixture()

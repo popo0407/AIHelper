@@ -16,6 +16,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS）で RAG 検索・回答生成
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
 - **会話管理:** 複数会話のサポート、リンク共有機能
+- **会話アクセス制御:** ユーザーの参加・退出・再参加管理（role: creator/participant/inactive）、lastMessageId によるメッセージ既読位置追跡
 
 ### **技術スタック**
 
