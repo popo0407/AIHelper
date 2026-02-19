@@ -131,20 +131,18 @@ export function ChatScreen({
               });
 
               // Auto-update lastMessageId for access control tracking
-              graphqlClient
-                .graphql({
-                  query: UPDATE_LAST_MESSAGE_ID,
-                  variables: {
-                    input: {
-                      loginId: user.loginId,
-                      conversationId: conversation.conversationId,
-                      messageId: newMsg.messageId,
-                    },
+              (graphqlClient.graphql({
+                query: UPDATE_LAST_MESSAGE_ID,
+                variables: {
+                  input: {
+                    loginId: user.loginId,
+                    conversationId: conversation.conversationId,
+                    messageId: newMsg.messageId,
                   },
-                })
-                .catch((err: unknown) =>
-                  console.error('Failed to update lastMessageId:', err)
-                );
+                },
+              }) as Promise<unknown>).catch((err: unknown) =>
+                console.error('Failed to update lastMessageId:', err)
+              );
             }
           },
           error: (err: unknown) =>

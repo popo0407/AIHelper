@@ -24,50 +24,39 @@ export default function Home() {
       const cid = params.get('cid');
       if (cid && currentUser) {
         // Auto-join conversation via share link
-        graphqlClient
-          .graphql({
-            query: JOIN_CONVERSATION,
-            variables: {
-              input: {
-                loginId: currentUser.loginId,
-                conversationId: cid,
+        (async () => {
+          const fallback: Conversation = {
+            conversationId: cid,
+            createdBy: '',
+            createdAt: '',
+            participants: [],
+            status: 'active',
+            shareLink: null,
+            title: null,
+          };
+          try {
+            const result = await (graphqlClient.graphql({
+              query: JOIN_CONVERSATION,
+              variables: {
+                input: {
+                  loginId: currentUser.loginId,
+                  conversationId: cid,
+                },
               },
-            },
-          })
-          .then((result) => {
+            }) as Promise<unknown>);
             const data = extractData<{
               success: boolean;
               conversation: Conversation;
               error?: string;
             }>(result as any, 'joinConversation');
-            if (data?.success && data.conversation) {
-              setCurrentConversation(data.conversation);
-            } else {
-              // Fallback: still try to open with minimal info
-              setCurrentConversation({
-                conversationId: cid,
-                createdBy: '',
-                createdAt: '',
-                participants: [],
-                status: 'active',
-                shareLink: null,
-                title: null,
-              });
-            }
-            setScreen('chat');
-          })
-          .catch(() => {
-            setCurrentConversation({
-              conversationId: cid,
-              createdBy: '',
-              createdAt: '',
-              participants: [],
-              status: 'active',
-              shareLink: null,
-              title: null,
-            });
-            setScreen('chat');
-          });
+            setCurrentConversation(
+              data?.success && data.conversation ? data.conversation : fallback,
+            );
+          } catch {
+            setCurrentConversation(fallback);
+          }
+          setScreen('chat');
+        })();
       }
     }
   }, [currentUser]);
