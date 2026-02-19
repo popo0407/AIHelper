@@ -77,10 +77,28 @@ export default function Home() {
     setScreen('conversations');
   }, []);
 
-  const handleSelectConversation = useCallback((conv: Conversation) => {
-    setCurrentConversation(conv);
-    setScreen('chat');
-  }, []);
+  const handleSelectConversation = useCallback(
+    async (conv: Conversation) => {
+      if (currentUser) {
+        try {
+          await graphqlClient.graphql({
+            query: JOIN_CONVERSATION,
+            variables: {
+              input: {
+                loginId: currentUser.loginId,
+                conversationId: conv.conversationId,
+              },
+            },
+          });
+        } catch {
+          // joinConversation失敗しても会話は開く（冪等性のため）
+        }
+      }
+      setCurrentConversation(conv);
+      setScreen('chat');
+    },
+    [currentUser],
+  );
 
   const handleNewConversation = useCallback((conv: Conversation) => {
     setCurrentConversation(conv);
