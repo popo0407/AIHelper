@@ -45,6 +45,9 @@ export function SummarySidebar({
 }: SummarySidebarProps) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [copyMessage, setCopyMessage] = useState('');
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [modalDraftText, setModalDraftText] = useState<string>('');
+  const [prevPromptType, setPrevPromptType] = useState<PromptType>('summary');
 
   const currentPromptType: PromptType =
     (summary?.selectedPromptType as PromptType) ?? 'summary';
@@ -87,14 +90,36 @@ export function SummarySidebar({
   };
 
   const handlePromptTypeChange = (newType: PromptType) => {
-    if (onUpdatePromptType) {
-      onUpdatePromptType(newType, newType === 'custom' ? localCustomText : undefined);
+    if (newType === 'custom') {
+      // カスタム選択時はモーダルを開く
+      setPrevPromptType(currentPromptType);
+      setModalDraftText(localCustomText);
+      setShowCustomModal(true);
+    } else if (onUpdatePromptType) {
+      onUpdatePromptType(newType);
     }
   };
 
-  const handleCustomTextBlur = () => {
-    if (currentPromptType === 'custom' && onUpdatePromptType) {
-      onUpdatePromptType('custom', localCustomText);
+  const handleOpenCustomModal = () => {
+    setModalDraftText(localCustomText);
+    setShowCustomModal(true);
+  };
+
+  const handleSaveCustomPrompt = () => {
+    const trimmed = modalDraftText.trim();
+    if (!trimmed) return;
+    setLocalCustomText(trimmed);
+    setShowCustomModal(false);
+    if (onUpdatePromptType) {
+      onUpdatePromptType('custom', trimmed);
+    }
+  };
+
+  const handleCancelCustomModal = () => {
+    setShowCustomModal(false);
+    // カスタムプロンプトが未保存の場合は前の種別に戻す
+    if (!localCustomText && onUpdatePromptType && prevPromptType !== 'custom') {
+      onUpdatePromptType(prevPromptType);
     }
   };
 
@@ -160,23 +185,25 @@ export function SummarySidebar({
         )}
 
         {currentPromptType === 'custom' && (
-          <div className="mt-2">
-            <label className="block text-xs text-serendie-gray-600 mb-1">
-              カスタムプロンプト
-            </label>
-            <textarea
-              className="w-full text-sm border border-serendie-gray-300 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-serendie-blue-400"
-              rows={4}
-              placeholder="AIへの指示を入力してください..."
-              value={localCustomText}
-              onChange={(e) => setLocalCustomText(e.target.value)}
-              onBlur={handleCustomTextBlur}
-              aria-label="カスタムプロンプトを入力"
+          <div className="mt-2 flex items-start gap-2 bg-serendie-gray-50 rounded p-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-serendie-gray-500 mb-0.5">カスタムプロンプト</p>
+              {localCustomText ? (
+                <p className="text-xs text-serendie-gray-700 truncate" title={localCustomText}>
+                  {localCustomText.slice(0, 60)}{localCustomText.length > 60 ? '…' : ''}
+                </p>
+              ) : (
+                <p className="text-xs text-serendie-gray-400 italic">未設定</p>
+              )}
+            </div>
+            <button
+              onClick={handleOpenCustomModal}
               disabled={isSummaryProcessing || lockState.isLocked}
-            />
-            <p className="text-xs text-serendie-gray-400 mt-1">
-              {`{current_summary}`} と {`{selected_messages}`} が利用可能です
-            </p>
+              className="flex-shrink-0 text-xs px-2 py-1 rounded border border-serendie-gray-300 bg-white hover:bg-serendie-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="カスタムプロンプトを編集"
+            >
+              ✏️ 編集
+            </button>
           </div>
         )}
 
@@ -323,6 +350,65 @@ export function SummarySidebar({
           </p>
         )}
       </div>
+      {/* カスタムプロンプト入力モーダル */}
+      {showCustomModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="カスタムプロンプト設定"
+          onClick={(e) => { if (e.target === e.currentTarget) handleCancelCustomModal(); }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-serendie-gray-200">
+              <h3 className="text-base font-bold text-serendie-gray-900">カスタムプロンプト</h3>
+              <button
+                onClick={handleCancelCustomModal}
+                className="text-serendie-gray-400 hover:text-serendie-gray-600 text-xl leading-none"
+                aria-label="閉じる"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              <label className="block text-sm text-serendie-gray-700 mb-2">
+                AIへの指示を入力してください
+              </label>
+              <textarea
+                className="w-full text-sm border border-serendie-gray-300 rounded px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-serendie-blue-400"
+                rows={8}
+                placeholder="例: 会話から課題とその担当者を箇条書きで抽出してください。"
+                value={modalDraftText}
+                onChange={(e) => setModalDraftText(e.target.value)}
+                aria-label="カスタムプロンプトを入力"
+                autoFocus
+              />
+              <p className="text-xs text-serendie-gray-400 mt-1 text-right">
+                {modalDraftText.length} 文字
+              </p>
+            </div>
+
+            <div className="flex gap-3 px-5 pb-5">
+              <button
+                onClick={handleCancelCustomModal}
+                className="btn-secondary flex-1"
+                aria-label="キャンセル"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSaveCustomPrompt}
+                disabled={!modalDraftText.trim()}
+                className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="保存"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

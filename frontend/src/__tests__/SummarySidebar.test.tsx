@@ -263,13 +263,39 @@ describe('SummarySidebar', () => {
       const select = screen.getByLabelText('プロンプト種別を選択');
       await user.selectOptions(select, 'actionItem');
 
-      expect(onUpdatePromptType).toHaveBeenCalledWith('actionItem', undefined);
+      expect(onUpdatePromptType).toHaveBeenCalledWith('actionItem');
     });
 
-    it('カスタム選択時にテキストエリアが表示される', async () => {
-      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const };
+    it('カスタム選択時に編集ボタンが表示される', () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const, customPromptText: 'テストプロンプト' };
       render(<SummarySidebar {...defaultProps} summary={summaryCustom} />);
+      expect(screen.getByLabelText('カスタムプロンプトを編集')).toBeInTheDocument();
+    });
+
+    it('カスタム編集ボタンクリックでモーダルが開く', async () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const, customPromptText: 'テストプロンプト' };
+      const user = userEvent.setup();
+      render(<SummarySidebar {...defaultProps} summary={summaryCustom} />);
+
+      await user.click(screen.getByLabelText('カスタムプロンプトを編集'));
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByLabelText('カスタムプロンプトを入力')).toBeInTheDocument();
+    });
+
+    it('モーダルで「保存」すると onUpdatePromptType が呼ばれる', async () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const, customPromptText: '' };
+      const onUpdatePromptType = jest.fn();
+      const user = userEvent.setup();
+      render(<SummarySidebar {...defaultProps} summary={summaryCustom} onUpdatePromptType={onUpdatePromptType} />);
+
+      await user.click(screen.getByLabelText('カスタムプロンプトを編集'));
+      const textarea = screen.getByLabelText('カスタムプロンプトを入力');
+      await user.type(textarea, '新しいプロンプト');
+      await user.click(screen.getByLabelText('保存'));
+
+      expect(onUpdatePromptType).toHaveBeenCalledWith('custom', '新しいプロンプト');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
     it('CANVASに追加ボタンに「CANVASに追加」文言が表示される', () => {
