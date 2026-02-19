@@ -26,7 +26,7 @@ logger.setLevel(logging.INFO)
 
 config = get_config()
 
-SUMMARY_PROMPT_TEMPLATE = """あなたは会議の議事録を作成するAIアシスタントです。
+SUMMARY_PROMPT_TEMPLATE = """あなたは入力された内容の要約を作成するAIアシスタントです。
 
 現在の要約:
 {current_summary}
@@ -37,9 +37,8 @@ SUMMARY_PROMPT_TEMPLATE = """あなたは会議の議事録を作成するAIア�
 指示:
 - 現在の要約を尊重し、矛盾や先祖返りを防いでください。
 - 必ず「# タイトル」で始めてください（最初の行）。
-- その後、「## 決定事項」「## TODO」「## その他」と分類して記述してください。
+- その後、内容に応じた適切な見出しをつけて記載してください。
 - 最大5000文字以内にまとめてください。
-- 人間が既に編集した内容は尊重し、そのまま維持してください。
 """
 
 # Default prompt templates for seeding on first use
@@ -50,7 +49,7 @@ DEFAULT_PROMPT_TEMPLATES = {
     },
     "actionItem": {
         "promptType": "actionItem",
-        "promptText": """あなたは会議のアクションアイテムを抽出するAIアシスタントです。
+        "promptText": """あなたはアクションアイテムを抽出するAIアシスタントです。
 
 現在の内容:
 {current_summary}
@@ -67,7 +66,7 @@ DEFAULT_PROMPT_TEMPLATES = {
     },
     "requirement": {
         "promptType": "requirement",
-        "promptText": """あなたは会議内容から要件定義を作成するAIアシスタントです。
+        "promptText": """あなたは与えられた内容から要件定義を作成するAIアシスタントです。
 
 現在の内容:
 {current_summary}
@@ -84,7 +83,7 @@ DEFAULT_PROMPT_TEMPLATES = {
     },
     "meds": {
         "promptType": "meds",
-        "promptText": """あなたは会議内容をMEDSフレームワークで整理するAIアシスタントです。
+        "promptText": """あなたは会議内容を指定の方式で整理するAIアシスタントです。
 
 現在の内容:
 {current_summary}
@@ -93,8 +92,10 @@ DEFAULT_PROMPT_TEMPLATES = {
 {selected_messages}
 
 指示:
-- MEDSフレームワークで分類してください:
-  ## Map (現在地の確認) / ## Explore (問題の探索) / ## Decide (意思決定) / ## Summarize (まとめ)
+- 以下の形式で保存してください:
+  ## 問題
+  ## 原因
+  ## アクションアイテム
 - 最大5000文字以内にまとめてください。
 """,
     },
@@ -103,34 +104,33 @@ DEFAULT_PROMPT_TEMPLATES = {
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Route AppSync resolver events to the appropriate handler."""
+    info = event.get("info", {})
+    field_name = info.get("fieldName", "")
+    arguments = event.get("arguments", {})
+
+    logger.info("Summarizer invoked: field=%s", field_name)
+
+    handlers = {
+        "getSummary": handle_get_summary,
+        "updateSummary": handle_update_summary,
+        "undoSummary": handle_undo_summary,
+        "saveSummaryEdit": handle_save_summary_edit,
+        "getPromptTemplate": handle_get_prompt_template,
+        "listPromptTemplates": handle_list_prompt_templates,
+        "updateSummaryPromptType": handle_update_summary_prompt_type,
+        "updatePromptTemplate": handle_update_prompt_template,
+    }
+
+    handler = handlers.get(field_name)
+    if not handler:
+        logger.error("Unknown field: %s", field_name)
+        raise ValueError(f"Unknown field: {field_name}")
+
     try:
-        info = event.get("info", {})
-        field_name = info.get("fieldName", "")
-        arguments = event.get("arguments", {})
-
-        logger.info("Summarizer invoked: field=%s", field_name)
-
-        handlers = {
-            "getSummary": handle_get_summary,
-            "updateSummary": handle_update_summary,
-            "undoSummary": handle_undo_summary,
-            "saveSummaryEdit": handle_save_summary_edit,
-            "getPromptTemplate": handle_get_prompt_template,
-            "listPromptTemplates": handle_list_prompt_templates,
-            "updateSummaryPromptType": handle_update_summary_prompt_type,
-            "updatePromptTemplate": handle_update_prompt_template,
-        }
-
-        handler = handlers.get(field_name)
-        if not handler:
-            logger.error("Unknown field: %s", field_name)
-            return {"success": False, "error": f"Unknown field: {field_name}"}
-
         return handler(arguments)
-    
     except Exception as e:
-        logger.error("Summarizer error: %s", str(e))
-        return {"success": False, "error": str(e)}
+        logger.error("Summarizer error: field=%s error=%s", field_name, str(e), exc_info=True)
+        raise
 
 
 # ------------------------------------------------------------------
