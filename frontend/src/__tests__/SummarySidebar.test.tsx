@@ -56,6 +56,8 @@ const defaultProps = {
   onAddToSummary: jest.fn(),
   canAddToSummary: true,
   selectedMessageCount: 0,
+  onUpdatePromptType: jest.fn(),
+  promptTemplates: [],
 };
 
 describe('SummarySidebar', () => {
@@ -74,7 +76,7 @@ describe('SummarySidebar', () => {
   it('要約がない場合は空メッセージが表示される', () => {
     render(<SummarySidebar {...defaultProps} summary={null} />);
 
-    expect(screen.getByText(/まだ要約がありません/)).toBeInTheDocument();
+    expect(screen.getByText(/まだ内容がありません/)).toBeInTheDocument();
   });
 
   it('最終更新者が表示される', () => {
@@ -83,10 +85,10 @@ describe('SummarySidebar', () => {
     expect(screen.getByText(/最終更新: 田中太郎/)).toBeInTheDocument();
   });
 
-  it('ヘッダーに「要約」タイトルが表示される', () => {
+  it('ヘッダーに「CANVAS」タイトルが表示される', () => {
     render(<SummarySidebar {...defaultProps} />);
 
-    expect(screen.getByText('要約')).toBeInTheDocument();
+    expect(screen.getByText('CANVAS')).toBeInTheDocument();
   });
 
   // ── 2. 編集モードに切り替えられること ──
@@ -211,13 +213,13 @@ describe('SummarySidebar', () => {
     it('コピーボタンが表示される', () => {
       render(<SummarySidebar {...defaultProps} />);
 
-      expect(screen.getByLabelText('要約をコピー')).toBeInTheDocument();
+      expect(screen.getByLabelText('CANVASをコピー')).toBeInTheDocument();
     });
 
     it('テキストがない場合はコピーボタンが disabled', () => {
       render(<SummarySidebar {...defaultProps} summary={null} />);
 
-      expect(screen.getByLabelText('要約をコピー')).toBeDisabled();
+      expect(screen.getByLabelText('CANVASをコピー')).toBeDisabled();
     });
 
     it('編集中はコピーボタンが disabled', () => {
@@ -229,7 +231,57 @@ describe('SummarySidebar', () => {
         />
       );
 
-      expect(screen.getByLabelText('要約をコピー')).toBeDisabled();
+      expect(screen.getByLabelText('CANVASをコピー')).toBeDisabled();
+    });
+  });
+
+  // ── 5. プロンプト種別ドロップダウン ──
+  describe('プロンプト種別選択', () => {
+    it('ドロップダウンが表示される', () => {
+      render(<SummarySidebar {...defaultProps} />);
+      expect(screen.getByLabelText('プロンプト種別を選択')).toBeInTheDocument();
+    });
+
+    it('初期値は「要約」である', () => {
+      render(<SummarySidebar {...defaultProps} />);
+      const select = screen.getByLabelText('プロンプト種別を選択') as HTMLSelectElement;
+      expect(select.value).toBe('summary');
+    });
+
+    it('selectedPromptType=actionItemの場合正しく選択される', () => {
+      const summaryWithPromptType = { ...testSummary, selectedPromptType: 'actionItem' as const };
+      render(<SummarySidebar {...defaultProps} summary={summaryWithPromptType} />);
+      const select = screen.getByLabelText('プロンプト種別を選択') as HTMLSelectElement;
+      expect(select.value).toBe('actionItem');
+    });
+
+    it('ドロップダウン変更時に onUpdatePromptType が呼ばれる', async () => {
+      const onUpdatePromptType = jest.fn();
+      const user = userEvent.setup();
+      render(<SummarySidebar {...defaultProps} onUpdatePromptType={onUpdatePromptType} />);
+
+      const select = screen.getByLabelText('プロンプト種別を選択');
+      await user.selectOptions(select, 'actionItem');
+
+      expect(onUpdatePromptType).toHaveBeenCalledWith('actionItem', undefined);
+    });
+
+    it('カスタム選択時にテキストエリアが表示される', async () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const };
+      render(<SummarySidebar {...defaultProps} summary={summaryCustom} />);
+      expect(screen.getByLabelText('カスタムプロンプトを入力')).toBeInTheDocument();
+    });
+
+    it('CANVASに追加ボタンに「CANVASに追加」文言が表示される', () => {
+      render(
+        <SummarySidebar
+          {...defaultProps}
+          selectedMessageCount={2}
+          canAddToSummary={true}
+        />
+      );
+      expect(screen.getByLabelText('CANVASに追加')).toBeInTheDocument();
+      expect(screen.getByText('CANVASに追加 (2)')).toBeInTheDocument();
     });
   });
 });

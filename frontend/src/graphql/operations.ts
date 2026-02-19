@@ -69,6 +69,8 @@ export const GET_SUMMARY = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
@@ -176,6 +178,8 @@ export const UPDATE_SUMMARY = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
@@ -189,6 +193,8 @@ export const UNDO_SUMMARY = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
@@ -202,6 +208,53 @@ export const SAVE_SUMMARY_EDIT = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
+    }
+  }
+`;
+
+export const UPDATE_SUMMARY_PROMPT_TYPE = /* GraphQL */ `
+  mutation UpdateSummaryPromptType($input: UpdateSummaryPromptTypeInput!) {
+    updateSummaryPromptType(input: $input) {
+      conversationId
+      title
+      current
+      previous
+      updatedAt
+      updatedBy
+      selectedPromptType
+      customPromptText
+    }
+  }
+`;
+
+export const GET_PROMPT_TEMPLATE = /* GraphQL */ `
+  query GetPromptTemplate($promptType: String!) {
+    getPromptTemplate(promptType: $promptType) {
+      promptType
+      promptText
+      updatedAt
+    }
+  }
+`;
+
+export const LIST_PROMPT_TEMPLATES = /* GraphQL */ `
+  query ListPromptTemplates {
+    listPromptTemplates {
+      promptType
+      promptText
+      updatedAt
+    }
+  }
+`;
+
+export const UPDATE_PROMPT_TEMPLATE = /* GraphQL */ `
+  mutation UpdatePromptTemplate($input: UpdatePromptTemplateInput!) {
+    updatePromptTemplate(input: $input) {
+      promptType
+      promptText
+      updatedAt
     }
   }
 `;
@@ -354,6 +407,8 @@ export const ON_SUMMARY_UPDATE = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;

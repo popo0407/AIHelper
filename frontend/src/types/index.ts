@@ -27,7 +27,25 @@ export interface Summary {
   previous: string | null;
   updatedAt: string | null;
   updatedBy: string | null;
+  selectedPromptType?: PromptType | null;
+  customPromptText?: string | null;
 }
+
+export type PromptType = 'summary' | 'actionItem' | 'requirement' | 'meds' | 'custom';
+
+export interface PromptTemplate {
+  promptType: string;
+  promptText: string;
+  updatedAt?: string | null;
+}
+
+export const PROMPT_TYPES: { value: PromptType; label: string }[] = [
+  { value: 'summary', label: '要約' },
+  { value: 'actionItem', label: 'アクションアイテム' },
+  { value: 'requirement', label: '要件定義' },
+  { value: 'meds', label: 'MEDS' },
+  { value: 'custom', label: 'カスタムプロンプト' },
+];
 
 export interface Lock {
   conversationId: string;

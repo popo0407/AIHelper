@@ -179,26 +179,26 @@ class TestDeleteKnowledgebase:
         event = make_appsync_event("deleteKnowledgebase", {
             "input": {
                 "conversationId": "conv-del",
-                "knowledgeSourceId": "ks-001",
+                "fileName": "test-document.txt",  # 実装は fileName を RANGE KEYとして使用
             }
         })
         result = _handler()(event, None)
 
         assert result["success"] is True
-        assert result["knowledgeSourceId"] == "ks-001"
+        assert result["fileName"] == "test-document.txt"
 
         # DynamoDB からメタデータが削除されている
         response = knowledge_sources_table.get_item(
-            Key={"conversationId": "conv-del", "knowledgeSourceId": "ks-001"}
+            Key={"conversationId": "conv-del", "fileName": "test-document.txt"}
         )
         assert "Item" not in response
 
     def test_存在しないソースの削除はエラーを返す(self, dynamodb_tables, s3_knowledge_bucket):
-        """存在しない knowledgeSourceId の場合エラーを返す。"""
+        """存在しない fileName の場合エラーを返す。"""
         event = make_appsync_event("deleteKnowledgebase", {
             "input": {
                 "conversationId": "conv-notexist",
-                "knowledgeSourceId": "ks-999",
+                "fileName": "nonexistent.txt",
             }
         })
         result = _handler()(event, None)

@@ -101,6 +101,16 @@ class AppSyncStack(Stack):
             type_name="Query",
             field_name="getSummary",
         )
+        summarizer_ds.create_resolver(
+            "GetPromptTemplateResolver",
+            type_name="Query",
+            field_name="getPromptTemplate",
+        )
+        summarizer_ds.create_resolver(
+            "ListPromptTemplatesResolver",
+            type_name="Query",
+            field_name="listPromptTemplates",
+        )
         lock_ds.create_resolver(
             "GetLocksResolver",
             type_name="Query",
@@ -154,6 +164,16 @@ class AppSyncStack(Stack):
             "SaveSummaryEditResolver",
             type_name="Mutation",
             field_name="saveSummaryEdit",
+        )
+        summarizer_ds.create_resolver(
+            "UpdateSummaryPromptTypeResolver",
+            type_name="Mutation",
+            field_name="updateSummaryPromptType",
+        )
+        summarizer_ds.create_resolver(
+            "UpdatePromptTemplateResolver",
+            type_name="Mutation",
+            field_name="updatePromptTemplate",
         )
         lock_ds.create_resolver(
             "AcquireLockResolver",

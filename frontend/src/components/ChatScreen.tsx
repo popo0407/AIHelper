@@ -28,6 +28,8 @@ import {
   ON_NEW_MESSAGE,
   ON_SUMMARY_UPDATE,
   ON_LOCK_CHANGE,
+  UPDATE_SUMMARY_PROMPT_TYPE,
+  LIST_PROMPT_TEMPLATES,
 } from '@/graphql/operations';
 import type {
   User,
@@ -39,6 +41,8 @@ import type {
   AIActionType,
   KnowledgeSearchResult,
   KnowledgeSource,
+  PromptTemplate,
+  PromptType,
 } from '@/types';
 import { AIHELPER_USER_ID } from '@/types';
 
@@ -83,6 +87,7 @@ export function ChatScreen({
   const [isKBPanelOpen, setIsKBPanelOpen] = useState(false);
   const [kbSearchEnabled, setKbSearchEnabled] = useState(false);
   const [kbSourceCount, setKbSourceCount] = useState(0);
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstMessageSentRef = useRef(false);
@@ -278,6 +283,18 @@ export function ChatScreen({
     } catch (err) {
       console.error('Failed to load knowledge sources:', err);
       setKbSourceCount(0);
+    }
+
+    // プロンプトテンプレートを読み込み
+    try {
+      const tplResult = await graphqlClient.graphql({
+        query: LIST_PROMPT_TEMPLATES,
+      });
+      const tplData = extractData<PromptTemplate[]>(tplResult as any, 'listPromptTemplates');
+      setPromptTemplates(tplData ?? []);
+    } catch (err) {
+      console.error('Failed to load prompt templates:', err);
+      setPromptTemplates([]);
     }
 
     setIsLoading(false);
@@ -487,6 +504,31 @@ export function ChatScreen({
       console.error('Failed to undo summary:', err);
     }
   }, [canUndo, conversation.conversationId]);
+
+  // ── Update prompt type (CANVAS feature) ──
+  const handleUpdatePromptType = useCallback(
+    async (promptType: PromptType, customPromptText?: string) => {
+      try {
+        const result = await graphqlClient.graphql({
+          query: UPDATE_SUMMARY_PROMPT_TYPE,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              selectedPromptType: promptType,
+              customPromptText: customPromptText ?? null,
+            },
+          },
+        });
+        const updated = extractData<Summary>(result as any, 'updateSummaryPromptType');
+        if (updated) {
+          setSummary(updated);
+        }
+      } catch (err) {
+        console.error('Failed to update prompt type:', err);
+      }
+    },
+    [conversation.conversationId]
+  );
 
   // ── Edit sidebar ──
   const handleStartEdit = useCallback(async () => {
@@ -795,6 +837,8 @@ export function ChatScreen({
             onAddToSummary={handleAddToSummary}
             canAddToSummary={canAddToSummary}
             selectedMessageCount={selectedMessageIds.size}
+            onUpdatePromptType={handleUpdatePromptType}
+            promptTemplates={promptTemplates}
           />
         </div>
       </div>

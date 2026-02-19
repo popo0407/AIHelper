@@ -30,6 +30,7 @@ TEST_ENV_VARS = {
     "CONVERSATIONS_TABLE": "test-conversations",
     "KNOWLEDGE_SOURCES_TABLE": "test-knowledge-sources",
     "KNOWLEDGE_BUCKET": "test-knowledge-bucket",
+    "PROMPT_TEMPLATES_TABLE": "test-prompt-templates",
     "USE_MOCK_AI": "true",
     "BEDROCK_REGION": "us-west-2",
     "BEDROCK_MODEL_ID": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -131,16 +132,28 @@ def _create_conversations_table(dynamodb):
 
 
 def _create_knowledge_sources_table(dynamodb):
-    """KnowledgeSources テーブルを作成する。"""
+    """KnowledgeSources テーブルを作成する。PK: conversationId, SK: fileName"""
     dynamodb.create_table(
         TableName=TEST_ENV_VARS["KNOWLEDGE_SOURCES_TABLE"],
         KeySchema=[
             {"AttributeName": "conversationId", "KeyType": "HASH"},
-            {"AttributeName": "knowledgeSourceId", "KeyType": "RANGE"},
+            {"AttributeName": "fileName", "KeyType": "RANGE"},
         ],
         AttributeDefinitions=[
             {"AttributeName": "conversationId", "AttributeType": "S"},
-            {"AttributeName": "knowledgeSourceId", "AttributeType": "S"},
+            {"AttributeName": "fileName", "AttributeType": "S"},
+        ],
+        BillingMode="PAY_PER_REQUEST",
+    )
+
+
+def _create_prompt_templates_table(dynamodb):
+    """PromptTemplates テーブルを作成する。"""
+    dynamodb.create_table(
+        TableName=TEST_ENV_VARS["PROMPT_TEMPLATES_TABLE"],
+        KeySchema=[{"AttributeName": "promptType", "KeyType": "HASH"}],
+        AttributeDefinitions=[
+            {"AttributeName": "promptType", "AttributeType": "S"},
         ],
         BillingMode="PAY_PER_REQUEST",
     )
@@ -183,6 +196,7 @@ def dynamodb_tables():
         _create_conversations_table(dynamodb)
         _create_knowledge_sources_table(dynamodb)
         _create_user_conversations_table(dynamodb)
+        _create_prompt_templates_table(dynamodb)
         yield dynamodb
 
 
@@ -226,6 +240,12 @@ def knowledge_sources_table(dynamodb_tables):
 def user_conversations_table(dynamodb_tables):
     """UserConversations テーブルリソースを返す。"""
     return dynamodb_tables.Table(TEST_ENV_VARS["USER_CONVERSATIONS_TABLE"])
+
+
+@pytest.fixture()
+def prompt_templates_table(dynamodb_tables):
+    """PromptTemplates テーブルリソースを返す。"""
+    return dynamodb_tables.Table(TEST_ENV_VARS["PROMPT_TEMPLATES_TABLE"])
 
 
 @pytest.fixture()

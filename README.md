@@ -11,7 +11,8 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **ユーザー認証:** Amazon Cognito による安全なログイン（管理者のみユーザー登録可）
 - **リアルタイムチャット:** AppSync (GraphQL WebSocket) でリアルタイム更新
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
-- **要約のコピー機能:** 右サイドバーの要約表示領域全体をクリップボードにコピー可能
+- **CANVASパネル（プロンプト選択）:** 右サイドバーがCANVASパネルに進化。要約/アクションアイテム/要件定義/発言録など複数のAIプロンプト種別を選択可能。カスタムプロンプト入力にも対応
+- **CANVASのコピー機能:** 右サイドバーのCANVAS表示領域全体をクリップボードにコピー可能
 - **AIアシスタント:** メッセージ入力欄の「AI送信」ボタンで AI に質問・回答を依頼（ユーザーの質問もチャット履歴に表示）
 - **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS）で RAG 検索・回答生成
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
@@ -393,7 +394,7 @@ cp cdk/cdk.json.example cdk/cdk.json
   - ChatBubble（メッセージ表示）
   - MessageList（メッセージ一覧: 11テスト）
   - MessageInput（メッセージ入力）
-  - SummarySidebar（要約サイドバー: 14テスト）
+  - SummarySidebar（CANVASサイドバー: 25テスト）
   - AIHelperButtons（AI相談ボタン: 17テスト）
   - NotificationBanner（通知バナー: 7テスト）
   - SubscriptionHandlers（リアルタイム同期ロジック: 28テスト）

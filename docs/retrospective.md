@@ -2226,3 +2226,66 @@ Branch Structure:
 **ステータス:** ✅ **テストカバレッジ拡充完了（127テスト全合格）**
 
 **最終更新:** 2026年2月15日
+---
+
+## 📅 **2026年2月 — CANVASサイドバー（プロンプト選択機能）実装**
+
+### ✅ **完了した内容**
+
+要約サイドバーを「CANVAS」パネルに拡張し、AIプロンプト種別選択機能を実装。
+
+#### **実装内容**
+
+1. **DynamoDB新テーブル（PromptTemplatesTable）**
+   - PK: `promptType`（STRING）
+   - プロンプトテンプレートを種別ごとに管理
+   - `database_stack.py` で追加、`lambda_stack.py` でenv var `PROMPT_TEMPLATES_TABLE` 追加
+
+2. **AppSync GraphQL拡張**
+   - `PromptTemplate`型、`updateSummaryPromptType`・`updatePromptTemplate` mutation追加
+   - `getPromptTemplate`・`listPromptTemplates` query追加
+   - `Summary`型に `selectedPromptType`・`customPromptText` フィールド追加
+
+3. **Backend Lambda（summarizer）**
+   - デフォルトテンプレート4種（summary/actionItem/requirement/meds）をコード内定義
+   - DynamoDBテンプレートを初回シード、カスタムテンプレート上書き可能
+   - `selectedPromptType`に応じたプロンプトを動的選択してBedrock呼び出し
+
+4. **Frontend（React/TypeScript）**
+   - `SummarySidebar.tsx` をCANVASパネルに全面改修（プロンプト種別ドロップダウン、カスタムテキストエリア）
+   - `ChatScreen.tsx` にpromptTemplatesステート・ハンドラー追加
+   - GraphQL operations追加（4操作）、型定義拡張
+
+#### **テスト修正内容（既存テスト対応）**
+
+- `backend/tests/conftest.py`: `PROMPT_TEMPLATES_TABLE` env var・テーブルフィクスチャ追加
+- `backend/common/config.py`: `users_table` フィールド欠落バグを修正（既存の潜在バグ）
+- `test_chat.py`・`test_lock_manager.py`: GraphQLスキーマが `Message!`/`Lock!` を直接返す仕様に合わせてアサーション修正（エラーケースは `pytest.raises(ValueError)` 使用）
+- `test_knowledgebase.py`: DynamoDB table key を `knowledgeSourceId` → `fileName` に修正（実装との整合）
+- `conftest.py`: `_create_knowledge_sources_table` のRANGE KEYを `fileName` に修正
+
+#### **問題と解決策**
+
+| 問題 | 原因 | 解決 |
+|------|------|------|
+| Bedrock要約テスト失敗 | conftest に `PROMPT_TEMPLATES_TABLE` が未設定 | env var・テーブルフィクスチャ追加 |
+| chat/lock_manager テスト失敗32件 | テストがラッパー`{success, message}`形式を期待しているが、スキーマは`Message!`/`Lock!`直返し | テストをスキーマ準拠に修正 |
+| knowledgebase テーブルキー不一致 | conftest が `knowledgeSourceId` をRANGE KEYとしていたが実装は `fileName` を使用 | conftest のテーブル定義を `fileName` RANGEに修正 |
+| `config.users_table` AttributeError | `AppConfig` に `users_table` フィールドが欠落 | `config.py` に `users_table` フィールドを追加 |
+
+### **学んだこと**
+
+1. GraphQLスキーマの返り型がテストの期待値の基準となる。スキーマが`Message!`なら直返しが正しい
+2. `pytest.raises(ValueError)` は Lambda のバリデーションエラーテストに適切
+3. DynamoDB のテーブルキー設計はconftest・実装・テストで一致させること
+4. AppSync Lambda resolverでは、バリデーションエラーはraise（GraphQLエラーとしてクライアントへ）が正しいパターン
+
+### **再発防止策**
+
+- 新しいDynamoDBテーブルを追加する場合は必ずconftest.pyにも追加する
+- `AppConfig` に新フィールドを追加したら、デフォルト値とenv varマッピングも必ずセットで追加
+- テスト作成時はGraphQLスキーマの返り型を確認してからアサーションを記述する
+
+**ステータス:** ✅ **CANVAS機能実装完了（バックエンド114 / フロントエンド151 全合格）**
+
+**最終更新:** 2026年2月

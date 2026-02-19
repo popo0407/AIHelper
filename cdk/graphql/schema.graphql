@@ -36,6 +36,14 @@ type Summary {
   previous: String
   updatedAt: AWSDateTime
   updatedBy: String
+  selectedPromptType: String
+  customPromptText: String
+}
+
+type PromptTemplate {
+  promptType: String!
+  promptText: String!
+  updatedAt: AWSDateTime
 }
 
 type Lock {
@@ -127,6 +135,17 @@ input SaveSummaryEditInput {
   userId: String!
   displayName: String
   content: String!
+}
+
+input UpdateSummaryPromptTypeInput {
+  conversationId: ID!
+  selectedPromptType: String!
+  customPromptText: String
+}
+
+input UpdatePromptTemplateInput {
+  promptType: String!
+  promptText: String!
 }
 
 input CompleteKnowledgebaseUploadInput {
@@ -235,6 +254,8 @@ type Query {
     nextToken: String
   ): MessageConnection!
   getSummary(conversationId: ID!): Summary
+  getPromptTemplate(promptType: String!): PromptTemplate
+  listPromptTemplates: [PromptTemplate!]!
   getLocks(conversationId: ID!): [Lock!]!
   listKnowledgeSources(conversationId: ID!): [KnowledgeSource!]!
 }
@@ -260,6 +281,8 @@ type Mutation {
   updateSummary(input: UpdateSummaryInput!): Summary!
   undoSummary(conversationId: ID!): Summary!
   saveSummaryEdit(input: SaveSummaryEditInput!): Summary!
+  updateSummaryPromptType(input: UpdateSummaryPromptTypeInput!): Summary!
+  updatePromptTemplate(input: UpdatePromptTemplateInput!): PromptTemplate!
   acquireLock(input: AcquireLockInput!): Lock!
   releaseLock(input: ReleaseLockInput!): Lock!
   askAIHelper(input: AskAIHelperInput!): Message!
@@ -283,7 +306,12 @@ type Subscription {
     @aws_subscribe(mutations: ["sendMessage"])
   onSummaryUpdate(conversationId: ID!): Summary
     @aws_subscribe(
-      mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"]
+      mutations: [
+        "updateSummary"
+        "saveSummaryEdit"
+        "undoSummary"
+        "updateSummaryPromptType"
+      ]
     )
   onLockChange(conversationId: ID!): Lock
     @aws_subscribe(mutations: ["acquireLock", "releaseLock"])

@@ -157,6 +157,22 @@ class DatabaseStack(Stack):
         )
 
         # =========================================================
+        # PromptTemplates Table  PK: promptType
+        # CANVASサイドバーで使用するプロンプトテンプレートを管理
+        # =========================================================
+        self.prompt_templates_table = dynamodb.Table(
+            self,
+            "PromptTemplatesTable",
+            table_name=f"{project_name}-{env_name}-prompt-templates",
+            partition_key=dynamodb.Attribute(
+                name="promptType", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
+
+        # =========================================================
         # S3 Bucket for Knowledgebase files
         # CloudFront 経由でアクセスするため S3 側の CORS 設定は不要。
         # presigned URL は IAM 認証付きなので BLOCK_ALL でも動作する。

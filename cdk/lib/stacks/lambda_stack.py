@@ -126,6 +126,7 @@ class LambdaStack(Stack):
             "CONVERSATIONS_TABLE": database_stack.conversations_table.table_name,
             "KNOWLEDGE_SOURCES_TABLE": database_stack.knowledge_sources_table.table_name,
             "KNOWLEDGE_BUCKET": database_stack.knowledge_bucket.bucket_name,
+            "PROMPT_TEMPLATES_TABLE": database_stack.prompt_templates_table.table_name,
             "USE_MOCK_AI": "true" if use_mock_ai else "false",
             "BEDROCK_REGION": "ap-northeast-1",  # Tokyo region for Knowledge Base
             "BEDROCK_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",  # Haiku for RAG processing
