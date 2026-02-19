@@ -2,6 +2,74 @@
 
 ---
 
+## 📅 **2026年2月20日 — AI相談UX改善機能実装**
+
+### ✅ **完了した内容**
+
+AI相談機能の UX を刷新。旧 AIHelperButtons（要約/意見/次アクション）を廃止し、チャットメッセージ＋CANVAS の複数同時選択 → 集約送信方式に置き換え。
+
+#### **実装内容**
+
+1. **AIHelperButtons 廃止**
+   - `ChatScreen.tsx` から AIHelperButtons コンポーネントの import・JSX を完全削除
+   - `handleAIAction` コールバックを削除
+
+2. **選択状態管理（ChatScreen.tsx）**
+   - `isCanvasSelected` state 追加
+   - `selectionItems` 派生状態（選択メッセージ＋CANVAS を `SelectionDisplayItem[]` に変換）
+   - `handleRemoveSelection` / `toggleCanvasSelection` ハンドラー追加
+
+3. **選択状態表示エリア（MessageInput.tsx）**
+   - `selectionItems` / `onRemoveSelection` props 追加
+   - バッジ型で「選択中: [メッセージ名], CANVAS」を表示（× ボタンで個別解除可能）
+   - 未選択時：グレーアウトのガイドメッセージ
+   - AI送信ボタン: 選択＋テキスト入力がある場合のみ有効
+
+4. **CANVAS選択トグル（SummarySidebar.tsx）**
+   - `isCanvasSelected` / `onToggleCanvasSelection` props 追加
+   - ヘッダーに「AI選択 / ✓ 選択中」トグルボタン配置
+   - 選択時 `ring-2 ring-serendie-accent` でアクセントリング表示
+   - `aria-pressed` / `aria-label` によるアクセシビリティ対応
+
+5. **AI送信ロジック書き換え（ChatScreen.tsx `handleAISend`）**
+   - 選択メッセージの内容を `[displayName] content` 形式で集約
+   - CANVAS 選択時は `[CANVAS] summary.current` を追加
+   - `\n---\n` 区切りで連結し `context` フィールドとして送信
+   - `askAIHelper` mutation に1回のリクエストで送信
+
+6. **型定義（types/index.ts）**
+   - `AISelectionState` / `SelectionDisplayItem` インターフェース追加
+   - `AIHelperRequest` に `context?: string` 追加
+
+7. **GraphQL スキーマ（schema.graphql）**
+   - `AskAIHelperInput` に `context: String` フィールド追加
+
+8. **バックエンド（ai_support/index.py）**
+   - `ANSWER_PROMPT` に `{context}` プレースホルダー追加
+   - `context_text = inp.get("context", "")` 抽出
+   - `_build_prompt` / `_mock_response` にcontext引数追加
+
+9. **テスト**
+   - フロントエンド: 141/141 テストパス（AIHelperButtonsはスタブ化、MessageInput/SummarySidebar にカバレッジ追加）
+   - バックエンド: ai_support 12/12 テストパス（コンテキスト付きテスト追加）
+
+#### **原因・背景**
+
+- 旧UIでは要約/意見/次アクションの3ボタンが固定で、ユーザーが自由に質問内容を指定できなかった
+- チャットとCANVASの内容を組み合わせて質問する手段がなかった
+
+#### **改善策**
+
+- クリックベースの複数選択 + 自由入力で柔軟な AI 相談を実現
+- 選択内容をコンテキストとして集約し、1回のリクエストで送信する方式に統一
+
+#### **再発防止策**
+
+- 設計ドキュメント（`docs/feature-AI相談UX改善-v2.md`）に仕様を詳細記録
+- テストで選択状態表示・AI送信の enable/disable 条件を網羅的にカバー
+
+---
+
 ## 📅 **2026年2月19日 — ユーザー会話アクセス制限機能実装**
 
 ### ✅ **完了した内容**

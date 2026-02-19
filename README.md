@@ -13,7 +13,7 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
 - **CANVASパネル（プロンプト選択）:** 右サイドバーがCANVASパネルに進化。要約/アクションアイテム/要件定義/発言録など複数のAIプロンプト種別を選択可能。カスタムプロンプト入力にも対応
 - **CANVASのコピー機能:** 右サイドバーのCANVAS表示領域全体をクリップボードにコピー可能
-- **AIアシスタント:** メッセージ入力欄の「AI送信」ボタンで AI に質問・回答を依頼（ユーザーの質問もチャット履歴に表示）
+- **AI相談機能（UX改善済み）:** チャットメッセージやCANVASを複数同時にクリック選択し、入力欄の「AI送信」ボタンで選択内容＋質問を一括送信。選択状態はバッジで可視化。旧AIHelperボタン（要約/意見/次アクション）は廃止
 - **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS）で RAG 検索・回答生成
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
 - **会話管理:** 複数会話のサポート、リンク共有機能
@@ -94,8 +94,8 @@ AICHAT/
 │   │   │   ├── ChatHeader.tsx
 │   │   │   ├── ChatBubble.tsx
 │   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageInput.tsx        # 送信・AI送信ボタンを統合
-│   │   │   ├── AIHelperButtons.tsx     # AI相談ボタン（選択メッセージベース）
+│   │   │   ├── MessageInput.tsx        # 送信・AI送信・選択状態表示を統合
+│   │   │   ├── AIHelperButtons.tsx     # AI相談ボタン（廃止済み、未使用）
 │   │   │   ├── SummarySidebar.tsx
 │   │   │   ├── KnowledgebasePanel.tsx
 │   │   │   └── NotificationBanner.tsx

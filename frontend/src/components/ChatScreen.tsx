@@ -5,7 +5,6 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { SummarySidebar } from '@/components/SummarySidebar';
-import { AIHelperButtons } from '@/components/AIHelperButtons';
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { KnowledgebasePanel } from '@/components/KnowledgebasePanel';
 import { graphqlClient, extractData } from '@/lib/appsync';
@@ -38,11 +37,11 @@ import type {
   Summary,
   Lock,
   LockState,
-  AIActionType,
   KnowledgeSearchResult,
   KnowledgeSource,
   PromptTemplate,
   PromptType,
+  SelectionDisplayItem,
 } from '@/types';
 import { AIHELPER_USER_ID } from '@/types';
 
@@ -88,6 +87,7 @@ export function ChatScreen({
   const [kbSearchEnabled, setKbSearchEnabled] = useState(false);
   const [kbSourceCount, setKbSourceCount] = useState(0);
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
+  const [isCanvasSelected, setIsCanvasSelected] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstMessageSentRef = useRef(false);
@@ -101,6 +101,41 @@ export function ChatScreen({
   const canEdit = !lockState.isEditLocked && !lockState.isSummaryLocked;
   const canUndo =
     !!summary?.previous && !isSummaryProcessing && !lockState.isSummaryLocked;
+
+  // -- Selection display items for AI consultation --
+  const selectionItems: SelectionDisplayItem[] = [
+    ...messages
+      .filter((m) => selectedMessageIds.has(m.messageId))
+      .map((m) => ({
+        id: m.messageId,
+        label: `${m.displayName}: ${m.content.slice(0, 20)}${m.content.length > 20 ? '...' : ''}`,
+        type: 'message' as const,
+      })),
+    ...(isCanvasSelected
+      ? [{ id: 'canvas', label: 'CANVAS', type: 'canvas' as const }]
+      : []),
+  ];
+
+  // -- Handler: remove a selection item --
+  const handleRemoveSelection = useCallback(
+    (id: string) => {
+      if (id === 'canvas') {
+        setIsCanvasSelected(false);
+      } else {
+        setSelectedMessageIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    []
+  );
+
+  // -- Handler: toggle CANVAS selection --
+  const toggleCanvasSelection = useCallback(() => {
+    setIsCanvasSelected((prev) => !prev);
+  }, []);
 
   // ── Initial load ──
   useEffect(() => {
@@ -603,49 +638,28 @@ export function ChatScreen({
     }
   }, [conversation.conversationId, user.loginId]);
 
-  // ── AI Helper actions ──
-  const handleAIAction = useCallback(
-    async (actionType: AIActionType) => {
-      setIsAIProcessing(true);
-      const processingMsg =
-        actionType === 'answer'
-          ? `AIHelperが${user.displayName}さんの質問に回答中です。`
-          : `AIHelperが処理中です。`;
-      setNotification(processingMsg);
-
-      try {
-        const result = await graphqlClient.graphql({
-          query: ASK_AI_HELPER,
-          variables: {
-            input: {
-              conversationId: conversation.conversationId,
-              userId: user.loginId,
-              actionType,
-              userInput: inputText || undefined,
-              selectedMessageIds:
-                selectedMessageIds.size > 0
-                  ? Array.from(selectedMessageIds)
-                  : undefined,
-            },
-          },
-        });
-        const message = extractData<Message>(result as any, 'askAIHelper');
-        if (message) {
-          setMessages((prev) => [...prev, message]);
-        }
-      } catch (err) {
-        console.error('AI Helper error:', err);
-      } finally {
-        setIsAIProcessing(false);
-        setNotification(null);
-      }
-    },
-    [user, conversation.conversationId, inputText, selectedMessageIds]
-  );
-
-  // ── AI Send (with user message display) ──
+  // -- AI Send (aggregated: selected messages + CANVAS + user input) --
   const handleAISend = useCallback(async () => {
     if (!inputText.trim()) return;
+    if (selectionItems.length === 0) return;
+
+    // Aggregate selected content
+    const aggregatedContent: string[] = [];
+
+    // Add selected message contents
+    const selectedMsgs = messages.filter((m) =>
+      selectedMessageIds.has(m.messageId)
+    );
+    for (const msg of selectedMsgs) {
+      aggregatedContent.push(`[${msg.displayName}] ${msg.content}`);
+    }
+
+    // Add CANVAS content if selected
+    if (isCanvasSelected && summary?.current) {
+      aggregatedContent.push(`[CANVAS] ${summary.current}`);
+    }
+
+    const context = aggregatedContent.join('\n---\n');
 
     // Add user message to chat
     const userMessage: Message = {
@@ -659,9 +673,35 @@ export function ChatScreen({
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Call AI Helper
-    await handleAIAction('answer');
-  }, [inputText, conversation.conversationId, user, handleAIAction]);
+    const currentInput = inputText;
+    setInputText('');
+    setIsAIProcessing(true);
+    setNotification(`AIHelperが${user.displayName}さんの質問に回答中です。`);
+
+    try {
+      const result = await graphqlClient.graphql({
+        query: ASK_AI_HELPER,
+        variables: {
+          input: {
+            conversationId: conversation.conversationId,
+            userId: user.loginId,
+            actionType: 'answer',
+            userInput: currentInput,
+            context,
+          },
+        },
+      });
+      const message = extractData<Message>(result as any, 'askAIHelper');
+      if (message) {
+        setMessages((prev) => [...prev, message]);
+      }
+    } catch (err) {
+      console.error('AI Send error:', err);
+    } finally {
+      setIsAIProcessing(false);
+      setNotification(null);
+    }
+  }, [inputText, selectionItems, messages, selectedMessageIds, isCanvasSelected, summary, conversation.conversationId, user]);
 
   // ── Copy share link ──
   const handleCopyLink = useCallback(() => {
@@ -775,16 +815,6 @@ export function ChatScreen({
           />
           <div ref={messagesEndRef} />
 
-          {/* AI Helper buttons */}
-          <AIHelperButtons
-            selectedCount={selectedMessageIds.size}
-            inputText={inputText}
-            onAction={handleAIAction}
-            isProcessing={isAIProcessing}
-            lockState={lockState}
-            excludeButtonIds={['answer']}
-          />
-
           {/* Message input */}
           <div className="border-t border-serendie-gray-200 bg-white p-4">
             <MessageInput
@@ -796,6 +826,8 @@ export function ChatScreen({
               kbSearchEnabled={kbSearchEnabled}
               onToggleKbSearch={() => setKbSearchEnabled((prev) => !prev)}
               hasKnowledgeSources={kbSourceCount > 0}
+              selectionItems={selectionItems}
+              onRemoveSelection={handleRemoveSelection}
             />
           </div>
         </div>
@@ -839,6 +871,8 @@ export function ChatScreen({
             selectedMessageCount={selectedMessageIds.size}
             onUpdatePromptType={handleUpdatePromptType}
             promptTemplates={promptTemplates}
+            isCanvasSelected={isCanvasSelected}
+            onToggleCanvasSelection={toggleCanvasSelection}
           />
         </div>
       </div>

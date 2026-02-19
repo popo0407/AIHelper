@@ -4,17 +4,24 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MessageInput } from '@/components/MessageInput';
+import type { SelectionDisplayItem } from '@/types';
 
 describe('MessageInput', () => {
   const onChange = jest.fn();
   const onSend = jest.fn();
   const onAISend = jest.fn();
+  const onRemoveSelection = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  function renderInput(value = '', disabled = false, withAISend = false) {
+  function renderInput(
+    value = '',
+    disabled = false,
+    withAISend = false,
+    selectionItems: SelectionDisplayItem[] = [],
+  ) {
     return render(
       <MessageInput
         value={value}
@@ -22,6 +29,8 @@ describe('MessageInput', () => {
         onSend={onSend}
         onAISend={withAISend ? onAISend : undefined}
         disabled={disabled}
+        selectionItems={selectionItems}
+        onRemoveSelection={onRemoveSelection}
       />
     );
   }
@@ -34,7 +43,6 @@ describe('MessageInput', () => {
     const textarea = screen.getByLabelText('メッセージ入力');
     await user.type(textarea, 'テスト');
 
-    // userEvent.type は1文字ずつ onChange を呼ぶ
     expect(onChange).toHaveBeenCalled();
   });
 
@@ -143,7 +151,10 @@ describe('MessageInput', () => {
 
   it('AI送信ボタンをクリックすると onAISend が呼ばれる', async () => {
     const user = userEvent.setup();
-    renderInput('AIへの質問', false, true);
+    const items: SelectionDisplayItem[] = [
+      { id: 'msg-1', label: '田中: テスト...', type: 'message' },
+    ];
+    renderInput('AIへの質問', false, true, items);
 
     const aiSendButton = screen.getByLabelText('AIに質問を送信');
     await user.click(aiSendButton);
@@ -152,16 +163,61 @@ describe('MessageInput', () => {
   });
 
   it('値が空のときAI送信ボタンが disabled', () => {
-    renderInput('', false, true);
+    const items: SelectionDisplayItem[] = [
+      { id: 'msg-1', label: '田中: テスト...', type: 'message' },
+    ];
+    renderInput('', false, true, items);
 
     const aiSendButton = screen.getByLabelText('AIに質問を送信');
     expect(aiSendButton).toBeDisabled();
   });
 
-  it('値があるときAI送信ボタンが enabled', () => {
-    renderInput('質問内容', false, true);
+  it('選択がないときAI送信ボタンが disabled', () => {
+    renderInput('質問内容', false, true, []);
+
+    const aiSendButton = screen.getByLabelText('AIに質問を送信');
+    expect(aiSendButton).toBeDisabled();
+  });
+
+  it('選択がありテキストもあるときAI送信ボタンが enabled', () => {
+    const items: SelectionDisplayItem[] = [
+      { id: 'msg-1', label: '田中: テスト...', type: 'message' },
+    ];
+    renderInput('質問内容', false, true, items);
 
     const aiSendButton = screen.getByLabelText('AIに質問を送信');
     expect(aiSendButton).not.toBeDisabled();
+  });
+
+  // ── 8. 選択状態表示エリア ──
+  it('選択がない場合はガイドメッセージを表示', () => {
+    renderInput();
+
+    expect(screen.getByText('チャットやCANVASをクリックして選択してください')).toBeInTheDocument();
+  });
+
+  it('選択アイテムが表示される', () => {
+    const items: SelectionDisplayItem[] = [
+      { id: 'msg-1', label: '田中: こんにちは', type: 'message' },
+      { id: 'canvas', label: 'CANVAS', type: 'canvas' },
+    ];
+    renderInput('', false, false, items);
+
+    expect(screen.getByText('選択中:')).toBeInTheDocument();
+    expect(screen.getByText(/田中: こんにちは/)).toBeInTheDocument();
+    expect(screen.getByText(/CANVAS/)).toBeInTheDocument();
+  });
+
+  it('選択解除ボタンをクリックすると onRemoveSelection が呼ばれる', async () => {
+    const user = userEvent.setup();
+    const items: SelectionDisplayItem[] = [
+      { id: 'msg-1', label: '田中: こんにちは', type: 'message' },
+    ];
+    renderInput('', false, false, items);
+
+    const removeButton = screen.getByLabelText('田中: こんにちはの選択を解除');
+    await user.click(removeButton);
+
+    expect(onRemoveSelection).toHaveBeenCalledWith('msg-1');
   });
 });

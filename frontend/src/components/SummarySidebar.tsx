@@ -22,6 +22,10 @@ interface SummarySidebarProps {
   selectedMessageCount?: number;
   onUpdatePromptType?: (promptType: PromptType, customPromptText?: string) => void;
   promptTemplates?: PromptTemplate[];
+  /** CANVAS\u304c AI\u76f8\u8ac7\u7528\u306b\u9078\u629e\u3055\u308c\u3066\u3044\u308b\u304b */
+  isCanvasSelected?: boolean;
+  /** CANVAS\u9078\u629e\u30c8\u30b0\u30eb */
+  onToggleCanvasSelection?: () => void;
 }
 
 export function SummarySidebar({
@@ -42,6 +46,8 @@ export function SummarySidebar({
   selectedMessageCount = 0,
   onUpdatePromptType,
   promptTemplates = [],
+  isCanvasSelected = false,
+  onToggleCanvasSelection,
 }: SummarySidebarProps) {
   const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [copyMessage, setCopyMessage] = useState('');
@@ -132,12 +138,29 @@ export function SummarySidebar({
   const templateHint = getTemplateHint();
 
   return (
-    <div className={`sidebar-panel flex flex-col ${isEditing ? 'sidebar-editing' : ''}`}>
+    <div className={`sidebar-panel flex flex-col ${isEditing ? 'sidebar-editing' : ''} ${isCanvasSelected ? 'ring-2 ring-serendie-accent ring-offset-1' : ''}`}>
       <div className="p-4 border-b border-serendie-gray-200">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-bold text-serendie-gray-900 flex-shrink-0">
             CANVAS
           </h2>
+
+          {/* CANVAS selection toggle for AI consultation */}
+          {onToggleCanvasSelection && (
+            <button
+              onClick={onToggleCanvasSelection}
+              className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                isCanvasSelected
+                  ? 'bg-serendie-accent text-white shadow-sm'
+                  : 'bg-serendie-gray-100 text-serendie-gray-600 hover:bg-serendie-gray-200 border border-serendie-gray-200'
+              }`}
+              aria-pressed={isCanvasSelected}
+              aria-label={isCanvasSelected ? 'CANVAS選択を解除' : 'CANVASをAI相談用に選択'}
+              title={isCanvasSelected ? 'クリックで選択解除' : 'クリックでAI相談用に選択'}
+            >
+              {isCanvasSelected ? '✓ 選択中' : 'AI選択'}
+            </button>
+          )}
 
           <select
             className="flex-1 min-w-0 text-sm border border-serendie-gray-300 rounded px-2 py-1 bg-white text-serendie-gray-800 focus:outline-none focus:ring-1 focus:ring-serendie-blue-400 cursor-pointer"

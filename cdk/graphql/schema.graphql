@@ -170,6 +170,7 @@ input AskAIHelperInput {
   actionType: String!
   userInput: String
   selectedMessageIds: [String]
+  context: String
 }
 
 input CreateConversationInput {

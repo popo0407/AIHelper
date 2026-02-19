@@ -84,6 +84,7 @@ export interface AIHelperRequest {
   actionType: AIActionType;
   userInput?: string;
   selectedMessageIds?: string[];
+  context?: string;
 }
 
 // ------ App State Types ------
@@ -97,6 +98,23 @@ export interface AppState {
   selectedMessageIds: Set<string>;
   isEditing: boolean;
   isLoading: boolean;
+}
+
+// ------ Selection State ------
+
+/** AI相談用の選択状態を表す */
+export interface AISelectionState {
+  /** 選択されたメッセージIDのセット（既存の selectedMessageIds を流用） */
+  selectedMessageIds: Set<string>;
+  /** CANVASが選択されているか */
+  isCanvasSelected: boolean;
+}
+
+/** 選択状態表示用のアイテム */
+export interface SelectionDisplayItem {
+  id: string;
+  label: string;
+  type: 'message' | 'canvas';
 }
 
 // ------ Lock State ------

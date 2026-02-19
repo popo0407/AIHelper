@@ -58,6 +58,8 @@ const defaultProps = {
   selectedMessageCount: 0,
   onUpdatePromptType: jest.fn(),
   promptTemplates: [],
+  isCanvasSelected: false,
+  onToggleCanvasSelection: jest.fn(),
 };
 
 describe('SummarySidebar', () => {
@@ -308,6 +310,45 @@ describe('SummarySidebar', () => {
       );
       expect(screen.getByLabelText('CANVASに追加')).toBeInTheDocument();
       expect(screen.getByText('CANVASに追加 (2)')).toBeInTheDocument();
+    });
+  });
+
+  // ── 6. CANVAS選択トグル ──
+  describe('CANVAS選択トグル', () => {
+    it('AI選択ボタンが表示される', () => {
+      render(<SummarySidebar {...defaultProps} />);
+      expect(screen.getByLabelText('CANVASをAI相談用に選択')).toBeInTheDocument();
+    });
+
+    it('未選択時は「AI選択」テキストが表示される', () => {
+      render(<SummarySidebar {...defaultProps} isCanvasSelected={false} />);
+      expect(screen.getByText('AI選択')).toBeInTheDocument();
+    });
+
+    it('選択時は「✓ 選択中」テキストが表示される', () => {
+      render(<SummarySidebar {...defaultProps} isCanvasSelected={true} />);
+      expect(screen.getByText('✓ 選択中')).toBeInTheDocument();
+    });
+
+    it('クリックで onToggleCanvasSelection が呼ばれる', async () => {
+      const onToggle = jest.fn();
+      const user = userEvent.setup();
+      render(
+        <SummarySidebar {...defaultProps} onToggleCanvasSelection={onToggle} />
+      );
+
+      await user.click(screen.getByLabelText('CANVASをAI相談用に選択'));
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it('選択時にアクセントリングが表示される', () => {
+      const { container } = render(
+        <SummarySidebar {...defaultProps} isCanvasSelected={true} />
+      );
+      // sidebar-panel に ring-2 ring-serendie-accent が追加されていること
+      const panel = container.querySelector('.sidebar-panel');
+      expect(panel?.className).toContain('ring-2');
+      expect(panel?.className).toContain('ring-serendie-accent');
     });
   });
 });
