@@ -252,7 +252,9 @@ type Mutation {
   ): CreateConversationResponse!
   joinConversation(input: JoinConversationInput!): JoinConversationResponse!
   leaveConversation(input: LeaveConversationInput!): LeaveConversationResponse!
-  updateLastMessageId(input: UpdateLastMessageIdInput!): UpdateLastMessageIdResponse!
+  updateLastMessageId(
+    input: UpdateLastMessageIdInput!
+  ): UpdateLastMessageIdResponse!
   # Subscription対応: 単純な型を返す
   sendMessage(input: SendMessageInput!): Message!
   updateSummary(input: UpdateSummaryInput!): Summary!
