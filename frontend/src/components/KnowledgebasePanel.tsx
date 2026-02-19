@@ -5,11 +5,13 @@ import { graphqlClient, extractData } from '@/lib/appsync';
 import {
   LIST_KNOWLEDGE_SOURCES,
   UPLOAD_KNOWLEDGEBASE,
+  COMPLETE_KNOWLEDGEBASE_UPLOAD,
   DELETE_KNOWLEDGEBASE,
 } from '@/graphql/operations';
 import type {
   KnowledgeSource,
   UploadKnowledgebaseResponse,
+  CompleteKnowledgebaseUploadResponse,
   DeleteKnowledgebaseResponse,
 } from '@/types';
 import { ALLOWED_KB_CONTENT_TYPES, MAX_KB_FILE_SIZE } from '@/types';
@@ -41,6 +43,11 @@ export function KnowledgebasePanel({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Notify parent when sources change
+  useEffect(() => {
+    onSourceCountChange?.(sources.length);
+  }, [sources.length, onSourceCountChange]);
+
   // Fetch knowledge sources when panel opens
   useEffect(() => {
     if (isOpen) {
@@ -56,17 +63,19 @@ export function KnowledgebasePanel({
         query: LIST_KNOWLEDGE_SOURCES,
         variables: { conversationId },
       });
-      const data = extractData<KnowledgeSource[]>(result, 'listKnowledgeSources');
+      console.log('listKnowledgeSources result:', JSON.stringify(result, null, 2));
+      const data = extractData<KnowledgeSource[]>(result as any, 'listKnowledgeSources');
+      console.log('extracted knowledge sources:', data);
       const items = data ?? [];
       setSources(items);
-      onSourceCountChange?.(items.length);
     } catch (err) {
       console.error('Failed to load knowledge sources:', err);
-      setError('ナレッジソースの読み込みに失敗しました');
+      const errorMessage = err instanceof Error ? err.message : 'ナレッジソースの読み込みに失敗しました';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, onSourceCountChange]);
+  }, [conversationId]);
 
   // ── Upload handler ──
   const handleFileSelect = useCallback(
@@ -125,34 +134,72 @@ export function KnowledgebasePanel({
           },
         });
         const data = extractData<UploadKnowledgebaseResponse>(
-          result,
+          result as any,
           'uploadKnowledgebase'
         );
 
+        console.log('uploadKnowledgebase result:', JSON.stringify(result, null, 2));
+        console.log('extracted data:', data);
+
         if (!data?.success || !data.presignedUrl) {
+          console.error('Upload preparation failed:', data);
           setError(data?.error ?? 'アップロードの準備に失敗しました');
           return;
         }
 
-        // 2. Upload file to S3 via presigned URL
+        // 2. Upload file to S3 via CloudFront presigned PUT URL
+        // CloudFront Function が OPTIONS preflight をエッジで処理するため
+        // CORS 問題なく PUT リクエストが可能
         const uploadResponse = await fetch(data.presignedUrl, {
           method: 'PUT',
-          body: file,
           headers: {
             'Content-Type': file.type || 'application/octet-stream',
           },
+          body: file,
         });
 
         if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error('S3 upload failed:', uploadResponse.status, errorText);
           setError('ファイルのアップロードに失敗しました');
           return;
         }
 
-        // 3. Refresh the list
+        // Verify knowledgeSource exists
+        if (!data.knowledgeSource) {
+          console.error('knowledgeSource is missing in upload response');
+          setError('アップロード情報の取得に失敗しました');
+          return;
+        }
+
+        // 3. Complete upload: generate .metadata.json for Bedrock filtering
+        const completeResult = await graphqlClient.graphql({
+          query: COMPLETE_KNOWLEDGEBASE_UPLOAD,
+          variables: {
+            input: {
+              conversationId,
+              fileName: data.knowledgeSource.fileName,
+            },
+          },
+        });
+
+        const completeData = extractData<CompleteKnowledgebaseUploadResponse>(
+          completeResult as any,
+          'completeKnowledgebaseUpload'
+        );
+
+        if (!completeData?.success) {
+          console.error('Metadata creation failed:', completeData?.error);
+          setError('メタデータの作成に失敗しました');
+          return;
+        }
+
+        // 4. Refresh the list
         await loadSources();
       } catch (err) {
         console.error('Upload failed:', err);
-        setError('アップロード中にエラーが発生しました');
+        const errorMessage = err instanceof Error ? err.message : 'アップロード中にエラーが発生しました';
+        setError(errorMessage);
       } finally {
         setIsUploading(false);
       }
@@ -162,10 +209,10 @@ export function KnowledgebasePanel({
 
   // ── Delete handler ──
   const handleDelete = useCallback(
-    async (knowledgeSourceId: string, fileName: string) => {
-      if (!window.confirm(`「${fileName}」を削除しますか？`)) return;
+    async (fileName: string, originalFileName: string) => {
+      if (!window.confirm(`「${originalFileName}」を削除しますか？`)) return;
 
-      setDeletingId(knowledgeSourceId);
+      setDeletingId(fileName);
       setError(null);
 
       try {
@@ -174,12 +221,12 @@ export function KnowledgebasePanel({
           variables: {
             input: {
               conversationId,
-              knowledgeSourceId,
+              fileName,
             },
           },
         });
         const data = extractData<DeleteKnowledgebaseResponse>(
-          result,
+          result as any,
           'deleteKnowledgebase'
         );
 
@@ -190,11 +237,9 @@ export function KnowledgebasePanel({
 
         // Remove from list
         setSources((prev) => {
-          const next = prev.filter(
-            (s) => s.knowledgeSourceId !== knowledgeSourceId
+          return prev.filter(
+            (s) => s.fileName !== fileName
           );
-          onSourceCountChange?.(next.length);
-          return next;
         });
       } catch (err) {
         console.error('Delete failed:', err);
@@ -203,7 +248,7 @@ export function KnowledgebasePanel({
         setDeletingId(null);
       }
     },
-    [conversationId, onSourceCountChange]
+    [conversationId]
   );
 
   if (!isOpen) return null;
@@ -300,12 +345,12 @@ export function KnowledgebasePanel({
             <ul className="divide-y divide-serendie-gray-100" role="list">
               {sources.map((source) => (
                 <li
-                  key={source.knowledgeSourceId}
+                  key={`${source.conversationId}-${source.fileName}`}
                   className="flex items-center justify-between py-2 gap-2"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-serendie-gray-900 truncate">
-                      {_getFileIcon(source.contentType)} {source.fileName}
+                      {_getFileIcon(source.contentType)} {source.originalFileName || source.fileName}
                     </p>
                     <p className="text-xs text-serendie-gray-500">
                       {_formatFileSize(source.fileSize)} ・{' '}
@@ -320,12 +365,12 @@ export function KnowledgebasePanel({
                   <button
                     className="text-red-500 hover:text-red-700 text-sm flex-shrink-0 px-2 py-1 rounded hover:bg-red-50 transition-colors"
                     onClick={() =>
-                      handleDelete(source.knowledgeSourceId, source.fileName)
+                      handleDelete(source.fileName, source.originalFileName)
                     }
-                    disabled={deletingId === source.knowledgeSourceId}
-                    aria-label={`${source.fileName}を削除`}
+                    disabled={deletingId === source.fileName}
+                    aria-label={`${source.originalFileName || source.fileName}を削除`}
                   >
-                    {deletingId === source.knowledgeSourceId
+                    {deletingId === source.fileName
                       ? '削除中...'
                       : '🗑 削除'}
                   </button>

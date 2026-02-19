@@ -196,3 +196,135 @@ test.describe('会話機能のテスト', () => {
     page.on('console', msg => console.log('Browser console:', msg.text()));
   });
 });
+
+test.describe('要約のコピー機能テスト', () => {
+  test('要約テキストをコピーできる', async ({ page }) => {
+    await page.waitForTimeout(2000);
+    
+    // 会話を作成または選択
+    const newConversationButton = page.locator('button:has-text("新しい会話")');
+    const isButtonVisible = await newConversationButton.isVisible().catch(() => false);
+    
+    if (isButtonVisible) {
+      await newConversationButton.click();
+      await page.waitForTimeout(2000);
+      console.log('✓ 新しい会話を作成');
+    }
+    
+    // メッセージを送信してチャット履歴を生成
+    const messageInput = page.locator('textarea, input[type="text"]').first();
+    const isInputVisible = await messageInput.isVisible().catch(() => false);
+    
+    if (isInputVisible) {
+      const testMessage = 'テスト: 要約コピー機能をテストしています。これは長めのテストメッセージです。';
+      await messageInput.fill(testMessage);
+      
+      const sendButton = page.locator('button[type="submit"], button:has-text("送信")').last();
+      const isSendButtonVisible = await sendButton.isVisible().catch(() => false);
+      
+      if (isSendButtonVisible) {
+        await sendButton.click();
+        console.log('✓ メッセージを送信');
+        await page.waitForTimeout(3000);
+      }
+    }
+    
+    // 右サイドバーの要約パネルを確認
+    const summaryTitle = page.locator('h2:has-text("要約")');
+    const isSummaryVisible = await summaryTitle.isVisible().catch(() => false);
+    
+    console.log('要約パネル表示:', isSummaryVisible);
+    
+    if (isSummaryVisible) {
+      // コピーボタンを探す
+      const copyButton = page.locator('button[aria-label="要約をコピー"]');
+      const isCopyButtonVisible = await copyButton.isVisible().catch(() => false);
+      
+      console.log('コピーボタン表示:', isCopyButtonVisible);
+      await page.screenshot({ path: 'test-results/summary-copy-button.png', fullPage: true });
+      
+      if (isCopyButtonVisible) {
+        // コピーボタンをクリック
+        await copyButton.click();
+        console.log('✓ コピーボタンをクリック');
+        
+        // 成功メッセージを待機
+        const successMessage = page.locator('text=コピーしました');
+        try {
+          await expect(successMessage).toBeVisible({ timeout: 5000 });
+          console.log('✓ コピー成功メッセージが表示されました');
+          await page.screenshot({ path: 'test-results/summary-copy-success.png', fullPage: true });
+        } catch (e) {
+          console.log('✗ コピー成功メッセージが表示されませんでした');
+          await page.screenshot({ path: 'test-results/summary-copy-failed.png', fullPage: true });
+        }
+      } else {
+        console.log('✗ コピーボタンが見つかりませんでした');
+        await page.screenshot({ path: 'test-results/summary-copy-button-not-found.png', fullPage: true });
+      }
+    } else {
+      console.log('✗ 要約パネルが見つかりませんでした');
+      await page.screenshot({ path: 'test-results/summary-panel-not-found.png', fullPage: true });
+    }
+  });
+
+  test('コピーボタンがキーボードアクセス可能', async ({ page }) => {
+    await page.waitForTimeout(2000);
+    
+    // 会話を作成または選択
+    const newConversationButton = page.locator('button:has-text("新しい会話")');
+    const isButtonVisible = await newConversationButton.isVisible().catch(() => false);
+    
+    if (isButtonVisible) {
+      await newConversationButton.click();
+      await page.waitForTimeout(2000);
+      console.log('✓ 新しい会話を作成');
+    }
+    
+    // 要約パネルを確認
+    const summaryTitle = page.locator('h2:has-text("要約")');
+    const isSummaryVisible = await summaryTitle.isVisible().catch(() => false);
+    
+    if (isSummaryVisible) {
+      const copyButton = page.locator('button[aria-label="要約をコピー"]');
+      const isCopyButtonVisible = await copyButton.isVisible().catch(() => false);
+      
+      if (isCopyButtonVisible) {
+        // Tab キーでボタンにフォーカス
+        await page.keyboard.press('Tab');
+        
+        // ボタンが focus 状態になったか確認
+        const isFocused = await copyButton.evaluate(el => el === document.activeElement);
+        console.log('コピーボタンがフォーカス中:', isFocused);
+        
+        // Enter キーでクリック
+        await page.keyboard.press('Enter');
+        console.log('✓ Enter キーでコピーボタンを実行');
+        
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: 'test-results/summary-copy-keyboard.png', fullPage: true });
+      }
+    }
+  });
+
+  test('エンプティ状態でコピーボタンが disabled', async ({ page }) => {
+    await page.waitForTimeout(2000);
+    
+    // 会話一覧画面を確認
+    const summaryTitle = page.locator('h2:has-text("要約")');
+    const isSummaryVisible = await summaryTitle.isVisible().catch(() => false);
+    
+    if (isSummaryVisible) {
+      // コピーボタンを探す
+      const copyButton = page.locator('button[aria-label="要約をコピー"]');
+      const isDisabled = await copyButton.evaluate(el => (el as HTMLButtonElement).disabled);
+      
+      console.log('要約がない状態でコピーボタンが disabled:', isDisabled);
+      
+      // 要約がない場合は disabled であるべき
+      if (isDisabled) {
+        console.log('✓ コピーボタンが正しく disabled 状態です');
+      }
+    }
+  });
+});

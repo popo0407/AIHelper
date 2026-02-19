@@ -14,7 +14,7 @@ let _configured = false;
 
 export function ensureAmplifyConfigured(): void {
   if (_configured) return;
-  Amplify.configure(awsConfig, { ssr: true });
+  Amplify.configure(awsConfig as any, { ssr: true });
   _configured = true;
 }
 

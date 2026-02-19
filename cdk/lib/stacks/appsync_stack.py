@@ -101,6 +101,16 @@ class AppSyncStack(Stack):
             type_name="Query",
             field_name="getSummary",
         )
+        summarizer_ds.create_resolver(
+            "GetPromptTemplateResolver",
+            type_name="Query",
+            field_name="getPromptTemplate",
+        )
+        summarizer_ds.create_resolver(
+            "ListPromptTemplatesResolver",
+            type_name="Query",
+            field_name="listPromptTemplates",
+        )
         lock_ds.create_resolver(
             "GetLocksResolver",
             type_name="Query",
@@ -125,6 +135,16 @@ class AppSyncStack(Stack):
             type_name="Mutation",
             field_name="joinConversation",
         )
+        conversation_ds.create_resolver(
+            "LeaveConversationResolver",
+            type_name="Mutation",
+            field_name="leaveConversation",
+        )
+        conversation_ds.create_resolver(
+            "UpdateLastMessageIdResolver",
+            type_name="Mutation",
+            field_name="updateLastMessageId",
+        )
         chat_ds.create_resolver(
             "SendMessageResolver",
             type_name="Mutation",
@@ -144,6 +164,16 @@ class AppSyncStack(Stack):
             "SaveSummaryEditResolver",
             type_name="Mutation",
             field_name="saveSummaryEdit",
+        )
+        summarizer_ds.create_resolver(
+            "UpdateSummaryPromptTypeResolver",
+            type_name="Mutation",
+            field_name="updateSummaryPromptType",
+        )
+        summarizer_ds.create_resolver(
+            "UpdatePromptTemplateResolver",
+            type_name="Mutation",
+            field_name="updatePromptTemplate",
         )
         lock_ds.create_resolver(
             "AcquireLockResolver",
@@ -169,6 +199,11 @@ class AppSyncStack(Stack):
             "UploadKnowledgebaseResolver",
             type_name="Mutation",
             field_name="uploadKnowledgebase",
+        )
+        knowledgebase_ds.create_resolver(
+            "CompleteKnowledgebaseUploadResolver",
+            type_name="Mutation",
+            field_name="completeKnowledgebaseUpload",
         )
         knowledgebase_ds.create_resolver(
             "DeleteKnowledgebaseResolver",

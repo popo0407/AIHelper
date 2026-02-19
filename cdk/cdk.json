@@ -1,7 +1,8 @@
 {
   "app": "python app.py",
   "context": {
-    "environment": "dev"
+    "environment": "dev",
+    "useMockAI": false
   },
   "watch": {
     "include": ["**"],

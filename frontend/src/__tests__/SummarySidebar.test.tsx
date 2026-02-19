@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SummarySidebar } from '@/components/SummarySidebar';
 import type { Summary, LockState } from '@/types';
@@ -56,6 +56,10 @@ const defaultProps = {
   onAddToSummary: jest.fn(),
   canAddToSummary: true,
   selectedMessageCount: 0,
+  onUpdatePromptType: jest.fn(),
+  promptTemplates: [],
+  isCanvasSelected: false,
+  onToggleCanvasSelection: jest.fn(),
 };
 
 describe('SummarySidebar', () => {
@@ -74,7 +78,7 @@ describe('SummarySidebar', () => {
   it('要約がない場合は空メッセージが表示される', () => {
     render(<SummarySidebar {...defaultProps} summary={null} />);
 
-    expect(screen.getByText(/まだ要約がありません/)).toBeInTheDocument();
+    expect(screen.getByText(/まだ内容がありません/)).toBeInTheDocument();
   });
 
   it('最終更新者が表示される', () => {
@@ -83,10 +87,10 @@ describe('SummarySidebar', () => {
     expect(screen.getByText(/最終更新: 田中太郎/)).toBeInTheDocument();
   });
 
-  it('ヘッダーに「要約・議事録」タイトルが表示される', () => {
+  it('ヘッダーに「CANVAS」タイトルが表示される', () => {
     render(<SummarySidebar {...defaultProps} />);
 
-    expect(screen.getByText('要約・議事録')).toBeInTheDocument();
+    expect(screen.getByText('CANVAS')).toBeInTheDocument();
   });
 
   // ── 2. 編集モードに切り替えられること ──
@@ -204,5 +208,147 @@ describe('SummarySidebar', () => {
     // testSummary.current の長さ + " / 5000"
     const expectedLength = testSummary.current!.length;
     expect(screen.getByText(`${expectedLength} / 5000`)).toBeInTheDocument();
+  });
+
+  // ── 4. コピー機能 ──
+  describe('コピー機能', () => {
+    it('コピーボタンが表示される', () => {
+      render(<SummarySidebar {...defaultProps} />);
+
+      expect(screen.getByLabelText('CANVASをコピー')).toBeInTheDocument();
+    });
+
+    it('テキストがない場合はコピーボタンが disabled', () => {
+      render(<SummarySidebar {...defaultProps} summary={null} />);
+
+      expect(screen.getByLabelText('CANVASをコピー')).toBeDisabled();
+    });
+
+    it('編集中はコピーボタンが disabled', () => {
+      render(
+        <SummarySidebar
+          {...defaultProps}
+          isEditing={true}
+          editContent="編集中"
+        />
+      );
+
+      expect(screen.getByLabelText('CANVASをコピー')).toBeDisabled();
+    });
+  });
+
+  // ── 5. プロンプト種別ドロップダウン ──
+  describe('プロンプト種別選択', () => {
+    it('ドロップダウンが表示される', () => {
+      render(<SummarySidebar {...defaultProps} />);
+      expect(screen.getByLabelText('プロンプト種別を選択')).toBeInTheDocument();
+    });
+
+    it('初期値は「要約」である', () => {
+      render(<SummarySidebar {...defaultProps} />);
+      const select = screen.getByLabelText('プロンプト種別を選択') as HTMLSelectElement;
+      expect(select.value).toBe('summary');
+    });
+
+    it('selectedPromptType=actionItemの場合正しく選択される', () => {
+      const summaryWithPromptType = { ...testSummary, selectedPromptType: 'actionItem' as const };
+      render(<SummarySidebar {...defaultProps} summary={summaryWithPromptType} />);
+      const select = screen.getByLabelText('プロンプト種別を選択') as HTMLSelectElement;
+      expect(select.value).toBe('actionItem');
+    });
+
+    it('ドロップダウン変更時に onUpdatePromptType が呼ばれる', async () => {
+      const onUpdatePromptType = jest.fn();
+      const user = userEvent.setup();
+      render(<SummarySidebar {...defaultProps} onUpdatePromptType={onUpdatePromptType} />);
+
+      const select = screen.getByLabelText('プロンプト種別を選択');
+      await user.selectOptions(select, 'actionItem');
+
+      expect(onUpdatePromptType).toHaveBeenCalledWith('actionItem');
+    });
+
+    it('カスタム選択時に編集ボタンが表示される', () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const, customPromptText: 'テストプロンプト' };
+      render(<SummarySidebar {...defaultProps} summary={summaryCustom} />);
+      expect(screen.getByLabelText('カスタムプロンプトを編集')).toBeInTheDocument();
+    });
+
+    it('カスタム編集ボタンクリックでモーダルが開く', async () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const, customPromptText: 'テストプロンプト' };
+      const user = userEvent.setup();
+      render(<SummarySidebar {...defaultProps} summary={summaryCustom} />);
+
+      await user.click(screen.getByLabelText('カスタムプロンプトを編集'));
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByLabelText('カスタムプロンプトを入力')).toBeInTheDocument();
+    });
+
+    it('モーダルで「保存」すると onUpdatePromptType が呼ばれる', async () => {
+      const summaryCustom = { ...testSummary, selectedPromptType: 'custom' as const, customPromptText: '' };
+      const onUpdatePromptType = jest.fn();
+      const user = userEvent.setup();
+      render(<SummarySidebar {...defaultProps} summary={summaryCustom} onUpdatePromptType={onUpdatePromptType} />);
+
+      await user.click(screen.getByLabelText('カスタムプロンプトを編集'));
+      const textarea = screen.getByLabelText('カスタムプロンプトを入力');
+      await user.type(textarea, '新しいプロンプト');
+      await user.click(screen.getByLabelText('保存'));
+
+      expect(onUpdatePromptType).toHaveBeenCalledWith('custom', '新しいプロンプト');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('CANVASに追加ボタンに「CANVASに追加」文言が表示される', () => {
+      render(
+        <SummarySidebar
+          {...defaultProps}
+          selectedMessageCount={2}
+          canAddToSummary={true}
+        />
+      );
+      expect(screen.getByLabelText('CANVASに追加')).toBeInTheDocument();
+      expect(screen.getByText('CANVASに追加 (2)')).toBeInTheDocument();
+    });
+  });
+
+  // ── 6. CANVAS選択トグル ──
+  describe('CANVAS選択トグル', () => {
+    it('AI選択ボタンが表示される', () => {
+      render(<SummarySidebar {...defaultProps} />);
+      expect(screen.getByLabelText('CANVASをAI相談用に選択')).toBeInTheDocument();
+    });
+
+    it('未選択時は「AI選択」テキストが表示される', () => {
+      render(<SummarySidebar {...defaultProps} isCanvasSelected={false} />);
+      expect(screen.getByText('AI選択')).toBeInTheDocument();
+    });
+
+    it('選択時は「✓ 選択中」テキストが表示される', () => {
+      render(<SummarySidebar {...defaultProps} isCanvasSelected={true} />);
+      expect(screen.getByText('✓ 選択中')).toBeInTheDocument();
+    });
+
+    it('クリックで onToggleCanvasSelection が呼ばれる', async () => {
+      const onToggle = jest.fn();
+      const user = userEvent.setup();
+      render(
+        <SummarySidebar {...defaultProps} onToggleCanvasSelection={onToggle} />
+      );
+
+      await user.click(screen.getByLabelText('CANVASをAI相談用に選択'));
+      expect(onToggle).toHaveBeenCalledTimes(1);
+    });
+
+    it('選択時にアクセントリングが表示される', () => {
+      const { container } = render(
+        <SummarySidebar {...defaultProps} isCanvasSelected={true} />
+      );
+      // sidebar-panel に ring-2 ring-serendie-accent が追加されていること
+      const panel = container.querySelector('.sidebar-panel');
+      expect(panel?.className).toContain('ring-2');
+      expect(panel?.className).toContain('ring-serendie-accent');
+    });
   });
 });

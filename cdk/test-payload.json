@@ -1,6 +1,0 @@
-{
-  "field": "listConversations",
-  "arguments": {
-    "loginId": "test-user-id"
-  }
-}

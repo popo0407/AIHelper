@@ -5,7 +5,6 @@ import { ChatHeader } from '@/components/ChatHeader';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { SummarySidebar } from '@/components/SummarySidebar';
-import { AIHelperButtons } from '@/components/AIHelperButtons';
 import { NotificationBanner } from '@/components/NotificationBanner';
 import { KnowledgebasePanel } from '@/components/KnowledgebasePanel';
 import { graphqlClient, extractData } from '@/lib/appsync';
@@ -23,9 +22,13 @@ import {
   CREATE_CONVERSATION,
   UPDATE_CONVERSATION_TITLE,
   SEARCH_KNOWLEDGEBASE,
+  LIST_KNOWLEDGE_SOURCES,
+  UPDATE_LAST_MESSAGE_ID,
   ON_NEW_MESSAGE,
   ON_SUMMARY_UPDATE,
   ON_LOCK_CHANGE,
+  UPDATE_SUMMARY_PROMPT_TYPE,
+  LIST_PROMPT_TEMPLATES,
 } from '@/graphql/operations';
 import type {
   User,
@@ -34,8 +37,11 @@ import type {
   Summary,
   Lock,
   LockState,
-  AIActionType,
   KnowledgeSearchResult,
+  KnowledgeSource,
+  PromptTemplate,
+  PromptType,
+  SelectionDisplayItem,
 } from '@/types';
 import { AIHELPER_USER_ID } from '@/types';
 
@@ -80,6 +86,8 @@ export function ChatScreen({
   const [isKBPanelOpen, setIsKBPanelOpen] = useState(false);
   const [kbSearchEnabled, setKbSearchEnabled] = useState(false);
   const [kbSourceCount, setKbSourceCount] = useState(0);
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
+  const [isCanvasSelected, setIsCanvasSelected] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const isFirstMessageSentRef = useRef(false);
@@ -93,6 +101,41 @@ export function ChatScreen({
   const canEdit = !lockState.isEditLocked && !lockState.isSummaryLocked;
   const canUndo =
     !!summary?.previous && !isSummaryProcessing && !lockState.isSummaryLocked;
+
+  // -- Selection display items for AI consultation --
+  const selectionItems: SelectionDisplayItem[] = [
+    ...messages
+      .filter((m) => selectedMessageIds.has(m.messageId))
+      .map((m) => ({
+        id: m.messageId,
+        label: `${m.displayName}: ${m.content.slice(0, 20)}${m.content.length > 20 ? '...' : ''}`,
+        type: 'message' as const,
+      })),
+    ...(isCanvasSelected
+      ? [{ id: 'canvas', label: 'CANVAS', type: 'canvas' as const }]
+      : []),
+  ];
+
+  // -- Handler: remove a selection item --
+  const handleRemoveSelection = useCallback(
+    (id: string) => {
+      if (id === 'canvas') {
+        setIsCanvasSelected(false);
+      } else {
+        setSelectedMessageIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    []
+  );
+
+  // -- Handler: toggle CANVAS selection --
+  const toggleCanvasSelection = useCallback(() => {
+    setIsCanvasSelected((prev) => !prev);
+  }, []);
 
   // ── Initial load ──
   useEffect(() => {
@@ -108,11 +151,11 @@ export function ChatScreen({
 
     try {
       // Subscribe to new messages
-      const msgSub = graphqlClient
+      const msgSub = (graphqlClient
         .graphql({
           query: ON_NEW_MESSAGE,
           variables: { conversationId: conversation.conversationId },
-        })
+        }) as any)
         .subscribe({
           next: ({ data }: { data: Record<string, Message> }) => {
             const newMsg = data.onNewMessage;
@@ -126,6 +169,20 @@ export function ChatScreen({
                 }
                 return [...prev, newMsg];
               });
+
+              // Auto-update lastMessageId for access control tracking
+              (graphqlClient.graphql({
+                query: UPDATE_LAST_MESSAGE_ID,
+                variables: {
+                  input: {
+                    loginId: user.loginId,
+                    conversationId: conversation.conversationId,
+                    messageId: newMsg.messageId,
+                  },
+                },
+              }) as Promise<unknown>).catch((err: unknown) =>
+                console.error('Failed to update lastMessageId:', err)
+              );
             }
           },
           error: (err: unknown) =>
@@ -134,11 +191,11 @@ export function ChatScreen({
       subscriptions.push(msgSub);
 
       // Subscribe to summary updates
-      const sumSub = graphqlClient
+      const sumSub = (graphqlClient
         .graphql({
           query: ON_SUMMARY_UPDATE,
           variables: { conversationId: conversation.conversationId },
-        })
+        }) as any)
         .subscribe({
           next: ({ data }: { data: Record<string, Summary> }) => {
             const updated = data.onSummaryUpdate;
@@ -150,11 +207,11 @@ export function ChatScreen({
       subscriptions.push(sumSub);
 
       // Subscribe to lock changes
-      const lockSub = graphqlClient
+      const lockSub = (graphqlClient
         .graphql({
           query: ON_LOCK_CHANGE,
           variables: { conversationId: conversation.conversationId },
-        })
+        }) as any)
         .subscribe({
           next: ({ data }: { data: Record<string, Lock> }) => {
             const lockEvent = data.onLockChange;
@@ -207,7 +264,7 @@ export function ChatScreen({
         query: LIST_MESSAGES,
         variables: { conversationId: conversation.conversationId, limit: 100 },
       });
-      const msgData = extractData<{ items: Message[]; nextToken?: string }>(msgResult, 'listMessages');
+      const msgData = extractData<{ items: Message[]; nextToken?: string }>(msgResult as any, 'listMessages');
       setMessages(msgData?.items ?? []);
     } catch (err) {
       console.error('Failed to load messages:', err);
@@ -229,7 +286,7 @@ export function ChatScreen({
         query: GET_SUMMARY,
         variables: { conversationId: conversation.conversationId },
       });
-      const sumData = extractData<Summary | null>(sumResult, 'getSummary');
+      const sumData = extractData<Summary | null>(sumResult as any, 'getSummary');
       setSummary(sumData ?? null);
     } catch (err) {
       console.error('Failed to load summary:', err);
@@ -242,11 +299,37 @@ export function ChatScreen({
         query: GET_LOCKS,
         variables: { conversationId: conversation.conversationId },
       });
-      const lockData = extractData<Lock[]>(lockResult, 'getLocks');
+      const lockData = extractData<Lock[]>(lockResult as any, 'getLocks');
       setLocks(lockData ?? []);
     } catch (err) {
       console.error('Failed to load locks:', err);
       setLocks([]);
+    }
+
+    // ナレッジソースを読み込み
+    try {
+      const kbResult = await graphqlClient.graphql({
+        query: LIST_KNOWLEDGE_SOURCES,
+        variables: { conversationId: conversation.conversationId },
+      });
+      const kbData = extractData<KnowledgeSource[]>(kbResult as any, 'listKnowledgeSources');
+      const sources = kbData ?? [];
+      setKbSourceCount(sources.length);
+    } catch (err) {
+      console.error('Failed to load knowledge sources:', err);
+      setKbSourceCount(0);
+    }
+
+    // プロンプトテンプレートを読み込み
+    try {
+      const tplResult = await graphqlClient.graphql({
+        query: LIST_PROMPT_TEMPLATES,
+      });
+      const tplData = extractData<PromptTemplate[]>(tplResult as any, 'listPromptTemplates');
+      setPromptTemplates(tplData ?? []);
+    } catch (err) {
+      console.error('Failed to load prompt templates:', err);
+      setPromptTemplates([]);
     }
 
     setIsLoading(false);
@@ -301,7 +384,7 @@ export function ChatScreen({
           },
         },
       });
-      const message = extractData<Message>(result, 'sendMessage');
+      const message = extractData<Message>(result as any, 'sendMessage');
       if (message) {
         // Replace temp message with server response
         setMessages((prev) =>
@@ -330,17 +413,22 @@ export function ChatScreen({
       setInputText('');
 
       try {
+        const kbSearchInput = {
+          conversationId: conversation.conversationId,
+          query,
+          userId: user.loginId,
+          displayName: user.displayName,
+        };
+        console.log("KB Search input:", kbSearchInput);
+        
         const result = await graphqlClient.graphql({
           query: SEARCH_KNOWLEDGEBASE,
           variables: {
-            input: {
-              conversationId: conversation.conversationId,
-              query,
-            },
+            input: kbSearchInput,
           },
         });
         const data = extractData<KnowledgeSearchResult>(
-          result,
+          result as any,
           'searchKnowledgebase'
         );
 
@@ -413,7 +501,7 @@ export function ChatScreen({
           },
         },
       });
-      const newSummary = extractData<Summary>(result, 'updateSummary');
+      const newSummary = extractData<Summary>(result as any, 'updateSummary');
       if (newSummary) {
         setSummary(newSummary);
       }
@@ -443,7 +531,7 @@ export function ChatScreen({
         query: UNDO_SUMMARY,
         variables: { conversationId: conversation.conversationId },
       });
-      const newSummary = extractData<Summary>(result, 'undoSummary');
+      const newSummary = extractData<Summary>(result as any, 'undoSummary');
       if (newSummary) {
         setSummary(newSummary);
       }
@@ -451,6 +539,31 @@ export function ChatScreen({
       console.error('Failed to undo summary:', err);
     }
   }, [canUndo, conversation.conversationId]);
+
+  // ── Update prompt type (CANVAS feature) ──
+  const handleUpdatePromptType = useCallback(
+    async (promptType: PromptType, customPromptText?: string) => {
+      try {
+        const result = await graphqlClient.graphql({
+          query: UPDATE_SUMMARY_PROMPT_TYPE,
+          variables: {
+            input: {
+              conversationId: conversation.conversationId,
+              selectedPromptType: promptType,
+              customPromptText: customPromptText ?? null,
+            },
+          },
+        });
+        const updated = extractData<Summary>(result as any, 'updateSummaryPromptType');
+        if (updated) {
+          setSummary(updated);
+        }
+      } catch (err) {
+        console.error('Failed to update prompt type:', err);
+      }
+    },
+    [conversation.conversationId]
+  );
 
   // ── Edit sidebar ──
   const handleStartEdit = useCallback(async () => {
@@ -497,7 +610,7 @@ export function ChatScreen({
           },
         }),
       ]);
-      const newSummary = extractData<Summary>(saveResult, 'saveSummaryEdit');
+      const newSummary = extractData<Summary>(saveResult as any, 'saveSummaryEdit');
       if (newSummary) {
         setSummary(newSummary);
       }
@@ -525,45 +638,70 @@ export function ChatScreen({
     }
   }, [conversation.conversationId, user.loginId]);
 
-  // ── AI Helper actions ──
-  const handleAIAction = useCallback(
-    async (actionType: AIActionType) => {
-      setIsAIProcessing(true);
-      const processingMsg =
-        actionType === 'answer'
-          ? `AIHelperが${user.displayName}さんの質問に回答中です。`
-          : `AIHelperが処理中です。`;
-      setNotification(processingMsg);
+  // -- AI Send (aggregated: selected messages + CANVAS + user input) --
+  const handleAISend = useCallback(async () => {
+    if (!inputText.trim()) return;
+    if (selectionItems.length === 0) return;
 
-      try {
-        const result = await graphqlClient.graphql({
-          query: ASK_AI_HELPER,
-          variables: {
-            input: {
-              conversationId: conversation.conversationId,
-              userId: user.loginId,
-              actionType,
-              userInput: inputText || undefined,
-              selectedMessageIds:
-                selectedMessageIds.size > 0
-                  ? Array.from(selectedMessageIds)
-                  : undefined,
-            },
+    // Aggregate selected content
+    const aggregatedContent: string[] = [];
+
+    // Add selected message contents
+    const selectedMsgs = messages.filter((m) =>
+      selectedMessageIds.has(m.messageId)
+    );
+    for (const msg of selectedMsgs) {
+      aggregatedContent.push(`[${msg.displayName}] ${msg.content}`);
+    }
+
+    // Add CANVAS content if selected
+    if (isCanvasSelected && summary?.current) {
+      aggregatedContent.push(`[CANVAS] ${summary.current}`);
+    }
+
+    const context = aggregatedContent.join('\n---\n');
+
+    // Add user message to chat
+    const userMessage: Message = {
+      conversationId: conversation.conversationId,
+      messageId: `temp-${Date.now()}`,
+      userId: user.loginId,
+      displayName: user.displayName,
+      content: inputText,
+      timestamp: new Date().toISOString(),
+      isUsedInSummary: false,
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    const currentInput = inputText;
+    setInputText('');
+    setIsAIProcessing(true);
+    setNotification(`AIHelperが${user.displayName}さんの質問に回答中です。`);
+
+    try {
+      const result = await graphqlClient.graphql({
+        query: ASK_AI_HELPER,
+        variables: {
+          input: {
+            conversationId: conversation.conversationId,
+            userId: user.loginId,
+            actionType: 'answer',
+            userInput: currentInput,
+            context,
           },
-        });
-        const message = extractData<Message>(result, 'askAIHelper');
-        if (message) {
-          setMessages((prev) => [...prev, message]);
-        }
-      } catch (err) {
-        console.error('AI Helper error:', err);
-      } finally {
-        setIsAIProcessing(false);
-        setNotification(null);
+        },
+      });
+      const message = extractData<Message>(result as any, 'askAIHelper');
+      if (message) {
+        setMessages((prev) => [...prev, message]);
       }
-    },
-    [user, conversation.conversationId]
-  );
+    } catch (err) {
+      console.error('AI Send error:', err);
+    } finally {
+      setIsAIProcessing(false);
+      setNotification(null);
+    }
+  }, [inputText, selectionItems, messages, selectedMessageIds, isCanvasSelected, summary, conversation.conversationId, user]);
 
   // ── Copy share link ──
   const handleCopyLink = useCallback(() => {
@@ -641,7 +779,7 @@ export function ChatScreen({
               variables: { input: { createdBy: user.loginId } },
             });
             const data = extractData<{ success: boolean; conversation: Conversation; error?: string }>(
-              result,
+              result as any,
               'createConversation'
             );
             if (data?.success && data.conversation) {
@@ -677,25 +815,19 @@ export function ChatScreen({
           />
           <div ref={messagesEndRef} />
 
-          {/* AI buttons */}
-          <AIHelperButtons
-            selectedCount={selectedMessageIds.size}
-            inputText={inputText}
-            onAction={handleAIAction}
-            isProcessing={isAIProcessing}
-            lockState={lockState}
-          />
-
           {/* Message input */}
           <div className="border-t border-serendie-gray-200 bg-white p-4">
             <MessageInput
               value={inputText}
               onChange={setInputText}
               onSend={handleSendMessage}
+              onAISend={handleAISend}
               disabled={isLoading}
               kbSearchEnabled={kbSearchEnabled}
               onToggleKbSearch={() => setKbSearchEnabled((prev) => !prev)}
               hasKnowledgeSources={kbSourceCount > 0}
+              selectionItems={selectionItems}
+              onRemoveSelection={handleRemoveSelection}
             />
           </div>
         </div>
@@ -737,6 +869,10 @@ export function ChatScreen({
             onAddToSummary={handleAddToSummary}
             canAddToSummary={canAddToSummary}
             selectedMessageCount={selectedMessageIds.size}
+            onUpdatePromptType={handleUpdatePromptType}
+            promptTemplates={promptTemplates}
+            isCanvasSelected={isCanvasSelected}
+            onToggleCanvasSelection={toggleCanvasSelection}
           />
         </div>
       </div>

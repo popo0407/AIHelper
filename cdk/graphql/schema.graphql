@@ -14,7 +14,9 @@ type UserConversation {
   loginId: ID!
   conversationId: ID!
   joinedAt: AWSDateTime!
-  role: String # e.g., "owner", "participant"
+  role: String! # 'creator' | 'participant' | 'inactive'
+  lastMessageId: String
+  lastUpdatedAt: AWSDateTime
 }
 
 type Message {
@@ -34,6 +36,14 @@ type Summary {
   previous: String
   updatedAt: AWSDateTime
   updatedBy: String
+  selectedPromptType: String
+  customPromptText: String
+}
+
+type PromptTemplate {
+  promptType: String!
+  promptText: String!
+  updatedAt: AWSDateTime
 }
 
 type Lock {
@@ -64,9 +74,9 @@ type Notification {
 }
 
 type KnowledgeSource {
-  knowledgeSourceId: ID!
   conversationId: ID!
   fileName: String!
+  originalFileName: String!
   fileSize: Int!
   s3Key: String!
   contentType: String!
@@ -81,6 +91,9 @@ type KnowledgeSearchResult {
   query: String!
   answer: String!
   sources: [String!]!
+  sourceDisplayNames: [String!]!
+  userMessageId: ID
+  aiMessageId: ID
 }
 
 type UploadKnowledgebaseResponse {
@@ -90,9 +103,14 @@ type UploadKnowledgebaseResponse {
   error: String
 }
 
+type CompleteKnowledgebaseUploadResponse {
+  success: Boolean!
+  error: String
+}
+
 type DeleteKnowledgebaseResponse {
   success: Boolean!
-  knowledgeSourceId: ID
+  fileName: String
   error: String
 }
 
@@ -119,6 +137,22 @@ input SaveSummaryEditInput {
   content: String!
 }
 
+input UpdateSummaryPromptTypeInput {
+  conversationId: ID!
+  selectedPromptType: String!
+  customPromptText: String
+}
+
+input UpdatePromptTemplateInput {
+  promptType: String!
+  promptText: String!
+}
+
+input CompleteKnowledgebaseUploadInput {
+  conversationId: ID!
+  fileName: String!
+}
+
 input AcquireLockInput {
   conversationId: ID!
   userId: String!
@@ -136,6 +170,7 @@ input AskAIHelperInput {
   actionType: String!
   userInput: String
   selectedMessageIds: [String]
+  context: String
 }
 
 input CreateConversationInput {
@@ -152,21 +187,35 @@ input JoinConversationInput {
   conversationId: ID!
 }
 
+input LeaveConversationInput {
+  loginId: String!
+  conversationId: ID!
+}
+
+input UpdateLastMessageIdInput {
+  loginId: String!
+  conversationId: ID!
+  messageId: ID!
+}
+
 input UploadKnowledgebaseInput {
   conversationId: ID!
   fileName: String!
   fileSize: Int!
   contentType: String!
+  uploadedBy: String
 }
 
 input DeleteKnowledgebaseInput {
   conversationId: ID!
-  knowledgeSourceId: ID!
+  fileName: String!
 }
 
 input SearchKnowledgebaseInput {
   conversationId: ID!
   query: String!
+  userId: String!
+  displayName: String!
 }
 
 # ------ Responses ------
@@ -183,6 +232,18 @@ type JoinConversationResponse {
   error: String
 }
 
+type LeaveConversationResponse {
+  success: Boolean!
+  conversationId: ID
+  error: String
+}
+
+type UpdateLastMessageIdResponse {
+  success: Boolean!
+  userConversation: UserConversation
+  error: String
+}
+
 # ------ Queries ------
 
 type Query {
@@ -194,6 +255,8 @@ type Query {
     nextToken: String
   ): MessageConnection!
   getSummary(conversationId: ID!): Summary
+  getPromptTemplate(promptType: String!): PromptTemplate
+  listPromptTemplates: [PromptTemplate!]!
   getLocks(conversationId: ID!): [Lock!]!
   listKnowledgeSources(conversationId: ID!): [KnowledgeSource!]!
 }
@@ -210,11 +273,17 @@ type Mutation {
     input: CreateConversationInput!
   ): CreateConversationResponse!
   joinConversation(input: JoinConversationInput!): JoinConversationResponse!
+  leaveConversation(input: LeaveConversationInput!): LeaveConversationResponse!
+  updateLastMessageId(
+    input: UpdateLastMessageIdInput!
+  ): UpdateLastMessageIdResponse!
   # Subscription対応: 単純な型を返す
   sendMessage(input: SendMessageInput!): Message!
   updateSummary(input: UpdateSummaryInput!): Summary!
   undoSummary(conversationId: ID!): Summary!
   saveSummaryEdit(input: SaveSummaryEditInput!): Summary!
+  updateSummaryPromptType(input: UpdateSummaryPromptTypeInput!): Summary!
+  updatePromptTemplate(input: UpdatePromptTemplateInput!): PromptTemplate!
   acquireLock(input: AcquireLockInput!): Lock!
   releaseLock(input: ReleaseLockInput!): Lock!
   askAIHelper(input: AskAIHelperInput!): Message!
@@ -222,6 +291,9 @@ type Mutation {
   uploadKnowledgebase(
     input: UploadKnowledgebaseInput!
   ): UploadKnowledgebaseResponse!
+  completeKnowledgebaseUpload(
+    input: CompleteKnowledgebaseUploadInput!
+  ): CompleteKnowledgebaseUploadResponse!
   deleteKnowledgebase(
     input: DeleteKnowledgebaseInput!
   ): DeleteKnowledgebaseResponse!
@@ -235,7 +307,12 @@ type Subscription {
     @aws_subscribe(mutations: ["sendMessage"])
   onSummaryUpdate(conversationId: ID!): Summary
     @aws_subscribe(
-      mutations: ["updateSummary", "saveSummaryEdit", "undoSummary"]
+      mutations: [
+        "updateSummary"
+        "saveSummaryEdit"
+        "undoSummary"
+        "updateSummaryPromptType"
+      ]
     )
   onLockChange(conversationId: ID!): Lock
     @aws_subscribe(mutations: ["acquireLock", "releaseLock"])

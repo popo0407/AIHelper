@@ -4,6 +4,7 @@ from aws_cdk import (
     RemovalPolicy,
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
+    aws_iam as iam,
 )
 from constructs import Construct
 
@@ -136,18 +137,35 @@ class DatabaseStack(Stack):
         )
 
         # =========================================================
-        # KnowledgeSources Table  PK: conversationId, SK: knowledgeSourceId
-        # ナレッジベースのメタデータを管理
+        # KnowledgeSources Table  PK: conversationId, SK: fileName
+        # ナレッジベースのメタデータを管理（同名ファイルは上書き）
+        # テーブル名変更: v2（キースキーマ変更のため再作成が必要）
         # =========================================================
         self.knowledge_sources_table = dynamodb.Table(
             self,
             "KnowledgeSourcesTable",
-            table_name=f"{project_name}-{env_name}-knowledge-sources",
+            table_name=f"{project_name}-{env_name}-knowledge-sources-v2",
             partition_key=dynamodb.Attribute(
                 name="conversationId", type=dynamodb.AttributeType.STRING
             ),
             sort_key=dynamodb.Attribute(
-                name="knowledgeSourceId", type=dynamodb.AttributeType.STRING
+                name="fileName", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=removal,
+            point_in_time_recovery=env_name == "prod",
+        )
+
+        # =========================================================
+        # PromptTemplates Table  PK: promptType
+        # CANVASサイドバーで使用するプロンプトテンプレートを管理
+        # =========================================================
+        self.prompt_templates_table = dynamodb.Table(
+            self,
+            "PromptTemplatesTable",
+            table_name=f"{project_name}-{env_name}-prompt-templates",
+            partition_key=dynamodb.Attribute(
+                name="promptType", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=removal,
@@ -156,6 +174,8 @@ class DatabaseStack(Stack):
 
         # =========================================================
         # S3 Bucket for Knowledgebase files
+        # CloudFront 経由でアクセスするため S3 側の CORS 設定は不要。
+        # presigned URL は IAM 認証付きなので BLOCK_ALL でも動作する。
         # =========================================================
         self.knowledge_bucket = s3.Bucket(
             self,
@@ -165,15 +185,4 @@ class DatabaseStack(Stack):
             auto_delete_objects=env_name == "dev",
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             encryption=s3.BucketEncryption.S3_MANAGED,
-            cors=[
-                s3.CorsRule(
-                    allowed_headers=["*"],
-                    allowed_methods=[
-                        s3.HttpMethods.PUT,
-                        s3.HttpMethods.GET,
-                    ],
-                    allowed_origins=["*"],
-                    max_age=3600,
-                )
-            ],
         )

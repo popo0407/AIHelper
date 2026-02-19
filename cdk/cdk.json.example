@@ -1,0 +1,20 @@
+{
+  "app": "python app.py",
+  "context": {
+    "environment": "dev",
+    "useMockAI": true
+  },
+  "watch": {
+    "include": ["**"],
+    "exclude": [
+      "README.md",
+      "cdk*.json",
+      "requirements*.txt",
+      "source.bat",
+      ".gitignore",
+      ".venv",
+      "**/__pycache__",
+      "**/*.pyc"
+    ]
+  }
+}

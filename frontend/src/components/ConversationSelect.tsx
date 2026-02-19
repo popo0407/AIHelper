@@ -36,7 +36,7 @@ export function ConversationSelect({
         query: LIST_CONVERSATIONS,
         variables: { loginId: user.loginId },
       });
-      const convos = extractData<Conversation[]>(result, 'listConversations');
+      const convos = extractData<Conversation[]>(result as any, 'listConversations');
       setConversations(convos ?? []);
     } catch (err) {
       console.error('Failed to load conversations:', {
@@ -56,7 +56,7 @@ export function ConversationSelect({
         variables: { input: { createdBy: user.loginId } },
       });
       const data = extractData<{ success: boolean; conversation: Conversation; error?: string }>(
-        result,
+        result as any,
         'createConversation'
       );
       if (!data.success) {
@@ -72,6 +72,8 @@ export function ConversationSelect({
         error: err instanceof Error ? err.message : String(err),
         userId: user.loginId,
       });
+      console.error('Full error object:', err);
+      console.error('Error stringified:', JSON.stringify(err, null, 2));
     } finally {
       setIsLoading(false);
     }

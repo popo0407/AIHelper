@@ -61,6 +61,60 @@ myapp-prod-network
 
 ---
 
+## 3.1 Lambda AI/モック切り替えの柔軟性（重要）
+
+### 原則
+
+- Lambda環境変数（USE_MOCK_AI, USE_MOCK_RAG）は**環境（dev/prod）とは独立して切り替え可能**とする。
+- 開発環境でも本番AIのテストが必要な場合があるため、cdk contextで柔軟に制御する。
+
+### 実装方法
+
+**cdk.json**:
+
+```json
+{
+  "app": "python app.py",
+  "context": {
+    "environment": "dev",
+    "useMockAI": true
+  }
+}
+```
+
+**デプロイコマンド例**:
+
+```bash
+# dev環境でモックAI（デフォルト）
+cdk deploy --all --context environment=dev
+
+# dev環境で本番AI（テスト用）
+cdk deploy --all --context environment=dev --context useMockAI=false
+
+# prod環境で本番AI
+cdk deploy --all --context environment=prod --context useMockAI=false
+```
+
+**app.py での取得**:
+
+```python
+env_name = app.node.try_get_context("environment") or "dev"
+use_mock_ai = app.node.try_get_context("useMockAI")
+if use_mock_ai is None:
+    use_mock_ai = (env_name == "dev")  # デフォルト: devならtrue
+```
+
+**lambda_stack.py での環境変数設定**:
+
+```python
+common_env = {
+    "USE_MOCK_AI": "true" if use_mock_ai else "false",
+    # ...
+}
+```
+
+---
+
 ## 4. コスト絶対遵守ルール
 
 ### 4.1 Bedrock Knowledge Base
@@ -597,6 +651,172 @@ class LambdaStack(Stack):
 
 ---
 
+## 10.4 フロントエンド自動デプロイスタック（frontend_stack.py）
+
+### 目的
+
+- フロントエンド（Next.js）のビルド成果物を自動的にS3へデプロイ
+- CloudFrontのキャッシュ自動無効化
+- outputs.jsonからフロントエンド設定ファイルへの自動反映
+
+### 実装例
+
+```python
+# cdk/lib/stacks/frontend_stack.py
+from aws_cdk import (
+    Stack,
+    aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
+    aws_cloudfront as cloudfront,
+    aws_cloudfront_origins as origins,
+    RemovalPolicy,
+    CfnOutput,
+)
+from constructs import Construct
+import os
+
+class FrontendStack(Stack):
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        env_name: str,
+        project_name: str,
+        appsync_endpoint: str,
+        user_pool_id: str,
+        user_pool_client_id: str,
+        **kwargs
+    ):
+        super().__init__(scope, id, **kwargs)
+
+        # S3 Bucket for frontend
+        frontend_bucket = s3.Bucket(
+            self, "FrontendBucket",
+            bucket_name=f"{project_name}-{env_name}-frontend",
+            removal_policy=RemovalPolicy.DESTROY if env_name == "dev" else RemovalPolicy.RETAIN,
+            auto_delete_objects=env_name == "dev",
+            website_index_document="index.html",
+            website_error_document="index.html",
+        )
+
+        # CloudFront Distribution
+        distribution = cloudfront.Distribution(
+            self, "FrontendDistribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3Origin(frontend_bucket),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            ),
+            default_root_object="index.html",
+        )
+
+        # Auto deployment (if frontend/out exists)
+        frontend_out_path = os.path.join(os.path.dirname(__file__), "../../../frontend/out")
+        if os.path.exists(frontend_out_path):
+            s3deploy.BucketDeployment(
+                self, "DeployFrontend",
+                sources=[s3deploy.Source.asset(frontend_out_path)],
+                destination_bucket=frontend_bucket,
+                distribution=distribution,
+                distribution_paths=["/*"],
+            )
+
+        # Outputs
+        CfnOutput(
+            self, "FrontendURL",
+            value=f"https://{distribution.distribution_domain_name}",
+            description="Frontend CloudFront URL"
+        )
+        CfnOutput(
+            self, "FrontendBucketName",
+            value=frontend_bucket.bucket_name,
+            description="Frontend S3 Bucket Name"
+        )
+```
+
+### outputs.json 自動反映スクリプト
+
+**scripts/update-frontend-env.ps1**:
+
+```powershell
+# CDK outputs.json から .env.local を自動生成
+$outputsPath = "cdk/outputs.json"
+$envPath = "frontend/.env.local"
+
+if (!(Test-Path $outputsPath)) {
+    Write-Error "outputs.json not found. Run 'cdk deploy' first."
+    exit 1
+}
+
+$outputs = Get-Content $outputsPath | ConvertFrom-Json
+$stackName = ($outputs.PSObject.Properties.Name | Where-Object { $_ -like "*appsync*" })[0]
+
+if (!$stackName) {
+    Write-Error "AppSync stack not found in outputs.json"
+    exit 1
+}
+
+$appsyncEndpoint = $outputs.$stackName.AppSyncEndpoint
+$userPoolId = $outputs.$stackName.UserPoolId
+$userPoolClientId = $outputs.$stackName.UserPoolClientId
+
+$envContent = @"
+NEXT_PUBLIC_APPSYNC_ENDPOINT=$appsyncEndpoint
+NEXT_PUBLIC_USER_POOL_ID=$userPoolId
+NEXT_PUBLIC_USER_POOL_CLIENT_ID=$userPoolClientId
+NEXT_PUBLIC_AWS_REGION=ap-northeast-1
+"@
+
+Set-Content -Path $envPath -Value $envContent
+Write-Host "✅ $envPath updated successfully"
+```
+
+### CI/CD統合例（GitHub Actions）
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main, develop]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      # CDK Deploy
+      - name: CDK Deploy
+        run: |
+          cd cdk
+          pip install -r requirements-cdk.txt
+          cdk deploy --all --outputs-file outputs.json --require-approval never
+
+      # Frontend Build & Deploy
+      - name: Update Frontend Config
+        run: |
+          pwsh scripts/update-frontend-env.ps1
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+      - name: Deploy Frontend to S3
+        run: |
+          aws s3 sync frontend/out s3://$(jq -r '."aichat-dev-frontend".FrontendBucketName' cdk/outputs.json)
+```
+
+---
+
 ## 11. 最終原則
 
 - devは自律実行、prodは説明のみ（差分確認→コマンド提示）
@@ -630,89 +850,92 @@ AWS Bedrock で利用可能な基礎モデル (Foundation Model) のモデル ID
 
 また、各モデルは **ON_DEMAND**（直接呼び出し）または **INFERENCE_PROFILE**（推論プロファイル経由）など、異なるスループット形式に対応しています。
 
-### モデル ID の確認方法
-
-**AWS CLI を使用して利用可能なモデル一覧を確認**:
-
-```bash
-# リージョンを指定してAnthropic社のモデルIDを取得
-aws bedrock list-foundation-models \
-  --region ap-northeast-1 \
-  --by-provider anthropic \
-  --query "modelSummaries[*].{ModelId:modelId, Name:modelName}" \
-  --output table
-
-# 特定のモデルファミリーを絞り込む場合
-aws bedrock list-foundation-models \
-  --region ap-northeast-1 \
-  --by-provider anthropic \
-  --query "modelSummaries[?contains(modelId, 'haiku') || contains(modelId, 'sonnet')].{ModelId:modelId, Name:modelName}" \
-  --output table
-```
-
 ### スループット型（ON_DEMAND vs INFERENCE_PROFILE）の確認方法
 
 **重要**: モデルのスループット形式を確認しないまま Lambda にデプロイすると、`ValidationException - Invocation with on-demand throughput isn't supported` エラーが発生します。
 
-**AWS CLI で特定モデルのスループット対応状況を確認**:
-
-```bash
-# 特定のモデルの詳細情報を取得
-aws bedrock get-foundation-model \
-  --model-identifier anthropic.claude-3-5-sonnet-20240620-v1:0 \
-  --region ap-northeast-1 \
-  --query "modelDetails.{ModelId:modelId, InferenceTypes:inferenceTypesSupported}" \
-  --output json
-
-# PowerShell で複数モデルを一括確認
-foreach($modelId in @(
-  "anthropic.claude-3-haiku-20240307-v1:0",
-  "anthropic.claude-3-5-sonnet-20240620-v1:0",
-  "anthropic.claude-3-5-sonnet-20241022-v2:0"
-)) {
-  $json = aws bedrock get-foundation-model --model-identifier $modelId --region ap-northeast-1 --output json | ConvertFrom-Json
-  Write-Host "$modelId => $($json.modelDetails.inferenceTypesSupported -join ', ')"
-}
-```
-
-**ap-northeast-1 での確認済みモデル**（2024 年末時点）:
-
-| モデル                                      | 対応スループット型 | 推奨用途                          |
-| ------------------------------------------- | ------------------ | --------------------------------- |
-| `anthropic.claude-3-haiku-20240307-v1:0`    | ON_DEMAND          | ✅ 直接呼び出し可（軽量タスク）   |
-| `anthropic.claude-3-5-sonnet-20240620-v1:0` | ON_DEMAND          | ✅ 直接呼び出し可（バランス重視） |
-| `anthropic.claude-3-5-sonnet-20241022-v2:0` | INFERENCE_PROFILE  | ❌ 推論プロファイル経由のみ       |
-| `anthropic.claude-haiku-4-5-20251001-v1:0`  | INFERENCE_PROFILE  | ❌ 推論プロファイル経由のみ       |
-
 ### 重要な注意点
 
 1. **モデル ID の形式**: モデル ID は `anthropic.claude-{model-family}-{version}:{variant}` の形式（例: `anthropic.claude-haiku-4-5-20251001-v1:0`）
-2. **リージョン依存**: 同じモデルでもリージョンによって利用不可の場合がある
-3. **スループット形式の重要性**: ON_DEMAND 対応のモデルのみを直接呼び出しできる。他のモデルは推論プロファイルを使用する必要がある
-4. **バージョン管理**: モデルのバージョンは定期的に更新されるため、最新のモデル ID を確認する
-5. **Model Access 設定**: AWS Bedrock Console でモデルへのアクセスを有効化する必要がある
-
-### トラブルシューティング
-
-**エラー**: `ValidationException - Invocation with on-demand throughput isn't supported`
-
-**原因**: INFERENCE_PROFILE のみ対応するモデルを ON_DEMAND で呼び出そうとしている
-
-**解決策**:
-
-1. `aws bedrock get-foundation-model` で モデルのスループット対応状況を確認
-2. ON_DEMAND 対応モデルに変更するか、推論プロファイルを使用する
-
-### トラブルシューティング
-
-**"ValidationException - The provided model identifier is invalid" エラーが発生した場合**:
-
-1. `aws bedrock list-foundation-models` で利用可能なモデル ID を確認
-2. AWS Bedrock Console で該当モデルへのアクセスが有効になっているか確認
-3. リージョンが正しいか確認（`BEDROCK_REGION` 環境変数）
-4. モデル ID のスペルミスやバージョン番号の誤りを確認
-
-### 参考情報
+2. **スループット形式の重要性**: ON_DEMAND 対応のモデルのみを直接呼び出しできる。他のモデルは推論プロファイルを使用する必要がある
 
 - [AWS Bedrock Supported Models](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)
 - [AWS Bedrock Model IDs](https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html)
+
+---
+
+## 10. Bedrock Knowledge Base（RAG）デプロイ戦略 - Tokyo リージョン対応
+
+### 最新状態
+
+✅ **東京リージョン（ap-northeast-1）で Knowledge Base のS3 Vectors 構成が対応**
+
+### CloudFormation デプロイフロー
+
+### S3_VECTORS Knowledge Base CDK構築（完全管理）
+
+**✅ CDK/CloudFormationで完全実装可能**
+
+S3 Vectors（VectorBucket + Index）も CDK で管理できます。  
+CloudFormation リソース（`AWS::S3Vectors::VectorBucket`, `AWS::S3Vectors::Index`）を L1 Construct 経由で作成。
+
+#### Python CDK 実装例
+
+```python
+from aws_cdk import CfnResource, RemovalPolicy
+
+# VectorBucket
+vector_bucket = CfnResource(
+    self, "VectorBucket",
+    type="AWS::S3Vectors::VectorBucket",
+    properties={"VectorBucketName": f"{app}-{env}-vectors"}
+)
+vector_bucket.apply_removal_policy(RemovalPolicy.RETAIN)
+
+# Vector Index
+vector_index = CfnResource(
+    self, "VectorIndex",
+    type="AWS::S3Vectors::Index",
+    properties={
+        "IndexName": f"{app}-{env}-kb-index",
+        "VectorBucketArn": vector_bucket.get_att("VectorBucketArn").to_string(),
+        "Dimension": 1024,          # 埋め込みモデルに合わせる
+        "DataType": "float32",       # 小文字必須
+        "DistanceMetric": "cosine"   # 小文字必須
+    }
+)
+vector_index.apply_removal_policy(RemovalPolicy.RETAIN)
+vector_index.add_dependency(vector_bucket)  # 依存関係明示
+```
+
+#### IAM権限（最小特権）
+
+```python
+iam.PolicyStatement(
+    effect=iam.Effect.ALLOW,
+    actions=[
+        "s3vectors:PutVectors",
+        "s3vectors:QueryVectors",
+        "s3vectors:GetVectors",      # Knowledge Base 作成時必須
+        "s3vectors:GetIndex",
+        "s3vectors:GetVectorBucket",
+    ],
+    resources=["arn:aws:s3vectors:region:account:bucket/*"]
+)
+```
+
+#### ベストプラクティス
+
+1. **RemovalPolicy.RETAIN 必須** - データ保護
+2. **dimension は埋め込みモデルと一致必須**（Titan v2 = 1024）
+3. **小文字パラメータ**：`dataType: "float32"`, `distanceMetric: "cosine"`
+4. **依存関係明示**：`vector_index.add_dependency(vector_bucket)`
+5. **IAM権限**: `GetVectors` も含める（`s3vectors:*` は避ける）
+
+#### エラー対処
+
+- "AlreadyExists" → 既存リソース削除後に再デプロイ
+- "unable to assume role" → IAM に `GetVectors` 追加
+- "constraint" → パラメータを小文字に修正
+
+**検証結果**: Tokyo（ap-northeast-1）で動作確認済み

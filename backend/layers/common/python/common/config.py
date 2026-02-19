@@ -14,9 +14,13 @@ class AppConfig:
     summary_table: str
     locks_table: str
     conversations_table: str
+    knowledge_sources_table: str
+    knowledge_bucket: str
+    cloudfront_domain: str
     use_mock_ai: bool
     bedrock_region: str
     bedrock_model_id: str
+    bedrock_kb_id: str
 
 
 def get_config() -> AppConfig:
@@ -33,9 +37,19 @@ def get_config() -> AppConfig:
         conversations_table=os.environ.get(
             "CONVERSATIONS_TABLE", "aichat-dev-conversations"
         ),
+        knowledge_sources_table=os.environ.get(
+            "KNOWLEDGE_SOURCES_TABLE", "aichat-dev-knowledge-sources"
+        ),
+        knowledge_bucket=os.environ.get(
+            "KNOWLEDGE_BUCKET", "aichat-dev-knowledge"
+        ),
+        cloudfront_domain=os.environ.get(
+            "CLOUDFRONT_DOMAIN_NAME", ""
+        ),
         use_mock_ai=os.environ.get("USE_MOCK_AI", "true").lower() == "true",
         bedrock_region=os.environ.get("BEDROCK_REGION", "us-west-2"),
         bedrock_model_id=os.environ.get(
             "BEDROCK_MODEL_ID", "us.anthropic.claude-haiku-4-5-20251001-v1:0"
         ),
+        bedrock_kb_id=os.environ.get("BEDROCK_KB_ID", ""),
     )

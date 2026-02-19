@@ -14,7 +14,15 @@ test.describe('ナレッジベース機能のテスト', () => {
   test.beforeEach(async ({ page }) => {
     // ページエラーハンドラ
     page.on('console', msg => {
-      if (msg.type() === 'error') console.error('Browser Error:', msg.text());
+      const type = msg.type();
+      const text = msg.text();
+      if (type === 'error') {
+        console.error('Browser Error:', text);
+      } else if (type === 'warning') {
+        console.warn('Browser Warning:', text);
+      } else {
+        console.log(`Browser ${type}:`, text);
+      }
     });
     page.on('pageerror', error => {
       console.error('Page Error:', error.message);
@@ -22,14 +30,21 @@ test.describe('ナレッジベース機能のテスト', () => {
 
     // ログイン
     console.log('ログイン処理開始');
-    await page.goto('http://localhost:3002');
+    await page.goto('http://localhost:3000');
     await page.waitForLoadState('networkidle');
 
+    // ログインフォーム入力
     await page.locator('input[type="email"]').fill(TEST_EMAIL);
     await page.locator('input[type="password"]').first().fill(TEST_PASSWORD);
     await page.locator('button[type="submit"]').first().click();
-    await page.waitForTimeout(3000);
-    console.log('ログイン完了');
+    
+    // チャット画面への遷移を明示的に待つ
+    await page.waitForSelector('button:has-text("新しい会話"), textarea[placeholder*="メッセージ"], input[placeholder*="メッセージ"]', {
+      timeout: 15000,
+      state: 'visible'
+    });
+    await page.waitForTimeout(2000); // 追加の安定化待機
+    console.log('ログイン完了 - チャット画面に遷移');
 
     // 新しい会話を作成（または既存の会話に入る）
     const newConvButton = page.locator('button:has-text("新しい会話")');

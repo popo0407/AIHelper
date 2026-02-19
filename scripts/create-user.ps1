@@ -64,13 +64,18 @@ Write-Host "  メール: $Email"
 Write-Host "  表示名: $UserName"
 
 try {
+    # AWS CLIの正しいフォーマット：複数の Name=...,Value=... をスペースで区切る
+    # PowerShellで配列として渡す必要がある
+    $attributes = @(
+        "Name=email,Value=$Email",
+        "Name=email_verified,Value=true",
+        "Name=custom:userName,Value=$UserName"
+    )
+    
     aws cognito-idp admin-create-user `
         --user-pool-id $UserPoolId `
         --username $Email `
-        --user-attributes `
-        Name=email, Value=$Email `
-        Name=email_verified, Value=true `
-        Name=custom:userName, Value=$UserName `
+        --user-attributes @attributes `
         --temporary-password $PlainPassword `
         --message-action SUPPRESS `
         --region ap-northeast-1
