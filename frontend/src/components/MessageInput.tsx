@@ -148,14 +148,16 @@ export function MessageInput({
           disabled={disabled}
           aria-label={kbSearchEnabled ? 'ナレッジベース検索入力' : 'メッセージ入力'}
         />
-        <button
-          className="btn-primary flex-shrink-0"
-          onClick={onSend}
-          disabled={disabled || !value.trim()}
-          aria-label={kbSearchEnabled ? 'ナレッジベースを検索' : 'メッセージを送信'}
-        >
-          {kbSearchEnabled ? '🔍 検索' : '送信'}
-        </button>
+        {(!hasSelection || kbSearchEnabled) && (
+          <button
+            className="btn-primary flex-shrink-0"
+            onClick={onSend}
+            disabled={disabled || !value.trim()}
+            aria-label={kbSearchEnabled ? 'ナレッジベースを検索' : 'メッセージを送信'}
+          >
+            {kbSearchEnabled ? '🔍 検索' : '送信'}
+          </button>
+        )}
         {onAISend && !kbSearchEnabled && (
           <button
             className="btn-secondary flex-shrink-0"

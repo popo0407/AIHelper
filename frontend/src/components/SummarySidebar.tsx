@@ -158,7 +158,7 @@ export function SummarySidebar({
               aria-label={isCanvasSelected ? 'CANVAS選択を解除' : 'CANVASをAI相談用に選択'}
               title={isCanvasSelected ? 'クリックで選択解除' : 'クリックでAI相談用に選択'}
             >
-              {isCanvasSelected ? '✓ 選択中' : 'AI選択'}
+              {isCanvasSelected ? '✓ 選択中' : '選択'}
             </button>
           )}
 

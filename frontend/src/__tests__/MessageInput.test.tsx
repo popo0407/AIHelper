@@ -123,6 +123,15 @@ describe('MessageInput', () => {
     expect(sendButton).not.toBeDisabled();
   });
 
+  it('選択がある場合は送信ボタンが非表示になる', () => {
+    const items: SelectionDisplayItem[] = [
+      { id: 'msg-1', label: '田中: テスト', type: 'message' },
+    ];
+    renderInput('hello', false, false, items);
+
+    expect(screen.queryByLabelText('メッセージを送信')).not.toBeInTheDocument();
+  });
+
   // ── 6. disabled 状態 ──
   it('disabled=true のときテキストエリアと送信ボタンが無効化される', () => {
     renderInput('テスト', true);
