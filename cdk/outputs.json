@@ -6,6 +6,7 @@
     "ExportsOutputRefLocksTable0C14848D3E4A5705": "aichat-dev-locks",
     "ExportsOutputRefKnowledgeSourcesTable5F503991E9CD07B2": "aichat-dev-knowledge-sources-v2",
     "ExportsOutputRefSummaryTable793657C311F6DC3D": "aichat-dev-summary",
+    "ExportsOutputRefPromptTemplatesTableAA30D6E46DC2DE89": "aichat-dev-prompt-templates",
     "ExportsOutputRefKnowledgeBucketD7C8B00D4F4CC779": "aichat-dev-knowledge-590184009554",
     "ExportsOutputRefConversationsTableCD91EB96EE2E4585": "aichat-dev-conversations"
   },

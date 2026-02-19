@@ -2225,8 +2225,7 @@ Branch Structure:
 
 **ステータス:** ✅ **テストカバレッジ拡充完了（127テスト全合格）**
 
-**最終更新:** 2026年2月15日
----
+## **最終更新:** 2026年2月15日
 
 ## 📅 **2026年2月 — CANVASサイドバー（プロンプト選択機能）実装**
 
@@ -2266,12 +2265,12 @@ Branch Structure:
 
 #### **問題と解決策**
 
-| 問題 | 原因 | 解決 |
-|------|------|------|
-| Bedrock要約テスト失敗 | conftest に `PROMPT_TEMPLATES_TABLE` が未設定 | env var・テーブルフィクスチャ追加 |
-| chat/lock_manager テスト失敗32件 | テストがラッパー`{success, message}`形式を期待しているが、スキーマは`Message!`/`Lock!`直返し | テストをスキーマ準拠に修正 |
-| knowledgebase テーブルキー不一致 | conftest が `knowledgeSourceId` をRANGE KEYとしていたが実装は `fileName` を使用 | conftest のテーブル定義を `fileName` RANGEに修正 |
-| `config.users_table` AttributeError | `AppConfig` に `users_table` フィールドが欠落 | `config.py` に `users_table` フィールドを追加 |
+| 問題                                | 原因                                                                                         | 解決                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Bedrock要約テスト失敗               | conftest に `PROMPT_TEMPLATES_TABLE` が未設定                                                | env var・テーブルフィクスチャ追加                |
+| chat/lock_manager テスト失敗32件    | テストがラッパー`{success, message}`形式を期待しているが、スキーマは`Message!`/`Lock!`直返し | テストをスキーマ準拠に修正                       |
+| knowledgebase テーブルキー不一致    | conftest が `knowledgeSourceId` をRANGE KEYとしていたが実装は `fileName` を使用              | conftest のテーブル定義を `fileName` RANGEに修正 |
+| `config.users_table` AttributeError | `AppConfig` に `users_table` フィールドが欠落                                                | `config.py` に `users_table` フィールドを追加    |
 
 ### **学んだこと**
 
