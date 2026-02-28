@@ -43,14 +43,13 @@ class TestSendMessage:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert result["message"]["content"] == "こんにちは！"
-        assert result["message"]["userId"] == "sender1"
-        assert result["message"]["displayName"] == "送信者1"
-        assert result["message"]["conversationId"] == "conv-001"
-        assert result["message"]["isUsedInSummary"] is False
-        assert "messageId" in result["message"]
-        assert "timestamp" in result["message"]
+        # sendMessage は Message! を直接返す（GraphQL スキーマ準拠）
+        assert result["content"] == "こんにちは！"
+        assert result["userId"] == "sender1"
+        assert result["conversationId"] == "conv-001"
+        assert result["isUsedInSummary"] is False
+        assert "messageId" in result
+        assert "timestamp" in result
 
     def test_AIHELPERのメッセージはdisplayNameがAIHelper(self, dynamodb_tables):
         """AIHELPER ユーザーは DB 参照なしに固定の displayName を使う。"""
@@ -63,31 +62,26 @@ class TestSendMessage:
         })
         result = _handler()(event, None)
 
-        assert result["success"] is True
-        assert result["message"]["displayName"] == "AIHelper"
+        assert result["displayName"] == "AIHelper"
 
     def test_conversationIdが未指定の場合エラー(self, dynamodb_tables):
-        """conversationId が欠落している場合はエラー。"""
+        """conversationId が欠落している場合は ValueError を送出する。"""
         event = make_appsync_event("sendMessage", {
             "input": {"userId": "user1", "content": "テスト"}
         })
-        result = _handler()(event, None)
-
-        assert result["success"] is False
-        assert "required" in result["error"]
+        with pytest.raises(ValueError, match="required"):
+            _handler()(event, None)
 
     def test_userIdが未指定の場合エラー(self, dynamodb_tables):
-        """userId が欠落している場合はエラー。"""
+        """userId が欠落している場合は ValueError を送出する。"""
         event = make_appsync_event("sendMessage", {
             "input": {"conversationId": "conv-001", "content": "テスト"}
         })
-        result = _handler()(event, None)
-
-        assert result["success"] is False
-        assert "required" in result["error"]
+        with pytest.raises(ValueError, match="required"):
+            _handler()(event, None)
 
     def test_contentが空の場合エラー(self, dynamodb_tables):
-        """content が空文字の場合はエラー。"""
+        """content が空文字の場合は ValueError を送出する。"""
         event = make_appsync_event("sendMessage", {
             "input": {
                 "conversationId": "conv-001",
@@ -95,12 +89,11 @@ class TestSendMessage:
                 "content": "",
             }
         })
-        result = _handler()(event, None)
-
-        assert result["success"] is False
+        with pytest.raises(ValueError):
+            _handler()(event, None)
 
     def test_contentが空白のみの場合エラー(self, dynamodb_tables):
-        """content が空白のみの場合は strip 後にエラー。"""
+        """content が空白のみの場合は strip 後に ValueError を送出する。"""
         event = make_appsync_event("sendMessage", {
             "input": {
                 "conversationId": "conv-001",
@@ -108,16 +101,14 @@ class TestSendMessage:
                 "content": "   ",
             }
         })
-        result = _handler()(event, None)
-
-        assert result["success"] is False
+        with pytest.raises(ValueError):
+            _handler()(event, None)
 
     def test_inputが未指定の場合エラー(self, dynamodb_tables):
-        """arguments に input がない場合のエラーハンドリング。"""
+        """arguments に input がない場合は ValueError を送出する。"""
         event = make_appsync_event("sendMessage", {})
-        result = _handler()(event, None)
-
-        assert result["success"] is False
+        with pytest.raises(ValueError):
+            _handler()(event, None)
 
 
 # ================================================================
@@ -208,9 +199,7 @@ class TestUnknownField:
     """未知のフィールド名に対するテスト."""
 
     def test_不明なフィールドでエラーレスポンスを返す(self, dynamodb_tables):
-        """存在しない fieldName でエラーを返す。"""
+        """存在しない fieldName は ValueError を送出する。"""
         event = make_appsync_event("invalidField", {})
-        result = _handler()(event, None)
-
-        assert result["success"] is False
-        assert "Unknown field" in result["error"]
+        with pytest.raises(ValueError, match="Unknown field"):
+            _handler()(event, None)

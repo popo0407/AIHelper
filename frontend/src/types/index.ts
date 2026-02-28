@@ -27,7 +27,25 @@ export interface Summary {
   previous: string | null;
   updatedAt: string | null;
   updatedBy: string | null;
+  selectedPromptType?: PromptType | null;
+  customPromptText?: string | null;
 }
+
+export type PromptType = 'summary' | 'actionItem' | 'requirement' | 'meds' | 'custom';
+
+export interface PromptTemplate {
+  promptType: string;
+  promptText: string;
+  updatedAt?: string | null;
+}
+
+export const PROMPT_TYPES: { value: PromptType; label: string }[] = [
+  { value: 'summary', label: '要約' },
+  { value: 'actionItem', label: 'アクションアイテム' },
+  { value: 'requirement', label: '要件定義' },
+  { value: 'meds', label: 'MEDS' },
+  { value: 'custom', label: 'カスタムプロンプト' },
+];
 
 export interface Lock {
   conversationId: string;
@@ -66,6 +84,7 @@ export interface AIHelperRequest {
   actionType: AIActionType;
   userInput?: string;
   selectedMessageIds?: string[];
+  context?: string;
 }
 
 // ------ App State Types ------
@@ -79,6 +98,23 @@ export interface AppState {
   selectedMessageIds: Set<string>;
   isEditing: boolean;
   isLoading: boolean;
+}
+
+// ------ Selection State ------
+
+/** AI相談用の選択状態を表す */
+export interface AISelectionState {
+  /** 選択されたメッセージIDのセット（既存の selectedMessageIds を流用） */
+  selectedMessageIds: Set<string>;
+  /** CANVASが選択されているか */
+  isCanvasSelected: boolean;
+}
+
+/** 選択状態表示用のアイテム */
+export interface SelectionDisplayItem {
+  id: string;
+  label: string;
+  type: 'message' | 'canvas';
 }
 
 // ------ Lock State ------
@@ -129,10 +165,23 @@ export const AI_BUTTONS: AIButtonConfig[] = [
 
 // ------ Knowledgebase Types ------
 
+// ------ UserConversation Types ------
+
+export interface UserConversation {
+  loginId: string;
+  conversationId: string;
+  joinedAt: string;
+  role: 'creator' | 'participant' | 'inactive';
+  lastMessageId?: string | null;
+  lastUpdatedAt?: string | null;
+}
+
+// ------ Knowledgebase Types (file) ------
+
 export interface KnowledgeSource {
-  knowledgeSourceId: string;
   conversationId: string;
   fileName: string;
+  originalFileName: string;
   fileSize: number;
   s3Key: string;
   contentType: string;
@@ -147,6 +196,7 @@ export interface KnowledgeSearchResult {
   query: string;
   answer: string;
   sources: string[];
+  sourceDisplayNames?: string[];
 }
 
 export interface UploadKnowledgebaseResponse {
@@ -156,9 +206,14 @@ export interface UploadKnowledgebaseResponse {
   error?: string;
 }
 
+export interface CompleteKnowledgebaseUploadResponse {
+  success: boolean;
+  error?: string;
+}
+
 export interface DeleteKnowledgebaseResponse {
   success: boolean;
-  knowledgeSourceId?: string;
+  fileName?: string;
   error?: string;
 }
 

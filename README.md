@@ -11,10 +11,13 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **ユーザー認証:** Amazon Cognito による安全なログイン（管理者のみユーザー登録可）
 - **リアルタイムチャット:** AppSync (GraphQL WebSocket) でリアルタイム更新
 - **AI要約機能:** Bedrock（Claude Haiku 4.5）で会話を自動要約
-- **AIアシスタント:** 複数の相談ボタンで AI に質問・回答を依頼
-- **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、Bedrock RAG で検索・回答
+- **CANVASパネル（プロンプト選択）:** 右サイドバーがCANVASパネルに進化。要約/アクションアイテム/要件定義/発言録など複数のAIプロンプト種別を選択可能。カスタムプロンプト入力にも対応
+- **CANVASのコピー機能:** 右サイドバーのCANVAS表示領域全体をクリップボードにコピー可能
+- **AI相談機能（UX改善済み）:** チャットメッセージやCANVASを複数同時にクリック選択し、入力欄の「AI送信」ボタンで選択内容＋質問を一括送信。選択状態はバッジで可視化。旧AIHelperボタン（要約/意見/次アクション）は廃止
+- **ナレッジベース:** ドキュメント(PDF/Word/HTML/MD/TXT)をアップロードし、AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS）で RAG 検索・回答生成
 - **排他制御:** 複数ユーザーによる同時編集時のロック管理（3分 TTL）
 - **会話管理:** 複数会話のサポート、リンク共有機能
+- **会話アクセス制御:** ユーザーの参加・退出・再参加管理（role: creator/participant/inactive）、lastMessageId によるメッセージ既読位置追跡
 
 ### **技術スタック**
 
@@ -23,9 +26,10 @@ AWS 上に構築するリアルタイムグループチャットアプリケー�
 - **認証:** Amazon Cognito User Pools
 - **ストレージ:** Amazon DynamoDB
 - **AI エンジン:** Amazon Bedrock（Claude Haiku 4.5 推論プロファイルモデル）
-- **ナレッジベース:** Amazon S3 + Bedrock RAG（ドキュメント検索）
-- **リージョン:** Tokyo（東京）（Bedrock のみオレゴン）
-- **Infrastructure:** AWS CDK
+- **ナレッジベース:** Amazon S3（Tokyo）+ AWS Bedrock Knowledge Base（ap-northeast-1、S3_VECTORS、Titan Embeddings V2 + cosine類似度検索）
+- **CDN / CORS プロキシ:** Amazon CloudFront（S3 presigned URL のプロキシ）
+- **リージョン:** Tokyo（ap-northeast-1）
+- **Infrastructure:** 完全 AWS CDK 管理（S3 Vectors + Knowledge Base + Data Source）
 
 ---
 
@@ -45,10 +49,13 @@ AICHAT/
 │   │   └── schema.graphql          # AppSync GraphQL スキーマ
 │   └── lib/
 │       ├── stacks/
-│       │   ├── database_stack.py   # DynamoDB テーブル定義
+│       │   ├── database_stack.py   # DynamoDB + S3 定義
 │       │   ├── cognito_stack.py    # Cognito User Pool 定義
+│       │   ├── cloudfront_stack.py # CloudFront Distribution (S3プロキシ)
+│       │   ├── bedrock_stack.py    # Bedrock Knowledge Base（S3 Vectors + KB + DS）
 │       │   ├── lambda_stack.py     # Lambda 関数定義
-│       │   └── appsync_stack.py    # AppSync API 定義
+│       │   ├── appsync_stack.py    # AppSync API 定義
+│       │   └── frontend_stack.py   # フロントエンド配信（S3 + CloudFront + 自動デプロイ）
 │       └── constructs/
 ├── backend/                        # Lambda 関数 & 共通モジュール
 │   ├── common/
@@ -87,9 +94,9 @@ AICHAT/
 │   │   │   ├── ChatHeader.tsx
 │   │   │   ├── ChatBubble.tsx
 │   │   │   ├── MessageList.tsx
-│   │   │   ├── MessageInput.tsx
+│   │   │   ├── MessageInput.tsx        # 送信・AI送信・選択状態表示を統合
+│   │   │   ├── AIHelperButtons.tsx     # AI相談ボタン（廃止済み、未使用）
 │   │   │   ├── SummarySidebar.tsx
-│   │   │   ├── AIHelperButtons.tsx
 │   │   │   ├── KnowledgebasePanel.tsx
 │   │   │   └── NotificationBanner.tsx
 │   │   ├── graphql/                # GraphQL 操作定義
@@ -97,7 +104,12 @@ AICHAT/
 │   │   ├── types/                  # TypeScript 型定義
 │   │   ├── config/                 # AWS 設定
 │   │   ├── styles/                 # グローバル CSS
-│   │   └── __tests__/              # コンポーネントテスト
+│   │   └── __tests__/              # コンポーネントテスト (Jest + React Testing Library)
+│   ├── e2e/                        # E2Eテスト (Playwright)
+│   │   ├── login.spec.ts           # ログインフロー
+│   │   ├── conversation-features.spec.ts  # 会話機能
+│   │   ├── knowledgebase.spec.ts   # ナレッジベース機能（アップロード/削除/検索）
+│   │   └── subscription-realtime.spec.ts  # リアルタイムメッセージ配信
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tailwind.config.js
@@ -145,30 +157,47 @@ pip install -r cdk/requirements-cdk.txt
 
 # 4. CDK スタックをデプロイ（詳細は docs/deploy-guide.md 参照）
 cd cdk
-cdk deploy --all --context environment=dev --require-approval never
 
-# 5. Cognito UserPool情報を取得して環境変数を設定
-aws cloudformation describe-stacks --stack-name aichat-dev-cognito --query "Stacks[0].Outputs"
-# 上記の出力からUserPoolIdとUserPoolClientIdを取得
+# cdk.json を作成（初回のみ）
+cp cdk.json.example cdk.json
 
-# frontend/.env.local を作成して設定
-cat > ../frontend/.env.local << EOF
-NEXT_PUBLIC_AWS_REGION=ap-northeast-1
-NEXT_PUBLIC_APPSYNC_ENDPOINT=<AppSync GraphQL endpoint from deployment>
-NEXT_PUBLIC_USER_POOL_ID=<UserPoolId from Cognito stack>
-NEXT_PUBLIC_USER_POOL_CLIENT_ID=<UserPoolClientId from Cognito stack>
-EOF
+# フロントエンドをビルド（初回のみ、またはフロントエンド変更時）
+cd ../frontend
+npm run build
+cd ../cdk
 
-# 6. テストユーザーを作成
-cd ../scripts
+# デプロイオプション
+# 【開発環境 + モックAI】（デフォルト）
+cdk deploy --all --outputs-file outputs.json --require-approval never
+
+# 【開発環境 + 本番AI】（Bedrockテスト用）
+cdk deploy --all --outputs-file outputs.json --context useMockAI=false --require-approval never
+
+# 【本番環境 + 本番AI】
+# cdk.json で "environment": "prod", "useMockAI": false に変更してから
+cdk deploy --all --outputs-file outputs.json --require-approval never
+
+# 5. フロントエンド設定を自動生成
+cd ..
+pwsh scripts/update-frontend-env.ps1
+# または Linux/Mac の場合
+# pwsh scripts/update-frontend-env.ps1
+
+# 6. CloudFront URLでアクセス（本番配信）
+# outputs.json の "FrontendURL" に記載されたCloudFront URLでアクセス可能
+# 例: https://xxxxxx.cloudfront.net
+
+# 7. テストユーザーを作成
+cd scripts
 # PowerShell (Windows)
 .\create-user.ps1 -Email "user@example.com" -UserName "ユーザー名" -TempPassword "TempPass123!"
 # 直接AWS CLI (Linux/Mac)
 aws cognito-idp admin-create-user --user-pool-id <UserPoolId> --username "user@example.com" ...
 
-# 7. フロントエンド開発サーバー起動
+# 8. (オプション) ローカル開発サーバー起動
 cd ../frontend
 npm run dev
+# localhost:3000 でアクセス可能
 ```
 
 ### **テスト実行**
@@ -255,6 +284,76 @@ Closes #123"
 
 ---
 
+## 🔧 **環境管理・切り替え**
+
+### **環境構成**
+
+このプロジェクトは **dev**（開発）と **prod**（本番）の完全分離環境をサポートしています。
+
+| 環境 | スタック名接頭辞 | DynamoDB保持 | AI処理                     |
+| ---- | ---------------- | ------------ | -------------------------- |
+| dev  | `aichat-dev-*`   | 削除         | モック or 本番AI（選択可） |
+| prod | `aichat-prod-*`  | 保持         | 本番AI                     |
+
+### **AI/モック切り替え方法**
+
+Lambda環境変数 `USE_MOCK_AI` は **環境（dev/prod）とは独立して制御可能**です。
+
+#### **方法1: cdk.json で設定（推奨）**
+
+```json
+{
+  "context": {
+    "environment": "dev",
+    "useMockAI": true
+  }
+}
+```
+
+#### **方法2: コマンドライン引数で上書き**
+
+```bash
+# dev環境 + モックAI（デフォルト）
+cdk deploy --all --outputs-file outputs.json
+
+# dev環境 + 本番AI（Bedrockテスト用）
+cdk deploy --all --outputs-file outputs.json --context useMockAI=false
+
+# prod環境 + 本番AI
+cdk deploy --all --outputs-file outputs.json --context environment=prod --context useMockAI=false
+```
+
+### **フロントエンド設定の自動更新**
+
+CDKデプロイ後、以下のスクリプトを実行すると `frontend/.env.local` が自動生成されます：
+
+```powershell
+pwsh scripts/update-frontend-env.ps1
+```
+
+**生成される内容:**
+
+- `NEXT_PUBLIC_APPSYNC_ENDPOINT`
+- `NEXT_PUBLIC_USER_POOL_ID`
+- `NEXT_PUBLIC_USER_POOL_CLIENT_ID`
+
+### **.gitignore による環境ファイル管理**
+
+以下のファイルはGit管理対象外です（環境依存のため）：
+
+- `cdk/cdk.json` - 環境設定（`cdk.json.example` をコピーして使用）
+- `cdk/outputs.json` - CDKデプロイ出力
+- `frontend/.env.local` - フロントエンド環境変数
+
+**初回セットアップ時:**
+
+```bash
+cp cdk/cdk.json.example cdk/cdk.json
+# cdk.json を編集して環境に応じた設定を記述
+```
+
+---
+
 ## ✅ **開発チェックリスト**
 
 ### **フェーズ 1：要件・設計（✅ 完了）**
@@ -295,7 +394,7 @@ Closes #123"
   - ChatBubble（メッセージ表示）
   - MessageList（メッセージ一覧: 11テスト）
   - MessageInput（メッセージ入力）
-  - SummarySidebar（要約サイドバー: 14テスト）
+  - SummarySidebar（CANVASサイドバー: 25テスト）
   - AIHelperButtons（AI相談ボタン: 17テスト）
   - NotificationBanner（通知バナー: 7テスト）
   - SubscriptionHandlers（リアルタイム同期ロジック: 28テスト）
@@ -305,6 +404,10 @@ Closes #123"
 
 - [x] **Cognito 認証への移行**（✅ 完了 - 既にUSER_POOL認証を使用中）
 - [x] GraphQL Subscription の再実装（AWS AppSync ベストプラクティスに準拠）
+- [x] **CloudFront + S3 アーキテクチャ**（✅ 完了 - CORS 問題の根本解決、SigV4 presigned URL via CloudFront）
+- [x] **フロントエンド配信用CloudFront**（✅ 完了 - S3 + CloudFront自動デプロイ、2つのCloudFrontディストリビューション運用）
+  - CloudFront #1: Knowledgebase用S3バケット配信（presigned URL プロキシ）
+  - CloudFront #2: フロントエンド（Next.js静的サイト）配信
 - [ ] Subscription リアルタイム更新の手動動作確認
 - [ ] WAF レート制限の追加
 - [ ] 統合テスト
@@ -328,7 +431,8 @@ Closes #123"
 ### **次の優先事項**
 
 - ⚠️ **WAF レート制限**: API 呼び出し制限の追加（DDoS 対策）
-- ⚠️ **本番環境設定**: HTTPS、カスタムドメイン、CloudFront CDN
+- ✅ **CloudFront Distribution**: S3 presigned URL のプロキシ（CORS 問題解決）
+- ⚠️ **本番環境設定**: HTTPS、カスタムドメイン
 
 詳細は [.github/skills/security/SKILL.md](.github/skills/security/SKILL.md) を参照。
 
@@ -342,9 +446,9 @@ Closes #123"
 
 ## 📌 **進行中の ISSUE**
 
-| #                                       | タイトル                               | ステータス  | 優先度 |
-| --------------------------------------- | -------------------------------------- | ----------- | ------ |
-| [ISSUE-01](docs/ISSUE-knowledgebase.md) | **Knowledgebase 登録・検索機能の追加** | 🔄 設計完了 | 🔴 高  |
+| #                                       | タイトル                               | ステータス                                 | 優先度 |
+| --------------------------------------- | -------------------------------------- | ------------------------------------------ | ------ |
+| [ISSUE-01](docs/ISSUE-knowledgebase.md) | **Knowledgebase 登録・検索機能の追加** | 🔄 実装中（CloudFront+S3アップロード完了） | 🔴 高  |
 
 ### **Knowledgebase 機能追加**
 
@@ -367,6 +471,26 @@ PDF、Word、HTML などのドキュメントをセッションに登録し、�
 
 ## � **変更履歴**
 
+### v0.6.1 (2026-02-18)
+
+- **`.metadata.json` 生成機能実装:** Knowledge Base ファイルアップロード時に会話IDを含むメタデータファイルを自動生成
+- **会話ベースフィルタリング:** Bedrock検索時に `conversationId` で絞り込み、会話ごとに独立したRAG検索を実現
+- **短縮会話ID導入:** UUIDから8文字英数字ID（36^8 = 約2.8兆通り）に変更、URLとファイル名を簡潔化
+- **DynamoDB schema更新:** `KnowledgeSourcesTable` の sort key を `knowledgeSourceId` → `fileName` に変更、テーブル名を `-v2` に更新
+- **Bedrockスタック再構築:** `UPDATE_ROLLBACK_COMPLETE` 状態から復旧、VectorBucket名を `-v2` に変更
+  - 新Knowledge Base ID: `64EKKDPAWX`
+  - 新DataSource ID: `QZ7IB6AXUT`
+  - VectorBucket: `aichat-dev-vectors-v2`
+- **IngestionTrigger復活:** S3アップロード時の自動インデックス作成機能を再実装
+
+### v0.6.0 (2026-02-17)
+
+- **Knowledge Base S3_VECTORS 実装:** Tokyo リージョン（ap-northeast-1）でS3_VECTORSストレージを使用したBedrock Knowledge Baseのデプロイ成功
+- **AWS CLI デプロイスクリプト:** `deploy-kb-complete.py` でS3 Vectorsバケット・インデックス・IAMロール・Knowledge Baseを自動作成
+- **データソース自動追加:** `add-datasource.py` で既存S3バケットをデータソースとして登録し、自動インジェスト実行
+- **リージョン統一:** Knowledge Base を us-west-2 から ap-northeast-1 に移行し、全リソースをTokyoリージョンに統一
+- **検索機能確認:** Bedrock Agent Runtime `retrieve` API で正常動作を確認（4ドキュメントインデックス済み）
+
 ### v0.5.0 (2026-02-14)
 
 - **ISSUE 01:** ユーザーID表示の改善 — 要約の最終更新表示がUUIDからユーザー名に変更
@@ -385,4 +509,4 @@ MIT License
 
 **プロジェクトステータス:** 🟢 開発中（フェーズ 2・3 完了、フェーズ 4 準備中）
 
-最終更新：2026年2月14日
+最終更新：2025年7月20日

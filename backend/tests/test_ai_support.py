@@ -172,6 +172,29 @@ class TestAskAIHelperAnswer:
         assert "次のステップは？" in content, f"ユーザー入力が含まれていません。content: {content}"
         assert "【ユーザー入力】" in content
 
+    def test_コンテキスト付きで質問回答を取得できる(self, dynamodb_tables, messages_table, summary_table):
+        """answer アクションで context パラメータが正しく伝達される。"""
+        _seed_data(messages_table, summary_table)
+
+        context_text = "[田中太郎] テスト発言0\n---\n[CANVAS] # テスト要約\n現在の要約内容"
+        event = make_appsync_event("askAIHelper", {
+            "input": {
+                "conversationId": "conv-ai",
+                "userId": "user1",
+                "actionType": "answer",
+                "userInput": "この内容について教えて",
+                "context": context_text,
+            }
+        })
+        result = _handler()(event, None)
+
+        assert result["messageId"] is not None
+        content = result["content"]
+        assert "【モック応答 - デバッグ情報】" in content
+        assert "この内容について教えて" in content
+        assert "テスト発言0" in content
+        assert "【参照コンテキスト】" in content
+
 
 # ================================================================
 # askAIHelper - next_action

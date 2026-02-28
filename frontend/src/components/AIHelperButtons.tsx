@@ -8,15 +8,18 @@ interface AIHelperButtonsProps {
   onAction: (actionType: AIActionType) => void;
   isProcessing: boolean;
   lockState: LockState;
+  excludeButtonIds?: string[];
 }
 
 /**
- * Four AI helper action buttons displayed near the message input.
+ * AI helper action buttons displayed below the message list.
  *
  * Each button has different enable conditions:
  * - summarize / opinion: requires message selection
- * - answer: requires input text
  * - next_action: always available
+ *
+ * Note: The 'answer' button is excluded as its functionality is now
+ * integrated into the MessageInput component as the "AI送信" button.
  */
 export function AIHelperButtons({
   selectedCount,
@@ -24,6 +27,7 @@ export function AIHelperButtons({
   onAction,
   isProcessing,
   lockState,
+  excludeButtonIds = [],
 }: AIHelperButtonsProps) {
   function isButtonEnabled(button: (typeof AI_BUTTONS)[number]): boolean {
     if (isProcessing) return false;
@@ -45,7 +49,7 @@ export function AIHelperButtons({
         <span className="text-xs text-serendie-gray-500 whitespace-nowrap flex-shrink-0">
           AI相談:
         </span>
-        {AI_BUTTONS.map((button) => (
+        {AI_BUTTONS.filter((button) => !excludeButtonIds.includes(button.id)).map((button) => (
           <button
             key={button.id}
             className="px-3 py-1.5 text-xs rounded-full border

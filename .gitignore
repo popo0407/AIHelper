@@ -12,6 +12,7 @@ frontend/dist/
 cdk/cdk.out/
 cdk/.cdk.staging/
 cdk/venv/
+cdk/outputs.json
 
 # Python
 __pycache__/
@@ -31,6 +32,7 @@ lambda_package/
 .env.local
 .env.production
 .env.*.local
+frontend/.env.local
 
 # IDE
 .idea/
@@ -46,6 +48,13 @@ Thumbs.db
 coverage/
 htmlcov/
 .pytest_cache/
+
+# Playwright E2E test results
+frontend/test-results/
+frontend/playwright-report/
+
+# TypeScript build info
+frontend/tsconfig.tsbuildinfo
 
 # Logs
 *.log

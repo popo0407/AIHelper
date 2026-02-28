@@ -1,0 +1,10 @@
+{
+  "info": {
+    "fieldName": "createConversation"
+  },
+  "arguments": {
+    "input": {
+      "createdBy": "test-user-123"
+    }
+  }
+}

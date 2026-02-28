@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { LoginScreen } from '@/components/LoginScreen';
 import { ConversationSelect } from '@/components/ConversationSelect';
 import { ChatScreen } from '@/components/ChatScreen';
+import { graphqlClient, extractData } from '@/lib/appsync';
+import { JOIN_CONVERSATION } from '@/graphql/operations';
 import type { User, Conversation } from '@/types';
 
 /** Application screens */
@@ -21,16 +23,40 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const cid = params.get('cid');
       if (cid && currentUser) {
-        setCurrentConversation({
-          conversationId: cid,
-          createdBy: '',
-          createdAt: '',
-          participants: [],
-          status: 'active',
-          shareLink: null,
-          title: null,
-        });
-        setScreen('chat');
+        // Auto-join conversation via share link
+        (async () => {
+          const fallback: Conversation = {
+            conversationId: cid,
+            createdBy: '',
+            createdAt: '',
+            participants: [],
+            status: 'active',
+            shareLink: null,
+            title: null,
+          };
+          try {
+            const result = await (graphqlClient.graphql({
+              query: JOIN_CONVERSATION,
+              variables: {
+                input: {
+                  loginId: currentUser.loginId,
+                  conversationId: cid,
+                },
+              },
+            }) as Promise<unknown>);
+            const data = extractData<{
+              success: boolean;
+              conversation: Conversation;
+              error?: string;
+            }>(result as any, 'joinConversation');
+            setCurrentConversation(
+              data?.success && data.conversation ? data.conversation : fallback,
+            );
+          } catch {
+            setCurrentConversation(fallback);
+          }
+          setScreen('chat');
+        })();
       }
     }
   }, [currentUser]);
@@ -40,10 +66,28 @@ export default function Home() {
     setScreen('conversations');
   }, []);
 
-  const handleSelectConversation = useCallback((conv: Conversation) => {
-    setCurrentConversation(conv);
-    setScreen('chat');
-  }, []);
+  const handleSelectConversation = useCallback(
+    async (conv: Conversation) => {
+      if (currentUser) {
+        try {
+          await graphqlClient.graphql({
+            query: JOIN_CONVERSATION,
+            variables: {
+              input: {
+                loginId: currentUser.loginId,
+                conversationId: conv.conversationId,
+              },
+            },
+          });
+        } catch {
+          // joinConversation失敗しても会話は開く（冪等性のため）
+        }
+      }
+      setCurrentConversation(conv);
+      setScreen('chat');
+    },
+    [currentUser],
+  );
 
   const handleNewConversation = useCallback((conv: Conversation) => {
     setCurrentConversation(conv);

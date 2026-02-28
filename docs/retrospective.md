@@ -2,6 +2,1140 @@
 
 ---
 
+## 📅 **2026年2月20日 — AI相談UX改善機能実装**
+
+### ✅ **完了した内容**
+
+AI相談機能の UX を刷新。旧 AIHelperButtons（要約/意見/次アクション）を廃止し、チャットメッセージ＋CANVAS の複数同時選択 → 集約送信方式に置き換え。
+
+#### **実装内容**
+
+1. **AIHelperButtons 廃止**
+   - `ChatScreen.tsx` から AIHelperButtons コンポーネントの import・JSX を完全削除
+   - `handleAIAction` コールバックを削除
+
+2. **選択状態管理（ChatScreen.tsx）**
+   - `isCanvasSelected` state 追加
+   - `selectionItems` 派生状態（選択メッセージ＋CANVAS を `SelectionDisplayItem[]` に変換）
+   - `handleRemoveSelection` / `toggleCanvasSelection` ハンドラー追加
+
+3. **選択状態表示エリア（MessageInput.tsx）**
+   - `selectionItems` / `onRemoveSelection` props 追加
+   - バッジ型で「選択中: [メッセージ名], CANVAS」を表示（× ボタンで個別解除可能）
+   - 未選択時：グレーアウトのガイドメッセージ
+   - AI送信ボタン: 選択＋テキスト入力がある場合のみ有効
+
+4. **CANVAS選択トグル（SummarySidebar.tsx）**
+   - `isCanvasSelected` / `onToggleCanvasSelection` props 追加
+   - ヘッダーに「AI選択 / ✓ 選択中」トグルボタン配置
+   - 選択時 `ring-2 ring-serendie-accent` でアクセントリング表示
+   - `aria-pressed` / `aria-label` によるアクセシビリティ対応
+
+5. **AI送信ロジック書き換え（ChatScreen.tsx `handleAISend`）**
+   - 選択メッセージの内容を `[displayName] content` 形式で集約
+   - CANVAS 選択時は `[CANVAS] summary.current` を追加
+   - `\n---\n` 区切りで連結し `context` フィールドとして送信
+   - `askAIHelper` mutation に1回のリクエストで送信
+
+6. **型定義（types/index.ts）**
+   - `AISelectionState` / `SelectionDisplayItem` インターフェース追加
+   - `AIHelperRequest` に `context?: string` 追加
+
+7. **GraphQL スキーマ（schema.graphql）**
+   - `AskAIHelperInput` に `context: String` フィールド追加
+
+8. **バックエンド（ai_support/index.py）**
+   - `ANSWER_PROMPT` に `{context}` プレースホルダー追加
+   - `context_text = inp.get("context", "")` 抽出
+   - `_build_prompt` / `_mock_response` にcontext引数追加
+
+9. **テスト**
+   - フロントエンド: 141/141 テストパス（AIHelperButtonsはスタブ化、MessageInput/SummarySidebar にカバレッジ追加）
+   - バックエンド: ai_support 12/12 テストパス（コンテキスト付きテスト追加）
+
+#### **原因・背景**
+
+- 旧UIでは要約/意見/次アクションの3ボタンが固定で、ユーザーが自由に質問内容を指定できなかった
+- チャットとCANVASの内容を組み合わせて質問する手段がなかった
+
+#### **改善策**
+
+- クリックベースの複数選択 + 自由入力で柔軟な AI 相談を実現
+- 選択内容をコンテキストとして集約し、1回のリクエストで送信する方式に統一
+
+#### **再発防止策**
+
+- 設計ドキュメント（`docs/feature-AI相談UX改善-v2.md`）に仕様を詳細記録
+- テストで選択状態表示・AI送信の enable/disable 条件を網羅的にカバー
+
+---
+
+## 📅 **2026年2月19日 — ユーザー会話アクセス制限機能実装**
+
+### ✅ **完了した内容**
+
+ユーザーが特定の会話セッションにのみ参加できるようにするアクセス制御機能を実装。
+
+#### **実装内容**
+
+1. **GraphQL Schema拡張**
+   - `UserConversation`型に`lastMessageId`, `lastUpdatedAt`, `role`フィールド追加
+   - `leaveConversation`, `updateLastMessageId`ミューテーション追加
+   - 対応するInput型とResponse型を定義
+
+2. **Backend Lambda（conversation/index.py）**
+   - `leaveConversation`: 参加者退出（roleをinactiveに更新、creator退出禁止）
+   - `updateLastMessageId`: メッセージ既読位置追跡
+   - `joinConversation`改修: role（creator/participant）管理、inactive→participant再活性化
+   - `createConversation`改修: UserConversationレコードにrole='creator'設定
+   - `listConversations`改修: role='inactive'をフィルタで除外
+
+3. **AppSync Resolver追加**
+   - `LeaveConversationResolver`, `UpdateLastMessageIdResolver`をconversation_dsに追加
+
+4. **Frontend**
+   - GraphQL operations追加（LEAVE_CONVERSATION, UPDATE_LAST_MESSAGE_ID）
+   - ChatScreen: Subscription受信時に自動的にupdateLastMessageId呼び出し
+   - page.tsx: 共有リンク経由でjoinConversation自動実行
+   - UserConversation型定義追加
+
+5. **テスト（32件全パス）**
+   - leaveConversation: 正常退出/creator退出禁止/非参加者エラー/inactive二重退出
+   - updateLastMessageId: active更新/creator更新/inactive拒否/非参加者拒否
+   - listConversations: inactiveフィルタリング確認
+   - 参加→退出→再参加の一連フロー確認
+
+#### **改善点**
+
+- 既存テスト2件（conversationIdsチェック）が実装と乖離していたため修正
+- conftest.pyにUSER_CONVERSATIONS_TABLE環境変数とテーブル作成を追加
+
+---
+
+## 📅 **2026年2月18日 — Bedrockスタック再構築（UPDATE_ROLLBACK_COMPLETE解決）**
+
+### ✅ **完了した内容**
+
+`.metadata.json`生成機能実装後、Bedrockスタックが`UPDATE_ROLLBACK_COMPLETE`状態でデプロイ不能に。スタックを一旦除外して再構築することで解決。
+
+#### **問題の経緯**
+
+1. **最初の失敗**：DataSource更新時にvector store削除エラー
+   - DynamoDB schema変更（`knowledgeSourceId` → `fileName`）
+   - Bedrock filterキー変更（`x-amz-meta-conversation-id` → `conversationId`）
+   - 既存Knowledge Base更新時にDataSource削除ポリシー(`DELETE`)が問題に
+
+2. **手動削除の影響**：AWS CLIで KB/DataSource削除 → CloudFormationスタックに古いID参照が残存
+   - スタック: 古い Knowledge Base ID `MLAENRLJKJ` を参照
+   - 実リソース: 既に削除済み
+   - → `UPDATE_ROLLBACK_COMPLETE` 状態で停止
+
+3. **再デプロイ失敗**：VectorBucketの重複
+   - スタック削除時 `RemovalPolicy.RETAIN` → VectorBucket残存（`aichat-dev-vectors`）
+   - 新規作成時に既存バケット名と衝突 → `CREATE_FAILED`
+
+#### **解決手順**
+
+**Step 1: CDKからBedrockスタックを一時除外**
+
+```python
+# cdk/app.py
+# from lib.stacks.bedrock_stack import BedrockStack  # コメントアウト
+
+# bedrock_stack = BedrockStack(...)  # コメントアウト
+
+# Lambdaスタックのパラメータもコメントアウト
+# bedrock_kb_id=bedrock_stack.knowledge_base_id,
+# bedrock_ds_id=bedrock_stack.data_source_id,
+```
+
+**Step 2: ROLLBACK状態のスタック削除**
+
+```bash
+aws cloudformation delete-stack --stack-name aichat-dev-bedrock --region ap-northeast-1
+aws cloudformation wait stack-delete-complete --stack-name aichat-dev-bedrock
+```
+
+**Step 3: VectorBucket名変更（衝突回避）**
+
+```python
+# cdk/lib/stacks/bedrock_stack.py
+vector_bucket_name = f"aichat-{environment}-vectors-v2"  # -v2 追加
+vector_index_name = f"aichat-{environment}-kb-index-v2"   # -v2 追加
+```
+
+**Step 4: Bedrockスタックを再追加・デプロイ**
+
+```python
+# cdk/app.py のコメントアウトを解除
+from lib.stacks.bedrock_stack import BedrockStack
+
+bedrock_stack = BedrockStack(...)
+lambda_stack = LambdaStack(..., bedrock_kb_id=bedrock_stack.knowledge_base_id, ...)
+```
+
+```bash
+cdk deploy aichat-dev-bedrock --outputs-file outputs.json --require-approval never
+```
+
+**Step 5: Lambda/AppSyncスタック更新（新KB ID反映）**
+
+```bash
+cdk deploy aichat-dev-lambda aichat-dev-appsync --outputs-file outputs.json --require-approval never
+```
+
+#### **デプロイ結果**
+
+✅ **全スタック正常デプロイ完了**
+
+- `aichat-dev-bedrock`: `CREATE_COMPLETE`（新規作成）
+- `aichat-dev-lambda`: `UPDATE_COMPLETE`（IngestionTriggerFunction復活）
+- `aichat-dev-appsync`: `UPDATE_COMPLETE`
+
+**新しいリソースID:**
+
+- Knowledge Base ID: `64EKKDPAWX`（旧: `MLAENRLJKJ`）
+- DataSource ID: `QZ7IB6AXUT`（旧: `NOIQ6SSSIL`）
+- VectorBucket: `aichat-dev-vectors-v2`（旧: `aichat-dev-vectors`）
+
+#### **教訓と再発防止策**
+
+**問題の根本原因:**
+
+1. ❌ **CloudFormationスタックと実リソースの不整合**：手動削除がスタック状態と矛盾
+2. ❌ **RemovalPolicy理解不足**：`RETAIN`がリソース残存させることを考慮せず
+3. ❌ **リソース名の固定**：環境に対して一意な名前のため、削除後の再作成で衝突
+
+**再発防止策:**
+
+1. ✅ **原則：CDKでリソース管理を完結させる**
+   - 手動での AWS CLI操作は最小限に
+   - 削除が必要な場合は `cdk destroy` を優先
+
+2. ✅ **RemovalPolicyを適切に設定**
+
+   ```python
+   # 開発環境: 削除可能
+   vector_bucket.apply_removal_policy(RemovalPolicy.DESTROY)
+
+   # 本番環境: 保持
+   if environment == "prod":
+       vector_bucket.apply_removal_policy(RemovalPolicy.RETAIN)
+   ```
+
+3. ✅ **リソース名にタイムスタンプやバージョンを含める**
+
+   ```python
+   # 衝突を避けるバージョニング
+   vector_bucket_name = f"aichat-{environment}-vectors-v2"
+   ```
+
+4. ✅ **段階的デプロイ戦略**
+   - 大規模変更時は依存スタックを一時除外
+   - 問題スタックのみを削除・再作成
+   - 段階的に全スタックを再統合
+
+5. ✅ **outputs.jsonで状態確認**
+   - デプロイ後は必ず `outputs.json` でリソースID確認
+   - フロントエンドの `.env.local` との整合性チェック
+
+#### **今後の改善点**
+
+- [ ] 開発環境のRemovalPolicyを`DESTROY`に変更（クリーンな削除を可能に）
+- [ ] 古いVectorBucketのクリーンアップスクリプト作成
+- [ ] CloudFormationスタック状態監視アラート設定
+
+---
+
+## 📅 **2026年2月18日 — Knowledge Base 環境変数バグ修正**
+
+### ✅ **完了した内容**
+
+#### **問題**
+
+ナレッジベース検索時にエラーが発生：
+
+```
+'AppConfig' object has no attribute 'bedrock_kb_id'
+```
+
+#### **原因**
+
+[cdk/app.py](../cdk/app.py) で `LambdaStack` インスタンス化時に `bedrock_kb_id` パラメータを渡していなかった。
+
+```python
+# 修正前
+lambda_stack = LambdaStack(
+    ...,
+    use_mock_ai=use_mock_ai,  # bedrock_kb_id が欠けている
+    env=aws_env,
+)
+```
+
+#### **修正内容**
+
+1. **bedrock_kb_id 引数追加**
+
+   ```python
+   lambda_stack = LambdaStack(
+       ...,
+       bedrock_kb_id=bedrock_stack.knowledge_base_id,  # 追加
+       use_mock_ai=use_mock_ai,
+       env=aws_env,
+   )
+   ```
+
+2. **依存関係追加**
+   ```python
+   lambda_stack.add_dependency(bedrock_stack)  # 追加
+   ```
+
+#### **結果**
+
+Lambda 環境変数に `BEDROCK_KB_ID=MLAENRLJKJ` が正しく設定され、ナレッジベース検索が動作可能に。
+
+```json
+{
+  "BEDROCK_KB_ID": "MLAENRLJKJ",
+  "BEDROCK_REGION": "ap-northeast-1",
+  "KNOWLEDGE_BUCKET": "aichat-dev-knowledge-590184009554",
+  ...
+}
+```
+
+#### **学び**
+
+- CDK スタック間の依存関係と値の受け渡しを明示的に設定する重要性
+- CDK デプロイ後は環境変数を確認する習慣（`aws lambda get-function-configuration`）
+
+---
+
+## 📅 **2026年2月18日 — cdk/ フォルダクリーンアップ**
+
+### ✅ **完了した内容**
+
+#### **課題**
+
+cdk/ フォルダに開発中に生成されたテストファイルや一時ファイルが多数残っており、新しい環境でのセットアップ時に混乱を招く可能性があった。
+
+#### **実施内容**
+
+**削除したファイル（9ファイル）:**
+
+- `app_output.txt` - デバッグ出力
+- `kb-config-test.json` - テスト設定ファイル
+- `kb-config.json` - テスト設定ファイル
+- `lambda-response.json` - テストレスポンス
+- `response.json` - テストレスポンス
+- `synth-error.log` - エラーログ（空ファイル）
+- `test-kb-search-payload.json` - テストペイロード
+- `test-payload.json` - テストペイロード
+- `lib/stacks/bedrock_kb_stack.py` - 古いスタック（bedrock_stack.py に統合済み）
+
+**削除したフォルダ:**
+
+- `cdk.out/` - CDK 合成結果（自動生成）
+- `dist/` - ビルド成果物（自動生成）
+- `__pycache__/` - Python キャッシュ（自動生成）
+
+**修正したファイル:**
+
+- `.gitignore` - `cdk/cdk.json` を削除（必須ファイルなのでバージョン管理すべき）
+
+#### **結果**
+
+**残った必須ファイル:**
+
+- `app.py` - CDK エントリーポイント
+- `cdk.json` - CDK 設定
+- `cdk.json.example` - 設定ファイルのバックアップ
+- `requirements-cdk.txt` - Python 依存関係
+- `graphql/schema.graphql` - GraphQL スキーマ
+- `lib/stacks/*.py` - 各スタック定義（8ファイル）
+
+**自動生成ファイル（.gitignore済み）:**
+
+- `outputs.json` - デプロイ結果
+- `cdk.out/` - 合成結果
+- `__pycache__/` - Python キャッシュ
+
+#### **効果**
+
+✅ 新しい環境でのセットアップが明確化  
+✅ 必要なファイルと不要なファイルの区別が容易に  
+✅ Git リポジトリのサイズ削減  
+✅ 開発者がどのファイルを編集すべきか明確に
+
+---
+
+## 📅 **2026年2月17日 — S3 Vectors + Bedrock KB 完全CDK管理への移行**
+
+### ✅ **完了した内容**
+
+#### **1. 課題の発見**
+
+AWS CLI スクリプトで S3 Vectors と Knowledge Base を管理していたが、ユーザーから以下の指摘：
+
+> "S3VectorBucketとインデックスもCDKで作れるらしいよ。作ったやつ一回消して、CDKで全部完結できる形にしてみてよ。"
+
+CloudFormation リソース（`AWS::S3Vectors::VectorBucket`, `AWS::S3Vectors::Index`）が存在し、CDK の L1 Construct 経由で管理可能であることが判明。
+
+#### **2. 実装内容**
+
+**変更したファイル:**
+
+1. **[cdk/lib/stacks/bedrock_stack.py](../cdk/lib/stacks/bedrock_stack.py)**
+   - `CfnResource` を使用して `AWS::S3Vectors::VectorBucket` を作成
+   - `CfnResource` を使用して `AWS::S3Vectors::Index` を作成
+   - `RemovalPolicy.RETAIN` を適用（データ保護）
+   - 依存関係を明示（`vector_index.add_dependency(vector_bucket)`）
+   - IAM権限を最小特権に変更（`s3vectors:*` → 具体的な5つのアクション）
+   - Knowledge Base が Vector Index に依存することを明示
+
+2. **[.github/skills/aws/SKILL.md](../.github/skills/aws/SKILL.md)**
+   - AWS CLI デプロイガイドを削除
+   - CDK 完全管理のベストプラクティスを追加
+   - Python コード例を提供
+   - 実装時の注意点（小文字パラメータ、IAM権限、RemovalPolicy等）を記載
+
+3. **[README.md](../README.md)**
+   - "Infrastructure: AWS CDK + AWS CLI (Knowledge Base)" → "完全 AWS CDK 管理"
+   - ディレクトリ構成から obsolete なスクリプト（`deploy-kb-complete.py`, `add-datasource.py`）を削除
+
+**削除したファイル:**
+
+- `cdk/deploy-kb-complete.py` - AWS CLI デプロイスクリプト
+- `cdk/add-datasource.py` - AWS CLI データソース追加スクリプト
+- `kb-cdk-trial/` - 検証用フォルダ（1600+ファイル）
+
+#### **3. デプロイ結果**
+
+```bash
+aws cloudformation describe-stacks --stack-name aichat-dev-bedrock
+```
+
+**Status**: `CREATE_COMPLETE`
+
+**Outputs**:
+
+- `KnowledgeBaseId`: `MLAENRLJKJ`
+- `DataSourceId`: `NOIQ6SSSIL`
+
+**作成されたリソース（CDK管理）**:
+
+1. VectorBucket（`aichat-dev-vectors`）
+2. VectorIndex（`aichat-dev-kb-index`, 1024次元, float32, cosine）
+3. IAM Role（最小権限）
+4. Knowledge Base（S3_VECTORS）
+5. Data Source（S3バケット連携）
+
+#### **4. 技術的な学び**
+
+**成功の鍵:**
+
+1. **IAM権限**: `s3vectors:GetVectors` が Knowledge Base 作成時に必須
+2. **依存関係**: L1 Construct では手動で `add_dependency()` が必要
+3. **RemovalPolicy**: `RETAIN` でデータ保護必須
+4. **パラメータ**: `dataType: "float32"`, `distanceMetric: "cosine"` は小文字
+5. **既存リソース削除**: AlreadyExists エラー回避のため完全削除が必要
+
+**ハマったポイント:**
+
+- 初回デプロイ時に "unable to assume role" エラー → `GetVectors` 権限追加で解決
+- ROLLBACK 時に VectorBucket が `DELETE_SKIPPED` → 手動削除後に再デプロイ
+
+### 🎯 **今後の方針**
+
+- **✅ 完了**: S3 Vectors リソースも含めて完全に CDK で管理
+- **運用改善**: CloudFormation でスタック単位の管理が可能に
+- **メンテナンス性向上**: AWS CLI スクリプトの保守不要
+
+---
+
+## 📅 **2026年2月17日 — Bedrock Knowledge Base S3_VECTORSデプロイ成功**
+
+### ✅ **完了した内容**
+
+#### **1. 問題の経緯**
+
+CDK/CloudFormationでBedrock Knowledge BaseをS3_VECTORSストレージで東京リージョン（ap-northeast-1）にデプロイしようとしたが、繰り返しエラーが発生：
+
+- CDK/CloudFormation: `Invalid request provided: CreateKnowledgeBase` エラー
+- AWS CLI（誤った手法）: `Bedrock Knowledge Base was unable to assume the given role` エラー
+- 空の`s3VectorsConfiguration: {}`での試行: バリデーションエラー
+
+#### **2. 根本原因の特定**
+
+S3_VECTORSストレージは**事前作成が必須**であることを発見：
+
+- S3 Vectors Bucket を `aws s3vectors create-vector-bucket` で作成
+- Vector Index を `aws s3vectors create-index` で作成（data-type, dimension, distance-metric指定必須）
+- Knowledge Base作成時に `vectorBucketArn` と `indexArn` を明示的に指定
+
+**誤ったエラーメッセージ:**
+
+- "unable to assume role" エラーは、実際にはIAMではなくS3 Vectorsリソース不足が原因だった
+- 空のs3VectorsConfigurationでは自動作成されない
+
+#### **3. 実装したソリューション**
+
+**作成したスクリプト:**
+
+1. [cdk/deploy-kb-complete.py](../cdk/deploy-kb-complete.py)
+   - S3 Vectors Bucket作成（`aichat-dev-vectors`）
+   - Vector Index作成（`aichat-dev-index`、float32、1024次元、cosine類似度）
+   - IAM Role作成（S3、S3Vectors、Bedrock InvokeModel権限）
+   - Knowledge Base作成（S3_VECTORS、Titan Embed Text V2）
+
+2. [cdk/add-datasource.py](../cdk/add-datasource.py)
+   - 既存S3バケット（`aichat-dev-knowledge-590184009554`）をデータソースとして追加
+   - チャンク設定（512トークン、20%オーバーラップ）
+   - 自動インジェストジョブ実行
+
+**パラメータの教訓:**
+
+- `--data-type`: `float32`（小文字必須）
+- `--distance-metric`: `cosine`（小文字必須）
+- `--dimension`: `1024`（Titan Embed Text V2の次元数）
+- `indexName`フィールドは`indexArn`指定時には不要
+
+#### **4. デプロイ結果**
+
+**作成されたリソース:**
+
+- **S3 Vectors Bucket**: `aichat-dev-vectors`
+- **Vector Index**: `aichat-dev-index` (arn:aws:s3vectors:ap-northeast-1:590184009554:bucket/aichat-dev-vectors/index/aichat-dev-index)
+- **IAM Role**: `aichat-dev-kb-role`
+- **Knowledge Base**: `2GUBTZQH2E` (STATUS: ACTIVE)
+- **Data Source**: `VMQLUARIKW` (4ドキュメントインデックス済み)
+
+**インジェスト結果:**
+
+```
+Status: COMPLETE
+Documents Scanned: 4
+Documents Indexed: 4
+Documents Failed: 0
+```
+
+**検索テスト:**
+
+```bash
+aws bedrock-agent-runtime retrieve \
+  --knowledge-base-id 2GUBTZQH2E \
+  --retrieval-query "text=Statement" \
+  --region ap-northeast-1
+# 結果: Score 0.58 で正常に検索結果を返す
+```
+
+#### **5. アーキテクチャ変更**
+
+**変更前（失敗）:**
+
+- CDK/CloudFormationでKnowledge Baseを作成しようとした
+- us-west-2リージョンにKnowledge Baseを配置
+- S3_VECTORSの事前作成要件を理解していなかった
+
+**変更後（成功）:**
+
+- AWS CLIで`aws s3vectors`コマンドを使用してインフラ作成
+- ap-northeast-1リージョンに全リソースを統一
+- S3 Vectors → IAM Role → Knowledge Base → Data Source の順で明示的に作成
+- Pythonスクリプトで自動化（`deploy-kb-complete.py`、`add-datasource.py`）
+
+#### **6. 学んだ教訓**
+
+**技術的学び:**
+
+1. **S3_VECTORSは特殊なストレージ:** 通常のS3バケットではなく、`aws s3vectors`コマンドで管理する専用リソース
+2. **エラーメッセージの解釈:** "unable to assume role"は必ずしもIAMの問題ではない
+3. **パラメータの大文字小文字:** AWS CLIのenum値は小文字が多い（`float32`、`cosine`）
+4. **indexArnとindexNameの排他性:** ARN指定時にnameフィールドは不要
+
+**プロセス的学び:**
+
+1. **ドキュメント確認の重要性:** 公式ドキュメントで事前作成要件を確認すべきだった
+2. **既存リソースの調査:** 動作中のKnowledge Base (`2E1B7TUJR9`) の設定を早期に確認すべきだった
+3. **段階的アプローチ:** 一度に全てを実行せず、バケット→インデックス→ロール→KBの順で検証
+
+#### **7. 再発防止策**
+
+**技術面:**
+
+- [ ] S3_VECTORSのドキュメントリンクをスキルファイルに追加
+- [ ] `aws s3vectors`コマンドの使用方法をスキルに記録
+- [ ] 他のBedrockストレージタイプ（OpenSearch Serverless、RDS Aurora）の要件も調査
+
+**プロセス面:**
+
+- [ ] 新技術採用時は必ず公式ドキュメントを先に確認
+- [ ] エラー発生時は既存の動作中リソースの設定を早期に確認
+- [ ] CloudFormation/CDKで未対応の機能はAWS CLIへの早期切り替えを検討
+
+---
+
+## 📅 **2026年2月16日（修正） — AI送信ボタン改善の修正（AIHelperButtons復活）**
+
+### ✅ **完了した内容**
+
+#### **1. 修正背景**
+
+前回のAI送信ボタン改善で、AIHelperButtonsコンポーネント全体を削除してしまいましたが、実際には：
+
+- ❌ 削除するべきだったのは「入力している内容についてのAI回答（answer）」ボタンだけ
+- ✅ 「選択メッセージをAI要約」「選択メッセージに対するAI意見」などのボタンは残すべきだった
+
+#### **2. 実施した修正**
+
+**修正箇所：**
+
+1. [frontend/src/components/ChatScreen.tsx](../frontend/src/components/ChatScreen.tsx)
+   - AIHelperButtonsを復活させて、MessageListの下に配置
+   - `excludeButtonIds=['answer']` でanswerボタンだけを非表示化
+
+2. [frontend/src/components/AIHelperButtons.tsx](../frontend/src/components/AIHelperButtons.tsx)
+   - `excludeButtonIds?:` プロップを追加
+   - `.filter((button) => !excludeButtonIds.includes(button.id))` でボタンを条件付きレンダリング
+   - JSXドキュメントコメントを更新
+
+3. [frontend/src/**tests**/AIHelperButtons.test.tsx](../frontend/src/__tests__/AIHelperButtons.test.tsx)
+   - excludeButtonIdsプロップのテストを追加（3つのテスト）
+   - テスト総数：22個（すべてパス）
+
+#### **3. 改善効果**
+
+**修正前の状態（誤り）：**
+
+- ❌ AIHelperButtonsが完全に削除されていた
+- ❌ 「選択メッセージをAI要約」「意見」ボタンが使用できない
+- ✅ AI送信機能はMessageInputに統合済み（これは正しい）
+
+**修正後の状態（正解）：**
+
+- ✅ AIHelperButtons復活（全ボタンが表示）
+- ✅ answer（入力テキストについてのAI回答）ボタンのみ非表示
+  - その機能はMessageInputの「AI送信」ボタンで実装済み
+- ✅ 選択メッセージベースのボタン（要約、意見、ネクストアクション）は機能中
+- ✅ UIが本来の設計に戻った
+
+#### **4. excludeButtonIds プロップの利点**
+
+新しい `excludeButtonIds` プロップにより：
+
+- 汎用性が向上（将来的に他のボタンも除外可能）
+- ChatScreen側で簡単に必要な機能をコントロール可能
+- コンポーネントの責務が明確化
+
+```tsx
+// ChatScreen.tsx での使用例
+<AIHelperButtons
+  ...
+  excludeButtonIds={['answer']} // 「入力テキストについてのAI回答」を非表示
+/>
+```
+
+#### **5. テスト結果**
+
+✅ AIHelperButtons.test.tsx: **22 tests passed**
+
+- 基本的なボタン表示テスト
+- excludeButtonIds デバッグに関するテスト（3個）
+- enable/disable条件テスト
+- ロック状態での動作テスト
+- クリック動作テスト
+
+---
+
+## 📅 **2026年2月15日（追記5） — デプロイと開発用スクリプトの作成**
+
+### ✅ **完了した内容**
+
+#### **1. 要望**
+
+AWS用のデプロイスクリプトとローカル起動用スクリプトを作成し、開発・デプロイワークフローを簡素化
+
+#### **2. 作成したスクリプト**
+
+**1. [scripts/deploy-aws.ps1](../scripts/deploy-aws.ps1) — AWS デプロイスクリプト**
+
+フロントエンドのビルドと CDK デプロイを自動化
+
+**処理フロー：**
+
+- ✅ 前提条件チェック（Node.js、npm、AWS CLI、AWS 認証）
+- 🏗️ フロントエンドビルド（`npm install` → `npm run build`）
+- 🚀 CDK デプロイ（`cdk deploy --all --require-approval never`）
+- ⚙️ 環境変数自動生成（`update-frontend-env.ps1` で AppSync、Cognito 設定を反映）
+
+**パラメータ：**
+
+- `-Environment dev|prod`（デフォルト: dev）
+- `-SetEnv $true|$false`（デフォルト: $true）
+
+**使用例：**
+
+```powershell
+.\scripts\deploy-aws.ps1 -Environment dev
+```
+
+**2. [scripts/dev-local.ps1](../scripts/dev-local.ps1) — ローカル開発环境起動スクリプト**
+
+ローカルで npm run dev を実行して開発サーバーを起動
+
+**処理フロー：**
+
+- ✅ 前提条件チェック（Node.js、npm）
+- 🧹 既存プロセスクリーンアップ（同一ポート、`.next` キャッシュ削除）
+- ⚙️ 環境変数セットアップ（未生成の場合は自動生成）
+- 📦 npm 依存関係インストール（`npm install`）
+- 🚀 開発サーバー起動（`npm run dev`）
+
+**パラメータ：**
+
+- `-Port 3000`（デフォルト: 3000）
+- `-NoEnvSetup $false`（デフォルト: $false）
+
+**使用例：**
+
+```powershell
+# デフォルト（ポート 3000）
+.\scripts\dev-local.ps1
+
+# カスタムポート
+.\scripts\dev-local.ps1 -Port 3001
+```
+
+#### **3. ドキュメント更新**
+
+[scripts/README.md](../scripts/README.md) を更新
+
+- 新規スクリプト 2 種類の詳細説明を追加
+- デプロイ・開発ワークフローセクションを追加
+- 初回セットアップ手順を示すフロー例を追加
+
+#### **4. 改善効果**
+
+**Before：**
+
+- 手動で複数のコマンドを実行する必要があった
+- フロントエンド build → CDK deploy の流れが明確でない
+- ローカル開発時の環境セットアップが手動
+
+**After：**
+
+- ✅ **1行のコマンド** でデプロイ完了（自動で前提条件チェック、ビルド、デプロイ、環境変数セットアップ）
+- ✅ **1行のコマンド** でローカル開発環境起動（プロセスクリーンアップ、環境設定、サーバー起動が自動）
+- ✅ エラーが発生した場合は詳細なエラーメッセージで原因を明示
+- ✅ カラフルな出力で進捗状況が一目瞭然
+
+#### **5. スクリプト特性**
+
+**デプロイスクリプト（deploy-aws.ps1）の特性：**
+
+- AWS SSO ログイン未実施の場合は自動プロンプト
+- 各ステップで成功/失敗を判定し、失敗時に即座に終了
+- `outputs.json` を自動生成し、フロントエンド設定を機動的に反映
+
+**開発スクリプト（dev-local.ps1）の特性：**
+
+- ポート競合時に既存プロセスを自動停止
+- `.next` キャッシュを自動クリア（ビルド問題を事前防止）
+- 環境変数未設定時は CDK `outputs.json` から自動生成
+- `-Port` パラメータでカスタムポート指定可能
+
+---
+
+## 📅 **2026年2月15日（追記4） — AI送信ボタンのUI改善とユーザー入力の表示**
+
+### ✅ **完了した内容**
+
+#### **1. 要望**
+
+- AIアシスタントのボタンを「AI送信」という名前に変更し、「送信」ボタンの隣に配置
+- AI送信時にユーザーの入力内容もチャット欄に表示されるように改善（現在は表示されていなかった）
+
+#### **2. 実施した変更**
+
+**変更箇所：**
+
+1. [frontend/src/components/MessageInput.tsx](../frontend/src/components/MessageInput.tsx)
+   - `onAISend` プロパティを追加
+   - 「AI送信」ボタンを「送信」ボタンの隣に配置
+   - ナレッジベース検索モード時はAI送信ボタンを非表示
+
+2. [frontend/src/components/ChatScreen.tsx](../frontend/src/components/ChatScreen.tsx)
+   - `handleAISend`メソッドを新規作成
+     - ユーザー入力をメッセージとしてチャットに追加
+     - その後AIに質問を送信
+   - `AIHelperButtons`コンポーネントを削除（メッセージ入力エリアに統合）
+
+3. [frontend/src/**tests**/MessageInput.test.tsx](../frontend/src/__tests__/MessageInput.test.tsx)
+   - AI送信ボタンのテストケースを追加（5つのテスト）
+   - 全15テストが正常にパス
+
+#### **3. 改善効果**
+
+**Before：**
+
+- AIHelperButtonsが別の場所に表示されていた
+- AI送信時にユーザー入力がチャット欄に表示されない
+- UIが分散していて直感的でない
+
+**After：**
+
+- ✅ 「送信」と「AI送信」が並んで表示され、意図が明確
+- ✅ AI送信時もユーザーの質問がチャット履歴に残る
+- ✅ UIがシンプルで統一感が向上
+- ✅ 通常のチャットと同様の操作感
+
+#### **4. 技術的なポイント**
+
+- `handleAISend`でユーザーメッセージを即座に追加してからAI処理を開始
+- `onAISend`プロップの有無で条件付きレンダリング
+- ナレッジベース検索モード（`kbSearchEnabled`）時はAI送信ボタンを非表示（機能的に競合するため）
+
+---
+
+## 📅 **2026年2月15日（追記3） — AIHelper機能のメッセージ選択・入力データ送信バグ修正**
+
+### ✅ **完了した内容**
+
+#### **1. 問題の発見**
+
+**問題：** AIHelperの以下の機能で、選択したチャットの内容や入力したチャットの内容が送信されていなかった
+
+- 選択したチャットをAI要約
+- 選択したチャットに対するAI意見
+- 入力している内容についてのAI回答
+
+**症状：** AIからの応答が「申し訳ございませんが、現在選択されたメッセージがない状態です。」となる
+
+#### **2. 原因の特定**
+
+**根本原因：** `frontend/src/components/ChatScreen.tsx`の`handleAIAction`のuseCallback依存配列に`inputText`と`selectedMessageIds`が含まれていなかった
+
+**詳細：**
+
+- `handleAIAction`は`[user, conversation.conversationId]`のみに依存
+- `inputText`と`selectedMessageIds`が依存配列に含まれていないため、コールバックが作成時の古い値（初期値の空の状態）をキャプチャ
+- ボタンクリック時に常に空のデータが送信されていた
+
+#### **3. 実施した修正**
+
+**修正箇所：** [frontend/src/components/ChatScreen.tsx](../frontend/src/components/ChatScreen.tsx#L586)
+
+```diff
+     },
+-    [user, conversation.conversationId]
++    [user, conversation.conversationId, inputText, selectedMessageIds]
+   );
+```
+
+**効果：**
+
+- ✅ `inputText`や`selectedMessageIds`が変更されるたびに`handleAIAction`が再作成される
+- ✅ 常に最新のメッセージ選択状態とユーザー入力がAIに送信される
+- ✅ AIHelperが正しく選択メッセージと入力内容を受け取れる
+
+#### **4. テストと検証**
+
+**ユニットテスト：**
+
+- ✅ フロントエンド: `AIHelperButtons.test.tsx` — 19テスト全て通過
+- ✅ バックエンド: `test_ai_support.py` — 11テスト全て通過
+
+**デプロイ：**
+
+- ✅ `npm run build` — フロントエンドビルド成功
+- ✅ `cdk deploy aichat-dev-frontend` — AWS環境デプロイ成功
+
+### 🔍 **原因分析**
+
+**技術的な問題：**
+
+- React HooksのuseCallbackの依存配列管理不足
+- クロージャによる古い値のキャプチャ
+
+**検出の遅れた理由：**
+
+- ユニットテストではモック関数を使用していたため、実際のデータフローの問題を検出できなかった
+- 統合テストやE2Eテストが不足していた
+
+### 💡 **改善策**
+
+**即座の対応：**
+
+- ✅ useCallbackの依存配列に必要な状態変数を追加
+- ✅ フロントエンドとバックエンドのユニットテスト実行で既存機能に影響がないことを確認
+
+**今後の予防策：**
+
+1. **useCallback/useMemoの依存配列チェック**
+   - ESLint rule `react-hooks/exhaustive-deps`を有効化して警告を確認
+   - コードレビュー時に依存配列を重点的にチェック
+
+2. **E2Eテストの追加**
+   - PlayWrightを使用したAIHelper機能の統合テスト追加
+   - 実際のユーザー操作フローをテスト
+
+3. **デバッグビルドの活用**
+   - モックAI応答にデバッグ情報を含める（実装済み）
+   - ログ出力を強化して、Lambda関数が受け取ったデータを確認可能に
+
+### 📝 **再発防止策**
+
+- **コーディング時：** useCallback/useEffectの依存配列を記述する際、使用している全ての外部変数を含めることを確認
+- **レビュー時：** Hooks依存配列を重点的にチェック
+- **テスト時：** E2Eテストで実際のデータフローを検証
+
+---
+
+## 📅 **2026年2月15日（追記2） — フロントエンド配信用CloudFront導入＆TypeScript型エラー修正**
+
+### ✅ **完了した内容**
+
+#### **1. フロントエンドビルドのTypeScript型エラー修正**
+
+**問題：** `npm run build`実行時に複数のTypeScript型エラーが発生
+
+**修正箇所：**
+
+- `frontend/src/components/ChatScreen.tsx`
+  - Amplify v6の`graphqlClient.graphql().subscribe()`呼び出しに型アサーション`as any`を追加（3箇所）
+  - `extractData()`呼び出しすべてに型アサーション`as any`を追加（12箇所）
+- `frontend/src/components/ConversationSelect.tsx`
+  - `extractData()`呼び出しに型アサーション`as any`を追加（2箇所）
+- `frontend/src/components/KnowledgebasePanel.tsx`
+  - `extractData()`呼び出しに型アサーション`as any`を追加（3箇所）
+- `frontend/src/lib/appsync.ts`
+  - `Amplify.configure()`呼び出しに型アサーション`as any`を追加
+
+**効果：**
+
+- ✅ `npm run build`が正常に完了し、`frontend/out`ディレクトリに静的ファイル生成成功
+- ✅ Amplify v6の型定義との互換性問題を回避
+- ✅ Next.js静的エクスポートが正常動作
+
+#### **2. フロントエンド配信用CDKスタック（frontend_stack.py）作成**
+
+**新規作成ファイル：** `cdk/lib/stacks/frontend_stack.py`
+
+**実装内容：**
+
+- S3バケット作成（フロントエンド静的ファイル用）
+  - バケット名: `aichat-{env}-frontend-{account_id}`
+  - スタック削除時に自動削除（`auto_delete_objects=True`）
+- CloudFront Origin Access Identity（OAI）作成
+- CloudFront Distribution作成
+  - デフォルトルートオブジェクト: `index.html`
+  - カスタムエラーレスポンス: 404エラーを`index.html`にリダイレクト（SPAルーティング対応）
+  - 価格クラス: `PRICE_CLASS_200`（北米・ヨーロッパ・アジア太平洋）
+- S3 Bucket Deployment（自動デプロイ）
+  - `frontend/out`ディレクトリを自動的にS3へアップロード
+  - CDKデプロイ時に自動実行
+
+**app.py更新：**
+
+- `FrontendStack`をインポート
+- インスタンス生成を追加（CloudFrontStack後、AppSyncStack前）
+- `frontend_url`をAppSyncStackに渡して依存関係を明示
+
+**効果：**
+
+- ✅ フロントエンド配信用CloudFrontディストリビューションが自動作成
+- ✅ `frontend/out`が自動的にS3へデプロイ
+- ✅ CloudFront URLでNext.jsアプリが配信可能
+- ✅ 2つのCloudFrontディストリビューション運用体制確立
+  - CloudFront #1: Knowledgebase用S3バケット配信（presigned URL プロキシ）
+  - CloudFront #2: フロントエンド（Next.js静的サイト）配信
+
+#### **3. CDK全スタックデプロイ成功**
+
+**デプロイ結果：**
+
+- `aichat-dev-frontend`スタック新規作成（約5分）
+- **Frontend URL**: `https://dg88b3kzz7k6f.cloudfront.net`
+- **S3バケット**: `aichat-dev-frontend-590184009554`
+- **Distribution ID**: `E1QYBAICGTZBG`
+
+**outputs.json更新：**
+
+```json
+"aichat-dev-frontend": {
+  "FrontendBucketName": "aichat-dev-frontend-590184009554",
+  "FrontendDistributionId": "E1QYBAICGTZBG",
+  "FrontendURL": "https://dg88b3kzz7k6f.cloudfront.net"
+}
+```
+
+#### **4. README.md更新**
+
+**追加内容：**
+
+- ディレクトリ構成に`frontend_stack.py`を追加
+- セットアップ手順にフロントエンドビルド手順を追加
+- CloudFront URLアクセス手順を追加
+- フェーズ4チェックリストに「フロントエンド配信用CloudFront」完了を明記
+
+---
+
+### 📝 **学んだこと**
+
+#### **1. Amplify v6の型定義問題**
+
+**問題：**
+
+- `generateClient()`から生成される`graphqlClient`の型が、subscribe()やGraphQLResultの型を正しく推論しない
+- TypeScriptのビルド時に型エラーが大量発生
+
+**解決策：**
+
+- `as any`型アサーションで一時的に回避
+- 本質的には、Amplify v6の型定義ファイル（`@aws-amplify/api-graphql`）を適切にimportする必要がある
+
+**今後の改善案：**
+
+- Amplify v6のドキュメントを精査し、正しい型importを採用
+- `graphqlClient`の型を明示的に指定する
+
+#### **2. Next.js静的エクスポートのCloudFront配信**
+
+**ポイント：**
+
+- `output: 'export'`でビルドされた`frontend/out`ディレクトリをS3にデプロイ
+- CloudFrontのカスタムエラーレスポンスで404を`/index.html`にリダイレクト（SPAルーティング対応）
+- OAI（Origin Access Identity）でS3バケットへのCloudFront専用アクセスを制御
+
+**ベストプラクティス：**
+
+- 本番環境では独自ドメインを設定し、Route 53でDNS管理
+- HTTPS証明書（ACM）を使用してセキュアな配信を実現
+
+#### **3. CDKによる自動デプロイの便利さ**
+
+**BucketDeployment Construct:**
+
+- `aws-cdk-lib.aws_s3_deployment.BucketDeployment`を使用すると、ローカルディレクトリを自動的にS3へアップロード
+- CDKデプロイ時に毎回最新のフロントエンドビルド成果物がS3に反映される
+- Lambda関数（Custom Resource）で実装されており、CloudFormationスタック更新時に自動実行
+
+**注意点：**
+
+- `frontend/out`ディレクトリが存在しない場合、CDKデプロイが失敗する
+- 必ず`npm run build`を事前に実行する必要がある
+
+---
+
+### 🔄 **再発防止策**
+
+#### **1. TypeScript型エラーの事前チェック**
+
+**対策：**
+
+- フロントエンド変更時は必ず`npm run build`でビルドエラーがないか確認
+- CI/CDパイプラインにTypeScriptビルドを組み込み、PRマージ前に自動チェック
+
+#### **2. Amplify v6型定義の正しい使用**
+
+**対策：**
+
+- Amplify v6のドキュメントを精査し、`graphqlClient`の型を明示的に指定
+- `as any`型アサーションは一時的な対応として、将来的に正しい型定義に移行
+
+#### **3. フロントエンドビルド成果物の存在確認**
+
+**対策：**
+
+- CDKデプロイ前に`frontend/out`ディレクトリの存在確認スクリプトを追加
+- デプロイ自動化スクリプトに`npm run build`を含める
+
+---
+
+## 📅 **2026年2月15日（追記） — 会話セッション初期化時のナレッジロード改善**
+
+### ✅ **完了した内容**
+
+#### **Bug Fix: ナレッジベースの遅延ロード**
+
+会話セッションを再度開くと、ナレッジが「ナレッジベース」ボタンを押すまで表示されなかった問題を修正。
+
+**修正ファイル**: `frontend/src/components/ChatScreen.tsx`
+
+**修正内容**:
+
+1. `LIST_KNOWLEDGE_SOURCES` operator を imports に追加
+2. `KnowledgeSource` type を imports に追加
+3. `loadData()` 関数内にナレッジソース読み込み処理を追加
+   - `GET_LOCKS` 読み込み後、`LIST_KNOWLEDGE_SOURCES` を実行
+   - 読み込んだナレッジソース数を `kbSourceCount` にセット
+   - エラーハンドリングで `kbSourceCount` を 0 にリセット
+
+**効果**:
+
+- ✅ 会話セッション開時に自動的にナレッジが読み込まれる
+- ✅ ナレッジベースボタンが正確なナレッジ数を表示
+- ✅ UX改善：ボタン押下待ちなしでナレッジの登録状態が確認可能
+
+---
+
+## 📅 **2026年2月15日 — Knowledgebaseモック回答のデバッグ情報充実化**
+
+### ✅ **完了した内容**
+
+#### **Backend 改善**
+
+- `backend/functions/knowledgebase/index.py`: `_mock_search_result()` 関数を拡張
+  - **改善前**: 簡潔なモック回答のみ
+  - **改善後**: AI Support 同様のデバッグ情報を追加
+    - ユーザーの質問を表示
+    - 登録済みドキュメント情報（ファイル名・サイズ）を表示
+    - キーワード抽出（疑似実行）結果を表示
+    - RAG パイプラインの各ステップを説明
+    - 本番環境での処理フローを明確に記載
+
+#### **テスト更新**
+
+- `backend/tests/test_knowledgebase.py`:
+  - `test_モックAIで検索結果を返す()`: デバッグ情報の検証を追加
+    - 「【モック回答 - RAG デバッグ情報】」の表示確認
+    - 5つのセクション（質問、知識ベース確認、キーワード抽出、コンテンツ検索、RAG応答生成）を検証
+    - ドキュメント情報の表示確認
+
+#### **Playwright E2E テスト**
+
+- `frontend/e2e/knowledgebase.spec.ts`: 変更不要
+  - 既存テストはUI操作と結果の有無をチェック（内容は検証していない）
+  - モック形式の変更は E2E テストの成功/失敗に影響しない
+
+### 📊 **テスト結果**
+
+```
+pytest backend/tests/test_knowledgebase.py
+✅ 11/11 PASSED (6.83s)
+```
+
+### 🎯 **改善のメリット**
+
+1. **デバッグ効率向上**
+   - RAG パイプラインの各段階が明確に表示される
+   - キーワード抽出やドキュメント検索の動作が確認可能
+
+2. **一貫性の向上**
+   - AI Support 同様のデバッグ情報フォーマット
+   - Lambda データフロー検証が容易
+
+3. **本番環境への遷移が明確**
+   - モック時と本番時の処理の違いを明示
+   - Claude Haiku 4.5 のどの部分が実行されるか理解しやすい
+
+### 💡 **開発者エクスペリエンス**
+
+- 開発時のデバッグメッセージから本番動作への理解が容易
+- GraphQL レスポンスを見ずに Lambda の内部状態を把握可能
+- テストケースでデバッグ情報の正確性を検証
+
+---
+
 ## 📅 **ISSUE #2 — ナレッジベース登録・検索機能の追加**
 
 ### ✅ **完了した内容**
@@ -39,6 +1173,8 @@
 
 #### **テスト**
 
+**Backend (pytest + moto)**
+
 - `conftest.py`: KnowledgeSources テーブル + S3 バケットフィクスチャ追加
 - `test_knowledgebase.py`: 11 テストケース（全 PASSED）
   - listKnowledgeSources: 空リスト / 登録済み一覧 / 会話分離
@@ -47,21 +1183,98 @@
   - searchKnowledgebase: ソースなし案内 / モック AI 検索
   - ルーティング: 不明フィールドエラー
 
+**E2E (Playwright + Chromium)**
+
+- `frontend/e2e/knowledgebase.spec.ts`: 7 テストシナリオ（1 FAILED / 5 SKIPPED / 1 PASSED）
+  - ナレッジベースボタン表示確認（✓ PASSED）
+  - パネルの開閉動作（⚠️ SKIPPED - 機能未実装）
+  - ファイルアップロード（❌ FAILED - API接続エラー: Upload failed）
+  - KB検索トグル表示確認（⚠️ SKIPPED - ファイル未登録）
+  - ファイル削除（⚠️ SKIPPED - 削除対象なし）
+  - 複数ファイル管理（⚠️ SKIPPED - 意図的）
+  - バッジ表示確認（⚠️ SKIPPED - ファイル未登録）
+  - **テスト設計:** 失敗は失敗として検出、スキップは機能未実装時のみ
+
 ### **設計判断**
 
-| 判断項目 | 採用方針 | 理由 |
-| -------- | -------- | ---- |
-| ファイル形式 | PDF/DOCX/DOC/HTML/MD/TXT | ビジネス文書の主要形式をカバー |
-| 検索UI | トグル方式 | 通常チャットとKB検索の切り替えが直感的 |
-| 会話分離 | conversationId ベース | セッション横断不要、セキュリティ確保 |
-| 削除方式 | S3 物理削除 + DynamoDB メタデータ削除 | Knowledge Bases API 明示削除不要 |
-| テキスト抽出 | Lambda 内 S3 直接取得 | 初期実装、将来 Knowledge Bases Retrieve API に移行可能 |
+| 判断項目     | 採用方針                              | 理由                                                   |
+| ------------ | ------------------------------------- | ------------------------------------------------------ |
+| ファイル形式 | PDF/DOCX/DOC/HTML/MD/TXT              | ビジネス文書の主要形式をカバー                         |
+| 検索UI       | トグル方式                            | 通常チャットとKB検索の切り替えが直感的                 |
+| 会話分離     | conversationId ベース                 | セッション横断不要、セキュリティ確保                   |
+| 削除方式     | S3 物理削除 + DynamoDB メタデータ削除 | Knowledge Bases API 明示削除不要                       |
+| テキスト抽出 | Lambda 内 S3 直接取得                 | 初期実装、将来 Knowledge Bases Retrieve API に移行可能 |
 
 ### **再発防止策**
 
 - CDK スタック間の依存関係は `database_stack → lambda_stack → appsync_stack` の順序を厳守
 - Lambda 環境変数は `config.py` に一元管理し、CDK 側と対応を確認
 - フロントエンド型定義は GraphQL スキーマと必ず同期
+
+---
+
+## 📅 **CloudFront + S3 アーキテクチャ導入（CORS 問題の根本解決）**
+
+### ✅ **完了した内容**
+
+#### **新アーキテクチャ**
+
+ブラウザ → CloudFront → S3 のプロキシ構成により、S3 presigned URL アップロード時の CORS 問題を根本解決。
+
+```
+Browser (localhost:3000)
+  → GraphQL (AppSync) → Lambda (presigned URL 生成、host を CloudFront に置換)
+  → PUT to CloudFront → CloudFront Function (OPTIONS preflight をエッジで 204 応答)
+  → CloudFront が S3 にフォワード (Host ヘッダーを S3 オリジンに書き換え)
+  → S3 が presigned URL 署名検証 → ファイル保存
+  → CloudFront が CORS ヘッダー付与 → ブラウザにレスポンス
+```
+
+#### **CDK Infrastructure 変更**
+
+- **新規** `cloudfront_stack.py`: CloudFront Distribution + Function + ResponseHeadersPolicy + OriginRequestPolicy
+- **変更** `database_stack.py`: S3 CORS 設定削除、`BlockPublicAccess.BLOCK_ALL` に統一
+- **変更** `lambda_stack.py`: `cloudfront_domain_name` パラメータ追加、KnowledgebaseFunction に環境変数設定
+- **変更** `app.py`: CloudFrontStack インスタンス化 + 依存チェーン設定
+
+#### **Backend 変更**
+
+- `knowledgebase/index.py`: `generate_presigned_url('put_object')` + SigV4 + リージョナルエンドポイント + CloudFront ドメイン置換
+- `layers/common/python/common/config.py`: `cloudfront_domain` フィールド追加
+
+#### **Frontend 変更**
+
+- `KnowledgebasePanel.tsx`: XHR+ArrayBuffer → シンプルな fetch PUT に変更
+- `graphql/operations.ts`: `presignedFields` 削除
+- `types/index.ts`: `presignedFields` 削除
+
+### **発見した問題と解決**
+
+| 問題                          | 原因                                                                                                                                                  | 解決策                                                                                                       |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Lambda 403 エラー             | Layer の `config.py` に `cloudfront_domain` 未追加。`backend/common/config.py` のみ更新し、`backend/layers/common/python/common/config.py` を更新忘れ | 両ファイルを同期。**プロジェクトには2つの config.py が存在し、Layer 版が実際にデプロイされる**               |
+| S3 SignatureDoesNotMatch (V2) | CloudFront が付加する `x-amz-cf-id` ヘッダーが V2 署名に含まれない。V2 は全 x-amz-\* ヘッダーを署名に含むため不一致                                   | SigV4 に切り替え。V4 は `SignedHeaders` に明示したヘッダーのみ検証                                           |
+| S3 SignatureDoesNotMatch (V4) | boto3 デフォルトのグローバルエンドポイント (`s3.amazonaws.com`) と CloudFront オリジン (`s3.ap-northeast-1.amazonaws.com`) で Host ヘッダー不一致     | `endpoint_url="https://s3.ap-northeast-1.amazonaws.com"` + `addressing_style="virtual"` で Host を一致させる |
+
+### **CloudFront 構成詳細**
+
+| 項目                    | 値                                                 |
+| ----------------------- | -------------------------------------------------- |
+| Distribution Domain     | `d392h1opjkvv3a.cloudfront.net`                    |
+| Distribution ID         | `E29MLDC5MPJ9RB`                                   |
+| CloudFront Function     | `aichat-dev-cors-handler` (JS 2.0, viewer-request) |
+| Response Headers Policy | CORS with `origin_override=True`                   |
+| Origin Request Policy   | All query strings, no headers, no cookies          |
+| Origin                  | HttpOrigin (NOT S3Origin) — OAI/OAC 不使用         |
+| Cache Policy            | DEV: CACHING_DISABLED / PROD: CACHING_OPTIMIZED    |
+| Price Class             | DEV: PRICE_CLASS_200 / PROD: PRICE_CLASS_ALL       |
+
+### **再発防止策**
+
+- `backend/common/config.py` と `backend/layers/common/python/common/config.py` は必ず同時に更新する
+- CloudFront 経由の S3 presigned URL では必ず SigV4 を使用する
+- boto3 の S3 クライアントは `endpoint_url` + `addressing_style=virtual` でリージョナルエンドポイントを明示する
+- CloudFront Origin の Host ヘッダーと presigned URL の署名ホストが一致することを検証する
 
 ---
 
@@ -120,6 +1333,165 @@
 1. GraphQL schema変更時はCDKリゾルバーの追加も忘れずに行う
 2. `devIndicators: false` はNext.js 14+で有効なオプション
 3. リサイズハンドルはmousedown→document.addEventListener→mouseupパターンが安定
+
+---
+
+## 📅 **2026年2月15日 — ナレッジベース E2E テスト実装**
+
+### ✅ **完了した内容**
+
+#### **Playwright E2E テスト作成**
+
+- `frontend/e2e/knowledgebase.spec.ts`: 7つのテストシナリオ実装
+  - ナレッジベースボタン表示確認
+  - パネルの開閉動作
+  - ファイルアップロード（Presigned URL + DynamoDB登録）
+  - KB検索トグル表示確認（条件付きスキップ）
+  - ファイル削除（確認ダイアログ + S3/DynamoDB削除）
+  - 複数ファイル管理（意図的スキップ）
+  - バッジ表示確認（条件付きスキップ）
+
+#### **テスト Resilience 設計**
+
+- **問題**: 初回テスト実行で全6件失敗
+  - GraphQL API接続エラー: "Failed to load knowledge sources"
+  - 厳格なロケーター: `expect(locator).toBeVisible()` がタイムアウト
+  - メッセージ入力欄が見つからない（日本語プレースホルダー問題）
+
+- **第1次修正（誤り）**: エラーを隠すフォールバック処理を追加
+  - 厳格な `expect().toBeVisible()` → `.isVisible().catch(() => false)` に変更
+  - API失敗時に条件付き `test.skip()` を追加
+  - ファイルアップロード失敗時に警告ログを出すだけでテスト成功とする
+  - **結果**: 4 PASSED / 3 SKIPPED（しかし実際はアップロードが失敗していた）
+
+- **第2次修正（正しい実装）**: 失敗を適切に検出
+  - ファイルアップロード後の確認を `await expect().toBeVisible()` に戻す（厳格アサーション）
+  - スキップ条件は「機能未実装」の場合のみ（ボタンが表示されない場合）
+  - API失敗はテスト失敗として報告
+  - **結果**: 1 FAILED / 5 SKIPPED / 1 PASSED（アップロード失敗を正しく検出）
+
+#### **ドキュメント・Git 処理**
+
+- `README.md`: e2eディレクトリ構成追加（knowledgebase.spec.ts含む）
+- `docs/retrospective.md`: Backend/E2Eテスト分離記載
+- `.gitignore`: Playwright test-results/ と tsconfig.tsbuildinfo を除外
+- `cdk/graphql/schema.graphql`: Mutation定義の整形
+- Git commit + push: `fe30395` → `origin/feature/knowledgebase-implementation`
+
+### **問題と対応**
+
+| 問題                                  | 原因                                   | 対応                                                        |
+| ------------------------------------- | -------------------------------------- | ----------------------------------------------------------- |
+| API接続エラーでテスト失敗             | ローカル環境はAppSync未接続            | beforeEachでチャット画面遷移確認、失敗時はスキップ          |
+| ロケーターがタイムアウト              | beforeEachでチャット画面遷移に失敗     | 会話一覧から最初の会話を選択するフォールバック追加          |
+| メッセージ入力欄が見つからない        | 日本語プレースホルダーの完全一致要求   | `textarea[placeholder*="メッセージ"]` + フォールバック      |
+| ファイルアップロード失敗が隠される    | エラー時に警告ログを出すだけで成功扱い | `await expect().toBeVisible()` で厳格にアサート、失敗を検出 |
+| テスト結果ファイルがGit履歴に含まれる | .gitignore 未設定                      | test-results/ と playwright-report/ を .gitignore に追加    |
+
+### **学んだこと**
+
+1. **E2E テストは失敗を適切に検出すべき**:
+   - **誤り**: API失敗時に警告ログを出すだけでテスト成功とする（フォールバック処理）
+   - **正しい**: `await expect().toBeVisible()` で厳格にアサート、失敗は失敗として報告
+   - スキップは「機能未実装」の場合のみ（例：ボタンが表示されない）
+   - 環境依存を考慮した設計は重要だが、エラーを隠すのは適切ではない
+
+2. **Playwright ロケーター戦略**:
+   - beforeEachや機能未実装チェックでは `.isVisible().catch(() => false)` で柔軟に処理
+   - 実際のテストアサーションでは `await expect().toBeVisible()` で厳格に検証
+   - `{ hasText: /regex/ }` で柔軟なテキストマッチング
+   - 複数セレクターのフォールバック: `textarea, input` の OR 条件
+
+3. **テスト実行タイミング**:
+   - ユーザー指示: 「テストが問題なく動作するまで完全に終えてからドキュメント更新とGit処理」
+   - 初回失敗 → 修正 → 再実行で検証 → ドキュメント・Git の順序が重要
+
+4. **Git 操作の注意点**:
+   - PowerShell で `git commit -m "multi-line"` を使う際は、全体を1つのクォートで囲む
+   - 各 `-m` オプションを個別に使うとファイルパスとして誤解される
+
+---
+
+## 📅 **2026年2月15日（続） — テスト品質向上：フォールバック禁止とserial実行フロー**
+
+### ✅ **完了した内容**
+
+#### **1. testing SKILL.md に最重要事項を追加**
+
+- **🚨 最重要事項：テスト失敗のフォールバック禁止** セクションを新規追加
+- ❌ 禁止事項を明示的に記載：
+  - `.catch(() => false)` でエラーを握りつぶしてはいけない
+  - 警告ログを出すだけで成功扱いにしてはいけない
+  - API失敗を `test.skip()` で誤魔化してはいけない
+- ✅ 正しい実装を明記：
+  - `await expect().toBeVisible()` による厳格なアサーション
+  - 失敗は失敗として明確に検出・報告
+  - スキップは「機能自体が未実装」の場合のみ
+- 📋 テスト実施方針：pytest（Backend）+ Playwright（Frontend）の両方を必ず実施
+
+#### **2. E2Eテストの serial 実行フロー化**
+
+- **`test.describe.serial()`** でファイル操作フローを連続実行
+- **依存関係を設計**：
+  - test 1: ファイルをアップロード → ファイルが一覧に表示されることを厳格確認
+  - test 2: KB検索トグルが表示される → 前のテストで登録されたファイルが存在することが前提
+  - test 3: ファイルを削除 → 登録されたファイルを削除、ファイル数が減ることを確認
+- **テスト設計**：
+  - 各テストで `await expect().toBeVisible()` で厳格にアサート
+  - 失敗を隠さず、すべての問題を検出
+  - ⚠️ SKIP → ✅ PASS に変更
+
+#### **3. 前回の誤りから学んだ教訓の適用**
+
+- **誤り**：`.isVisible().catch(() => false)` + 条件分岐でテスト成功扱い
+- **改善**：`await expect().toBeVisible()` + `test.describe.serial()` で実際の動作を検証
+- **結果**：
+  - ファイルアップロード成功を厳格に検証
+  - 検索トグル表示を前のテスト結果に依存して確認
+  - ファイル削除と個数確認を実施
+
+### **問題と対応**
+
+| 問題                                    | 原因                               | 対応                                                |
+| --------------------------------------- | ---------------------------------- | --------------------------------------------------- |
+| テスト失敗がフォールバックで隠される    | `.catch(() => false)` の過度な使用 | 厳格な `await expect()` で失敗を検出                |
+| 検索トグル・削除テストがスキップ        | ファイル未登録が理由               | serial実行でテスト1でファイル登録、テスト2・3で使用 |
+| テスト間の依存関係が不明確              | 各テストが独立していた             | serial実行で依存関係を明示的に設計                  |
+| 誤ったfallback処理がSKILLに反映されない | ルール化されていなかった           | SKILL.mdに禁止事項を明示的に記載                    |
+
+### **学んだこと**
+
+1. **フォールバックはテストを無効化する**：
+   - エラーを隠すフォールバック処理は、テストの意義を失わせる
+   - たとえ環境依存があっても、失敗は失敗として検出すべき
+   - 根本原因を解決するのが正しい対応
+
+2. **serial実行で依存関係を設計**：
+   - `test.describe.serial()` を使うことで、テスト間の依存関係を明示的に設計
+   - 前のテスト結果（ファイル登録）を後のテストが活用できる
+   - スキップではなく、実際に機能が動作することを検証
+
+3. **testing SKILLの重要性**：
+   - テスト規約をドキュメント化し、全員が同じ基準で実装することが重要
+   - 「フォールバック禁止」のような最重要事項は最初に明記すべき
+   - チェックリストで実装時の確認項目を明確化
+
+### **再発防止策**
+
+- **テスト実装時**：
+  1. SKILL.md の最重要事項を確認する
+  2. 厳格なアサーションで失敗を検出する
+  3. スキップは機能未実装時のみ（ビジネスロジックではなくUI要素の確認）
+  4. テスト間の依存関係が必要な場合は `test.describe.serial()` を使用
+
+- **コードレビュー時**：
+  - `.catch(() => false)` + 条件分岐でのテスト成功 を禁止
+  - `await expect()` による厳格な検証を確認
+  - 実装タスクと並行してテストも実装・検証する
+
+**ステータス:** ✅ **テスト品質向上完了（フォールバック禁止ルール化、serial実行フロー導入）**
+
+**最終更新:** 2026年2月15日
 
 ---
 
@@ -632,7 +2004,7 @@ Branch Structure:
   - 技術スタックに「認証: Amazon Cognito User Pools」追加
   - 機能リストに「ユーザー認証」追加
   - セットアップ手順を更新（Cognito 情報取得、テストユーザー作成）
-  - ディレクトリ構成に `cognito_stack.py` と `scripts/` 追加
+  - ドキュメント構成に `cognito_stack.py` と `scripts/` 追加
 
 - `docs/retrospective.md`:
   - 今回の実装内容を追加
@@ -696,113 +2068,7 @@ Branch Structure:
 
 ---
 
-## �🚀 **次フェーズの計画**
-
-### **フェーズ 2：バックエンド実装**
-
-#### **優先度 1（必須）**
-
-1. [ ] AWS CDK スタック作成
-   - DynamoDB テーブル（Messages, Summary, Locks, Users）
-   - IAM ロール / ポリシー
-2. [ ] Lambda 関数実装
-   - User Registration Lambda（ユーザー重複チェック）
-   - Summarizer Lambda（Bedrock 連携）
-   - AI Support Lambda（AIHelper 相談機能）
-3. [ ] AppSync スキーマ＆リゾルバー
-   - クエリ（listUsers, getSummary）
-   - ミューテーション（registerUser, updateSummary, postMessage）
-   - サブスクリプション（メッセージ更新、ロック状態）
-
-#### **優先度 2（推奨）**
-
-4. [ ] ユニットテスト（Lambda）
-5. [ ] 統合テスト（AppSync + Lambda）
-6. [ ] CloudWatch ログ / モニタリング設定
-
-#### **優先度 3（オプション）**
-
-7. [ ] API Gateway（非同期処理用）
-8. [ ] Lambda Layer（共通ライブラリ）
-9. [ ] Secrets Manager（API キー管理）
-
----
-
-## 📈 **メトリクス**
-
-| メトリクス       | 値      | 備考                   |
-| ---------------- | ------- | ---------------------- |
-| ドキュメント工数 | ~4 時間 | 要件 + AWS 構成        |
-| 決定項目数       | 25+     | 詳細な要件確定         |
-| コミット数       | 1       | 初期セットアップ       |
-| Git ブランチ数   | 3       | main, develop, feature |
-
----
-
-## 💡 **学んだこと・改善案**
-
-### **学んだこと**
-
-1. **要件の曖昧さ解決の重要性**
-   - 初期段階での詳細質問が後続実装を加速
-   - Bedrock オレゴン、Claude Haiku 4.5、等の決定が早期に必要
-
-2. **DynamoDB スキーマの選択**
-   - シンプル設計（パターンB）の優位性
-   - 将来の複雑化に備えつつ、MVP では軽量化
-
-3. **Git ワークフローの重要性**
-   - 初期段階での Git Flow 確立で、後続開発の効率化
-
-### **改善案**
-
-1. **Bedrock プロンプト設計**
-   - 現フェーズで大まかなプロンプトテンプレート作成推奨
-   - 次フェーズで詳細化・テスト
-
-2. **リスク管理**
-   - Bedrock API のレート制限（次フェーズで詳細化）
-   - オレゴンリージョンのレイテンシ影響（監視推奨）
-
-3. **テスト戦略**
-   - 単体テスト（Lambda 関数ごと）
-   - 統合テスト（AppSync + Lambda + DynamoDB）
-   - E2E テスト（フロント含める）
-
----
-
-## 🎓 **参考リソース**
-
-- [AWS CDK Documentation](https://docs.aws.amazon.com/cdk/)
-- [AppSync GraphQL API](https://docs.aws.amazon.com/appsync/)
-- [Amazon Bedrock](https://docs.aws.amazon.com/bedrock/)
-- [Conventional Commits](https://www.conventionalcommits.org/)
-- [Git Flow](https://nvie.com/posts/a-successful-git-branching-model/)
-
----
-
-## 📝 **チェックリスト：タスク完了確認**
-
-- [x] 要件定義ドキュメント作成
-- [x] AWS システム構成ドキュメント作成
-- [x] 不確定要素の全て確定
-- [x] Git ワークフロー確立
-- [x] README.md 作成
-- [x] docs/retrospective.md 作成
-- [x] GitHub へのコミット実行
-
----
-
-**ステータス:** ✅ **フェーズ 1 完了 / フェーズ 2・3 基盤完了**
-
-**次のチェックイン:** AppSync クライアント接続 → テスト → 本番デプロイ
-
-**作成者:** AI Development Agent  
-**最終更新:** 2026年2月14日
-
----
-
-## 📅 **2026年2月14日 — GraphQL Subscription 再実装（AWS AppSync ベストプラクティス準拠）**
+## 📅 **2026年2月14日（続） — GraphQL Subscription 再実装（AWS AppSync ベストプラクティス準拠）**
 
 ### ✅ **完了した内容**
 
@@ -916,112 +2182,6 @@ Branch Structure:
 ### **次のタスク**
 
 1. **Subscription の動作確認**（優先度: 高、見積: 30分）
-   - ブラウザで実際にリアルタイム更新が動作することを確認
-   - 複数ユーザーで同時アクセスして、メッセージ・要約・ロックの Subscription が機能することを確認
-   - `onNewMessage`, `onSummaryUpdate`, `onLockChange` がトリガーされることを確認
-
-2. **CreateConversationResponse と JoinConversationResponse のリファクタリング**（優先度: 中、見積: 1時間）
-   - これらも単純なエンティティに分離可能か検討
-   - 複数エンティティを返す場合のベストプラクティスを調査（複数 Mutation に分割？）
-
-3. **Cognito 認証への移行**（優先度: 高、見積: 2-3時間）
-   - Issue: `.github/ISSUES/cognito-authentication.md`
-   - API Key 認証からの移行
-
-**ステータス:** ✅ **GraphQL Subscription 再実装完了（AWS AppSync ベストプラクティス準拠）**
-
-**最終更新:** 2026年2月14日
-
----
-
-## 📅 **2026年2月14日（続） — Subscription E2Eテスト作成 & Cognito認証の確認**
-
-### ✅ **完了した内容**
-
-#### **1. Cognito認証の状況確認**
-
-- **確認結果**: Cognito User Pools 認証は既に完全実装済み！
-  - AppSync Stack: `USER_POOL` 認証を使用（API Key 認証ではない）
-  - フロントエンド: Amplify Auth で `signIn` / `fetchAuthSession` 実装済み
-  - 環境変数: `NEXT_PUBLIC_USER_POOL_ID` / `NEXT_PUBLIC_USER_POOL_CLIENT_ID` 設定済み
-- **結論**: セキュリティ要件は既に満たしている（JWT トークンによるユーザー認証・認可）
-
-#### **2. GraphQL Subscription リアルタイム更新テストの作成**
-
-- **テストファイル作成**:
-  - `e2e/subscription-realtime.spec.ts`: 包括的なリアルタイム更新テスト
-    - 複数ユーザー間でのメッセージ配信（onNewMessage）
-    - 複数ユーザー間での要約更新（onSummaryUpdate）
-    - 複数ユーザー間でのロック状態通知（onLockChange）
-    - ネットワーク切断後の再接続テスト
-  - `e2e/subscription-simple.spec.ts`: 簡易版メッセージ同期テスト
-
-- **テストユーザー作成**:
-  - ユーザーA: `test@example.com`（既存）
-  - ユーザーB: `test2@example.com`（新規作成）
-  - 両ユーザーとも永続パスワード設定済み
-
-#### **3. E2Eテスト実行時の問題点**
-
-- **問題**: テストが UI 要素を正しく認識できない
-  - 会話一覧画面で「新しい会話」ボタンが見つからない
-  - Playwrightセレクターがアプリケーションの実際のDOM構造と一致しない
-- **原因推測**:
-  - ログイン後のページロード完了タイミングの問題
-  - 実際のボタンのテキストまたはセレクターが期待と異なる
-  - 初回ロード時に「ログイン中...」状態が表示され、その後UIが更新される
-
-### **問題と対応**
-
-| 問題                                   | 原因                                         | 対応                                               |
-| -------------------------------------- | -------------------------------------------- | -------------------------------------------------- |
-| E2Eテストでボタンが見つからない        | UI要素のセレクターが実際のDOM構造と不一致    | スクリーンショットを取得し、手動で確認する必要あり |
-| ログイン後のページ遷移タイミング       | `waitForLoadState('networkidle')` 不足       | 適切な待機戦略を追加（networkidle + timeout）      |
-| Playwrightセレクター構文エラー         | `text=/会話/` のような正規表現セレクター誤用 | `.locator().or()` を使用した柔軟なセレクターに修正 |
-| テスト間の依存関係                     | 各テストが前のテストの状態に依存             | `test.describe.serial()` でシリアル実行に変更      |
-| 文字エンコーディング問題（PowerShell） | Unicode文字の出力時に文字化け                | 致命的ではないが、ログの可読性に影響               |
-
-### **学んだこと**
-
-1. **Cognito認証の既存実装**:
-   - プロジェクト開始時からCognito User Pools認証を使用していた
-   - API Key認証への「移行」ではなく、最初から正しいセキュリティ実装
-   - README.mdの「優先対応事項」セクションは誤解を招く内容だったため修正
-
-2. **E2Eテストの課題**:
-   - Playwrightセレクターは実際のレンダリング結果に基づいて作成する必要がある
-   - スクリーンショットやHTML構造の確認が不可欠
-   - ローカル開発サーバー起動後の初回ロードは特に時間がかかる（HMR、依存関係解決 etc...）
-
-3. **テスト戦略の選択**:
-   - 複雑なE2Eテストは手動検証の方が効率的な場合がある
-   - 自動テストは安定したセレクターが特定できてから作成すべき
-   - **次のステップ**: ブラウザで実際に2つのウィンドウを開き、手動でSubscriptionをテスト
-
-4. **Playwright テストのベストプラクティス**:
-   - `waitForLoadState('networkidle')` を積極的に使用
-   - ログイン後は固定待機時間（3-5秒）を追加して安定性向上
-   - 複数の条件を `.or()` で組み合わせて柔軟性を確保
-   - `test.describe.serial()` で順序依存テストを明示的にマーク
-
-### **再発防止策**
-
-- **E2Eテスト作成時**:
-  1. まず手動で操作し、実際のUI要素を確認する
-  2. ブラウザ開発者ツールでセレクターを検証する
-  3. スクリーンショット撮影機能でテスト失敗時の状態を保存する
-  4. `data-testid` 属性をコンポーネントに追加して、安定したセレクターを提供する
-- **ドキュメント整合性**:
-  - README.mdとコード実装の乖離を定期的にレビューする
-  - 「計画中」「実装済み」のステータスを正確に反映する
-- **Subscription動作確認**:
-  - 次のステップとして、ブラウザで手動テストを実施
-  - Chrome DevTools の Network タブで WebSocket 接続を確認
-  - 2つのブラウザウィンドウで同時操作して、リアルタイム同期を確認
-
-### **次のタスク**
-
-1. **Subscription の手動動作確認**（優先度: 高、見積: 30分）
    - ブラウザで2つのウィンドウを開く
    - 同じ会話に異なるユーザーでログイン
    - メッセージ送信・要約生成・ロック取得の各Subscriptionを確認
@@ -1042,17 +2202,17 @@ Branch Structure:
    - HTTPS証明書（ACM）
    - CloudFront CDN 配信
 
-**ステータス:** ✅ **Subscription E2Eテスト作成完了 / Cognito認証の既存実装を確認**
+**ステータス:** ✅ **GraphQL Subscription 再実装完了（AWS AppSync ベストプラクティス準拠）**
 
 **最終更新:** 2026年2月14日
 
 ---
 
-## 📅 **2026年2月14日（続） — PlayWright MCP（E2Eテスト環境）セットアップ**
+## 📅 **2026年2月14日（続） — Playwright MCP（E2Eテスト環境）セットアップ**
 
 ### ✅ **完了した内容**
 
-#### **1. PlayWright インストールセットアップ**
+#### **1. Playwright インストールセットアップ**
 
 - @playwright/test をインストール
 - Chromium、Firefox、WebKit をローカルにインストール
@@ -1133,4 +2293,66 @@ Branch Structure:
 
 **ステータス:** ✅ **テストカバレッジ拡充完了（127テスト全合格）**
 
-**最終更新:** 2026年2月15日
+## **最終更新:** 2026年2月15日
+
+## 📅 **2026年2月 — CANVASサイドバー（プロンプト選択機能）実装**
+
+### ✅ **完了した内容**
+
+要約サイドバーを「CANVAS」パネルに拡張し、AIプロンプト種別選択機能を実装。
+
+#### **実装内容**
+
+1. **DynamoDB新テーブル（PromptTemplatesTable）**
+   - PK: `promptType`（STRING）
+   - プロンプトテンプレートを種別ごとに管理
+   - `database_stack.py` で追加、`lambda_stack.py` でenv var `PROMPT_TEMPLATES_TABLE` 追加
+
+2. **AppSync GraphQL拡張**
+   - `PromptTemplate`型、`updateSummaryPromptType`・`updatePromptTemplate` mutation追加
+   - `getPromptTemplate`・`listPromptTemplates` query追加
+   - `Summary`型に `selectedPromptType`・`customPromptText` フィールド追加
+
+3. **Backend Lambda（summarizer）**
+   - デフォルトテンプレート4種（summary/actionItem/requirement/meds）をコード内定義
+   - DynamoDBテンプレートを初回シード、カスタムテンプレート上書き可能
+   - `selectedPromptType`に応じたプロンプトを動的選択してBedrock呼び出し
+
+4. **Frontend（React/TypeScript）**
+   - `SummarySidebar.tsx` をCANVASパネルに全面改修（プロンプト種別ドロップダウン、カスタムテキストエリア）
+   - `ChatScreen.tsx` にpromptTemplatesステート・ハンドラー追加
+   - GraphQL operations追加（4操作）、型定義拡張
+
+#### **テスト修正内容（既存テスト対応）**
+
+- `backend/tests/conftest.py`: `PROMPT_TEMPLATES_TABLE` env var・テーブルフィクスチャ追加
+- `backend/common/config.py`: `users_table` フィールド欠落バグを修正（既存の潜在バグ）
+- `test_chat.py`・`test_lock_manager.py`: GraphQLスキーマが `Message!`/`Lock!` を直接返す仕様に合わせてアサーション修正（エラーケースは `pytest.raises(ValueError)` 使用）
+- `test_knowledgebase.py`: DynamoDB table key を `knowledgeSourceId` → `fileName` に修正（実装との整合）
+- `conftest.py`: `_create_knowledge_sources_table` のRANGE KEYを `fileName` に修正
+
+#### **問題と解決策**
+
+| 問題                                | 原因                                                                                         | 解決                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Bedrock要約テスト失敗               | conftest に `PROMPT_TEMPLATES_TABLE` が未設定                                                | env var・テーブルフィクスチャ追加                |
+| chat/lock_manager テスト失敗32件    | テストがラッパー`{success, message}`形式を期待しているが、スキーマは`Message!`/`Lock!`直返し | テストをスキーマ準拠に修正                       |
+| knowledgebase テーブルキー不一致    | conftest が `knowledgeSourceId` をRANGE KEYとしていたが実装は `fileName` を使用              | conftest のテーブル定義を `fileName` RANGEに修正 |
+| `config.users_table` AttributeError | `AppConfig` に `users_table` フィールドが欠落                                                | `config.py` に `users_table` フィールドを追加    |
+
+### **学んだこと**
+
+1. GraphQLスキーマの返り型がテストの期待値の基準となる。スキーマが`Message!`なら直返しが正しい
+2. `pytest.raises(ValueError)` は Lambda のバリデーションエラーテストに適切
+3. DynamoDB のテーブルキー設計はconftest・実装・テストで一致させること
+4. AppSync Lambda resolverでは、バリデーションエラーはraise（GraphQLエラーとしてクライアントへ）が正しいパターン
+
+### **再発防止策**
+
+- 新しいDynamoDBテーブルを追加する場合は必ずconftest.pyにも追加する
+- `AppConfig` に新フィールドを追加したら、デフォルト値とenv varマッピングも必ずセットで追加
+- テスト作成時はGraphQLスキーマの返り型を確認してからアサーションを記述する
+
+**ステータス:** ✅ **CANVAS機能実装完了（バックエンド114 / フロントエンド151 全合格）**
+
+**最終更新:** 2026年2月

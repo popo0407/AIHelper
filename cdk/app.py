@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
 """CDK Application Entry Point for AICHAT."""
 import aws_cdk as cdk
+from aws_cdk import aws_s3 as s3
 from lib.stacks.database_stack import DatabaseStack
 from lib.stacks.cognito_stack import CognitoStack
+from lib.stacks.cloudfront_stack import CloudFrontStack
 from lib.stacks.appsync_stack import AppSyncStack
 from lib.stacks.lambda_stack import LambdaStack
+from lib.stacks.frontend_stack import FrontendStack
+from lib.stacks.bedrock_stack import BedrockStack
 
 app = cdk.App()
 
 env_name = app.node.try_get_context("environment") or "dev"
 project_name = "aichat"
+
+# AI/モック切り替え（環境とは独立して制御可能）
+use_mock_ai = app.node.try_get_context("useMockAI")
+if use_mock_ai is None:
+    use_mock_ai = (env_name == "dev")  # デフォルト: devならtrue
 
 aws_env = cdk.Environment(
     region="ap-northeast-1",
@@ -31,15 +40,40 @@ cognito_stack = CognitoStack(
     env=aws_env,
 )
 
+# CloudFront Distribution (Knowledge S3 Bucket)
+cloudfront_stack = CloudFrontStack(
+    app, f"{project_name}-{env_name}-cloudfront",
+    env_name=env_name,
+    project_name=project_name,
+    knowledge_bucket=database_stack.knowledge_bucket,
+    env=aws_env,
+)
+cloudfront_stack.add_dependency(database_stack)
+
+# Bedrock Knowledge Base (ap-northeast-1 Tokyo) - S3_VECTORS storage
+bedrock_stack = BedrockStack(
+    app, f"{project_name}-{env_name}-bedrock",
+    environment=env_name,
+    knowledge_bucket=database_stack.knowledge_bucket,
+    env=aws_env,
+)
+bedrock_stack.add_dependency(database_stack)
+
 # Lambda Functions
 lambda_stack = LambdaStack(
     app, f"{project_name}-{env_name}-lambda",
     env_name=env_name,
     project_name=project_name,
     database_stack=database_stack,
+    cloudfront_domain_name=cloudfront_stack.distribution.distribution_domain_name,
+    bedrock_kb_id=bedrock_stack.knowledge_base_id,
+    bedrock_ds_id=bedrock_stack.data_source_id,
+    use_mock_ai=use_mock_ai,
     env=aws_env,
 )
 lambda_stack.add_dependency(database_stack)
+lambda_stack.add_dependency(cloudfront_stack)
+lambda_stack.add_dependency(bedrock_stack)
 
 # AppSync (GraphQL API)
 appsync_stack = AppSyncStack(
@@ -52,5 +86,13 @@ appsync_stack = AppSyncStack(
 )
 appsync_stack.add_dependency(lambda_stack)
 appsync_stack.add_dependency(cognito_stack)
+
+# Frontend Hosting (S3 + CloudFront)
+frontend_stack = FrontendStack(
+    app, f"{project_name}-{env_name}-frontend",
+    env_name=env_name,
+    project_name=project_name,
+    env=aws_env,
+)
 
 app.synth()

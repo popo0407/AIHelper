@@ -45,11 +45,11 @@ gh pr create --body "Closes #123"
 
 ### 1.3 Issue リンクキーワード（自動クローズ）
 
-| キーワード | 用途 | 例 |
-| ---------- | ---- | -- |
-| `Closes` | バグ/機能の完了 | `Closes #123` |
-| `Fixes` | バグ修正 | `Fixes #456` |
-| `Resolves` | 問題解決 | `Resolves #789` |
+| キーワード   | 用途                       | 例                |
+| ------------ | -------------------------- | ----------------- |
+| `Closes`     | バグ/機能の完了            | `Closes #123`     |
+| `Fixes`      | バグ修正                   | `Fixes #456`      |
+| `Resolves`   | 問題解決                   | `Resolves #789`   |
 | `Related to` | 参照のみ（クローズしない） | `Related to #100` |
 
 ### 1.4 推奨ラベル
@@ -509,3 +509,95 @@ git push origin develop
 - [ ] CI が成功したか（全テスト合格）
 - [ ] コードレビュー指摘に対応したか
 - [ ] マージ前に develop ブランチが最新か確認した
+- [ ] 改善点・技術的負債の Issue 登録を確認した
+
+---
+
+## 11. GitHub Issue 登録スキル（改善点・技術的負債）
+
+### 11.1 Issue 登録が必要な改善点
+
+| 種類                 | 例                         | Label         | Priority     |
+| -------------------- | -------------------------- | ------------- | ------------ |
+| バグ                 | API呼び出しのタイムアウト  | `bug`         | high/medium  |
+| 機能                 | エラーハンドリング強化     | `feature`     | 将来の改善   |
+| 技術的負債           | 後方互換のための古いコード | `tech-debt`   | refactor対象 |
+| リファクタリング対象 | 関数が200行超              | `refactor`    | 保守性向上   |
+| 実装方法の見直し     | 別ライブラリで実装可能     | `enhancement` | 長期的改善   |
+
+### 11.2 Issue 登録手順（簡潔版）
+
+**基本的な使用方法：**
+
+```bash
+# GitHub CLI で Issue を作成（最も推奨）
+gh issue create \
+  --title "タイトル（20-40文字）" \
+  --body "## 概要\n...\n## ファイル\npath/to/file.py" \
+  --label "bug,priority/high"
+```
+
+**文字化け対策（重要）：**
+
+```bash
+# bash 環境（WSL/Linux）
+export LC_ALL=ja_JP.UTF-8
+export LANG=ja_JP.UTF-8
+
+# PowerShell 環境（Windows）
+gh issue create --title "日本語タイトル" # gh が UTF-8 を自動処理
+
+# 避ける: curl での直接 API 呼び出し（文字化けリスク）
+```
+
+### 11.3 Issue テンプレート（Markdown）
+
+```markdown
+## 概要
+
+〈簡潔に説明〉
+
+## ファイル・関数
+
+- ファイル: `path/to/file.py`
+- 関数: `functionName()`
+
+## 詳細
+
+〈問題の詳細説明〉
+
+## 提案される解決方法
+
+〈具体的な改善方法〉
+```
+
+### 11.4 AI エージェント向けフロー
+
+**タスク完了時に実行：**
+
+1. 発見した改善点をリスト化
+2. `gh issue create` で各改善点を Issue として登録
+3. Issue 番号を retrospective.md に記載
+4. PR の説明に Issue 参照を含める（例：`Related to #123`）
+
+**実行例：**
+
+```bash
+# 改善点を Issue 化
+gh issue create --title "Lambda タイムアウト対応" \
+  --body "## 概要\n関数が30秒でタイムアウト\n## ファイル\nbackend/functions/ai_support/index.py" \
+  --label "bug,priority/high"
+
+# retrospective.md に記載
+# 「以下の改善点を Issue 登録しました」
+# - #123: Lambda タイムアウト
+# - #124: コンポーネント型定義
+```
+
+### 11.5 タスク完了時のチェックリスト
+
+- [ ] 改善点を見つけたか？→ Issue 登録した
+- [ ] Issue タイトルは明確か？（20-40文字）
+- [ ] 日本語で文字化けしていないか？（`gh issue create` を使用）
+- [ ] ラベル・優先度は適切か？
+- [ ] retrospective.md に Issue 番号を記載した

@@ -16,6 +16,24 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
+def generate_short_id(length: int = 8) -> str:
+    """Generate a short random ID for conversations (more compact than UUID).
+    
+    Uses alphanumeric characters (a-z, 0-9) for URL-safe IDs.
+    8 chars = 36^8 = ~2.8 trillion combinations (sufficient for conversation IDs)
+    
+    Args:
+        length: Length of ID (default: 8)
+        
+    Returns:
+        Short random ID string
+    """
+    import random
+    import string
+    chars = string.ascii_lowercase + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
+
 def utc_now_iso() -> str:
     """Return current UTC time in ISO 8601 format."""
     return datetime.now(timezone.utc).isoformat()

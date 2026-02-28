@@ -59,6 +59,13 @@ ANSWER_PROMPT = """あなたはグループチャットのAIアシスタント�
 ユーザーの質問:
 {user_input}
 
+参照コンテキスト（背景理解のための情報）:
+{context}
+
+※ 上記コンテキストはあくまで背景を理解するための参照情報です。
+  特に[CANVAS]の内容は文脈把握のために提供しており、その内容に対するコメント・評価は不要です。
+  ユーザーの質問に対して直接回答することに集中してください。
+
 現在の会話要約:
 {current_summary}
 
@@ -103,6 +110,7 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
     action_type = inp.get("actionType", "")
     user_input = inp.get("userInput", "")
     selected_message_ids = inp.get("selectedMessageIds", [])
+    context_text = inp.get("context", "")
 
     # Validate required fields before try block (so validation errors aren't caught)
     if not conversation_id or not user_id or not action_type:
@@ -131,12 +139,12 @@ def handle_ask_ai_helper(args: dict) -> dict[str, Any]:
 
         # Build prompt based on action type
         prompt = _build_prompt(
-            action_type, current_summary, selected_messages_text, user_input
+            action_type, current_summary, selected_messages_text, user_input, context_text
         )
 
         # Generate response
         if config.use_mock_ai:
-            ai_response = _mock_response(action_type, current_summary, selected_messages_text, user_input)
+            ai_response = _mock_response(action_type, current_summary, selected_messages_text, user_input, context_text)
         else:
             client = get_bedrock_client(config.bedrock_region)
             ai_response = invoke_bedrock(client, config.bedrock_model_id, prompt)
@@ -194,6 +202,7 @@ def _build_prompt(
     current_summary: str,
     selected_messages: str,
     user_input: str,
+    context_text: str = "",
 ) -> str:
     """Build the Bedrock prompt based on action type."""
     templates = {
@@ -205,16 +214,17 @@ def _build_prompt(
 
     template = templates.get(action_type)
     if not template:
-        return f"Action: {action_type}\nSummary: {current_summary}\nMessages: {selected_messages}\nInput: {user_input}"
+        return f"Action: {action_type}\nSummary: {current_summary}\nMessages: {selected_messages}\nInput: {user_input}\nContext: {context_text}"
 
     return template.format(
         current_summary=current_summary,
         selected_messages=selected_messages or "(none)",
         user_input=user_input or "(none)",
+        context=context_text or "(none)",
     )
 
 
-def _mock_response(action_type: str, current_summary: str = "", selected_messages: str = "", user_input: str = "") -> str:
+def _mock_response(action_type: str, current_summary: str = "", selected_messages: str = "", user_input: str = "", context_text: str = "") -> str:
     """Generate a mock AI response for dev environment with debug info.
     
     Returns the prompt that would be sent to Bedrock for debugging Lambda data flow.
@@ -234,13 +244,16 @@ def _mock_response(action_type: str, current_summary: str = "", selected_message
 ### 【ユーザー入力】（answer/next_action で使用）
 {user_input if user_input else '(入力なし)'}
 
+### 【参照コンテキスト】（フロントエンドから送信された選択内容）
+{context_text if context_text else '(コンテキストなし)'}
+
 ---
 
 ## アクション別ガイド
 
 **summarize**: 選択メッセージの内容が表示される → データ取得 OK
 **opinion**: 選択メッセージ + 要約が表示される → データ取得 OK
-**answer**: ユーザー入力が表示される → ユーザー入力の受け取り OK
+**answer**: ユーザー入力 + コンテキストが表示される → ユーザー入力の受け取り OK
 **next_action**: 現在の要約が表示される → 要約取得 OK
 
 ---

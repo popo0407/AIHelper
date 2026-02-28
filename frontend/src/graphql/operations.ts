@@ -20,6 +20,15 @@ export const GET_CONVERSATION = /* GraphQL */ `
   }
 `;
 
+export const COMPLETE_KNOWLEDGEBASE_UPLOAD = /* GraphQL */ `
+  mutation CompleteKnowledgebaseUpload($input: CompleteKnowledgebaseUploadInput!) {
+    completeKnowledgebaseUpload(input: $input) {
+      success
+      error
+    }
+  }
+`;
+
 export const LIST_CONVERSATIONS = /* GraphQL */ `
   query ListConversations($loginId: ID!) {
     listConversations(loginId: $loginId) {
@@ -60,6 +69,8 @@ export const GET_SUMMARY = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
@@ -117,6 +128,33 @@ export const JOIN_CONVERSATION = /* GraphQL */ `
   }
 `;
 
+export const LEAVE_CONVERSATION = /* GraphQL */ `
+  mutation LeaveConversation($input: LeaveConversationInput!) {
+    leaveConversation(input: $input) {
+      success
+      conversationId
+      error
+    }
+  }
+`;
+
+export const UPDATE_LAST_MESSAGE_ID = /* GraphQL */ `
+  mutation UpdateLastMessageId($input: UpdateLastMessageIdInput!) {
+    updateLastMessageId(input: $input) {
+      success
+      userConversation {
+        loginId
+        conversationId
+        joinedAt
+        role
+        lastMessageId
+        lastUpdatedAt
+      }
+      error
+    }
+  }
+`;
+
 export const SEND_MESSAGE = /* GraphQL */ `
   mutation SendMessage($input: SendMessageInput!) {
     sendMessage(input: $input) {
@@ -140,6 +178,8 @@ export const UPDATE_SUMMARY = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
@@ -153,6 +193,8 @@ export const UNDO_SUMMARY = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
@@ -166,6 +208,53 @@ export const SAVE_SUMMARY_EDIT = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
+    }
+  }
+`;
+
+export const UPDATE_SUMMARY_PROMPT_TYPE = /* GraphQL */ `
+  mutation UpdateSummaryPromptType($input: UpdateSummaryPromptTypeInput!) {
+    updateSummaryPromptType(input: $input) {
+      conversationId
+      title
+      current
+      previous
+      updatedAt
+      updatedBy
+      selectedPromptType
+      customPromptText
+    }
+  }
+`;
+
+export const GET_PROMPT_TEMPLATE = /* GraphQL */ `
+  query GetPromptTemplate($promptType: String!) {
+    getPromptTemplate(promptType: $promptType) {
+      promptType
+      promptText
+      updatedAt
+    }
+  }
+`;
+
+export const LIST_PROMPT_TEMPLATES = /* GraphQL */ `
+  query ListPromptTemplates {
+    listPromptTemplates {
+      promptType
+      promptText
+      updatedAt
+    }
+  }
+`;
+
+export const UPDATE_PROMPT_TEMPLATE = /* GraphQL */ `
+  mutation UpdatePromptTemplate($input: UpdatePromptTemplateInput!) {
+    updatePromptTemplate(input: $input) {
+      promptType
+      promptText
+      updatedAt
     }
   }
 `;
@@ -231,9 +320,9 @@ export const ASK_AI_HELPER = /* GraphQL */ `
 export const LIST_KNOWLEDGE_SOURCES = /* GraphQL */ `
   query ListKnowledgeSources($conversationId: ID!) {
     listKnowledgeSources(conversationId: $conversationId) {
-      knowledgeSourceId
       conversationId
       fileName
+      originalFileName
       fileSize
       s3Key
       contentType
@@ -250,9 +339,9 @@ export const UPLOAD_KNOWLEDGEBASE = /* GraphQL */ `
     uploadKnowledgebase(input: $input) {
       success
       knowledgeSource {
-        knowledgeSourceId
         conversationId
         fileName
+        originalFileName
         fileSize
         s3Key
         contentType
@@ -271,7 +360,7 @@ export const DELETE_KNOWLEDGEBASE = /* GraphQL */ `
   mutation DeleteKnowledgebase($input: DeleteKnowledgebaseInput!) {
     deleteKnowledgebase(input: $input) {
       success
-      knowledgeSourceId
+      fileName
       error
     }
   }
@@ -284,6 +373,9 @@ export const SEARCH_KNOWLEDGEBASE = /* GraphQL */ `
       query
       answer
       sources
+      sourceDisplayNames
+      userMessageId
+      aiMessageId
     }
   }
 `;
@@ -315,6 +407,8 @@ export const ON_SUMMARY_UPDATE = /* GraphQL */ `
       previous
       updatedAt
       updatedBy
+      selectedPromptType
+      customPromptText
     }
   }
 `;
